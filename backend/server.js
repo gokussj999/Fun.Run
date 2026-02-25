@@ -1,4 +1,16 @@
-// backend/server.js (FULL FILE) — FAST FILE-DB + SAME API
+let STORE = null;
+async function getStore() {
+  if (STORE) return STORE;
+
+  try {
+    STORE = await readDB();
+    return STORE;
+  } catch (e) {
+    console.error("Store load error:", e.message);
+    return defaultStore(); // healthcheck fail na ho
+  }
+}
+// backend/server.js (FULL FILE) — FAST FILE-DB + SAME API (FIXED)
 
 import "dotenv/config";
 import express from "express";
@@ -63,7 +75,7 @@ const ALLOW_VERCEL_PREVIEWS =
   String(process.env.ALLOW_VERCEL_PREVIEWS || "1") === "1";
 
 function isAllowedOrigin(origin) {
-  if (!origin) return true;
+  if (!origin) return true; // curl / server-to-server
   if (CORS_ORIGINS.includes("*")) return true;
   if (CORS_ORIGINS.includes(origin)) return true;
 
@@ -92,7 +104,7 @@ app.use(
 app.options("*", cors());
 
 // -------------------- CONFIG --------------------
-const PORT = Number(process.env.PORT || 5000);
+const PORT = process.env.PORT || 5000;
 
 const DB_MODE_RAW = String(process.env.DB_MODE || "file").toLowerCase();
 const DB_MODE = DB_MODE_RAW === "local" ? "file" : DB_MODE_RAW;
@@ -110,7 +122,9 @@ const connection = new Connection(SOLANA_RPC, "confirmed");
 
 // Economics
 const STARTING_MC_USD = Number(process.env.STARTING_MC_USD || 6500);
-const TOTAL_SUPPLY_DEFAULT = Number(process.env.TOTAL_SUPPLY_DEFAULT || 1_000_000_000);
+const TOTAL_SUPPLY_DEFAULT = Number(
+  process.env.TOTAL_SUPPLY_DEFAULT || 1_000_000_000
+);
 const CREATOR_PERCENT = Number(process.env.CREATOR_PERCENT || 2);
 
 // Fee
@@ -230,9 +244,14 @@ function logPush(store, item) {
 function normalizeStore(store) {
   const merged = { ...defaultStore(), ...(store || {}) };
   merged.coins = Array.isArray(merged.coins) ? merged.coins.map(ensureCoin) : [];
-  merged.profiles = merged.profiles && typeof merged.profiles === "object" ? merged.profiles : {};
-  merged.referrals = merged.referrals && typeof merged.referrals === "object" ? merged.referrals : {};
-  merged.treasury = merged.treasury && typeof merged.treasury === "object" ? merged.treasury : defaultStore().treasury;
+  merged.profiles =
+    merged.profiles && typeof merged.profiles === "object" ? merged.profiles : {};
+  merged.referrals =
+    merged.referrals && typeof merged.referrals === "object" ? merged.referrals : {};
+  merged.treasury =
+    merged.treasury && typeof merged.treasury === "object"
+      ? merged.treasury
+      : defaultStore().treasury;
   merged.logs = Array.isArray(merged.logs) ? merged.logs : [];
   return merged;
 }
@@ -250,7 +269,8 @@ function creditCreatorReward(store, coin, amountSol) {
 
   const p = ensureProfile(store.profiles?.[creator], creator);
   p.rewards.totalSol = safeNum(p.rewards?.totalSol, 0) + amountSol;
-  p.rewards.byCoin = p.rewards.byCoin && typeof p.rewards.byCoin === "object" ? p.rewards.byCoin : {};
+  p.rewards.byCoin =
+    p.rewards.byCoin && typeof p.rewards.byCoin === "object" ? p.rewards.byCoin : {};
   p.rewards.byCoin[coin.id] = safeNum(p.rewards.byCoin[coin.id], 0) + amountSol;
   p.updatedAt = nowMs();
   store.profiles[creator] = p;
@@ -288,8 +308,9 @@ function findCoin(store, coinId) {
 }
 
 // -------------------- FAST FILE DB (CACHE + DEBOUNCED WRITE) --------------------
-let fileCache = null;          // in-memory store
+let fileCache = null; // in-memory store
 let fileLoaded = false;
+
 let writeTimer = null;
 let writeInFlight = false;
 let pendingWrite = false;
@@ -300,7 +321,7 @@ async function loadFileStoreOnce() {
   try {
     await fsp.access(FILE_DB_PATH, fs.constants.F_OK);
   } catch {
-    await fsp.writeFile(FILE_DB_PATH, JSON.stringify(defaultStore()));
+    await fsp.writeFile(FILE_DB_PATH, JSON.stringify(defaultStore()), "utf-8");
   }
 
   const raw = await fsp.readFile(FILE_DB_PATH, "utf-8");
@@ -311,26 +332,35 @@ async function loadFileStoreOnce() {
 }
 
 async function flushFileStoreNow() {
+  if (!fileCache) return;
+
   if (writeInFlight) {
     pendingWrite = true;
     return;
   }
+
   writeInFlight = true;
   pendingWrite = false;
 
-  const tmp = FILE_DB_PATH + ".tmp";
-  const data = JSON.stringify(fileCache); // no pretty print (FAST)
-  await fsp.writeFile(tmp, data, "utf-8");
-  await fsp.rename(tmp, FILE_DB_PATH);
+  try {
+    const tmp = FILE_DB_PATH + ".tmp";
+    const data = JSON.stringify(fileCache); // FAST (no pretty print)
+    await fsp.writeFile(tmp, data, "utf-8");
+    await fsp.rename(tmp, FILE_DB_PATH);
+  } finally {
+    writeInFlight = false;
+  }
 
-  writeInFlight = false;
   if (pendingWrite) {
+    pendingWrite = false;
     await flushFileStoreNow();
   }
 }
 
 function scheduleFileWrite() {
-  if (writeTimer) return;
+  const DEBOUNCE_MS = 1500; // stable (fast feel + low IO)
+  if (writeTimer) clearTimeout(writeTimer);
+
   writeTimer = setTimeout(async () => {
     writeTimer = null;
     try {
@@ -338,7 +368,7 @@ function scheduleFileWrite() {
     } catch (e) {
       console.error("File DB flush failed:", e?.message || e);
     }
-  }, 600); // debounce
+  }, DEBOUNCE_MS);
 }
 
 // -------------------- DB API --------------------
@@ -359,6 +389,7 @@ async function readDB() {
       const { error: upErr } = await supabase
         .from(SUPABASE_TABLE)
         .upsert({ id: "main", data: init }, { onConflict: "id" });
+
       if (upErr) throw new Error("Supabase init failed: " + upErr.message);
       return normalizeStore(init);
     }
@@ -387,18 +418,39 @@ async function writeDB(store) {
   scheduleFileWrite();
 }
 
-// -------------------- SOLANA HELPERS --------------------
+// -------------------- SOLANA HELPERS (FAST + SAFE) --------------------
+const balanceCache = new Map();
+const BALANCE_TTL = 30000; // 30 sec cache
+
 async function getSolBalance(wallet) {
   try {
     if (!wallet) return 0;
+
+    const cached = balanceCache.get(wallet);
+    if (cached && Date.now() - cached.t < BALANCE_TTL) {
+      return cached.v;
+    }
+
     const pub = new PublicKey(wallet);
-    const lamports = await connection.getBalance(pub);
-    return lamports / 1_000_000_000;
+
+    const lamports = await Promise.race([
+      connection.getBalance(pub),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("RPC timeout")), 6000)
+      ),
+    ]);
+
+    const sol = lamports / 1_000_000_000;
+
+    balanceCache.set(wallet, { v: sol, t: Date.now() });
+
+    return sol;
   } catch (err) {
-    console.log("Balance fetch failed, returning 0:", err.message);
+    console.log("Balance fetch failed:", err.message);
     return 0;
   }
 }
+  
 
 // -------------------- ROUTES --------------------
 app.get("/", (req, res) =>
@@ -407,7 +459,7 @@ app.get("/", (req, res) =>
 
 app.get("/api/coin/list", async (req, res) => {
   try {
-    const store = await readDB();
+    const store = await getStore();
     const coins = (store.coins || []).map(ensureCoin);
     coins.sort((a, b) => safeNum(b.createdAt) - safeNum(a.createdAt));
     res.json({ ok: true, coins });
@@ -420,13 +472,13 @@ app.get("/api/coin/list", async (req, res) => {
 app.get("/api/profile/:wallet", async (req, res) => {
   try {
     const wallet = String(req.params.wallet || "").trim();
-    const store = await readDB();
+    const store = await getStore();
     const p = ensureProfile(store.profiles?.[wallet], wallet);
 
     if (!p.referrer && store.referrals?.[wallet]) p.referrer = store.referrals[wallet];
 
     store.profiles[wallet] = p;
-    await writeDB(store); // in file mode: debounced
+    schedulePersist(); // in file mode: debounced
     res.json({ ok: true, profile: p });
   } catch (e) {
     console.error("profile error:", e);
@@ -455,7 +507,7 @@ app.post("/api/referral/set", async (req, res) => {
     if (!referrer || referrer.length < 20) return res.json({ ok: false, error: "referrer invalid" });
     if (wallet === referrer) return res.json({ ok: false, error: "self referral not allowed" });
 
-    const store = await readDB();
+    const store = await getStore();
     store.referrals = store.referrals && typeof store.referrals === "object" ? store.referrals : {};
 
     if (store.referrals[wallet]) {
@@ -470,7 +522,7 @@ app.post("/api/referral/set", async (req, res) => {
     store.profiles[wallet] = p;
 
     logPush(store, { type: "referral_set", wallet, referrer });
-    await writeDB(store);
+    schedulePersist();
 
     res.json({ ok: true });
   } catch (e) {
@@ -493,7 +545,7 @@ app.post("/api/coin/create", async (req, res) => {
       return res.json({ ok: false, error: "name/symbol/creatorWallet required" });
     }
 
-    const store = await readDB();
+    const store = await getStore();
     ensureTreasury(store);
 
     const status = initialSol >= 0.01 ? "LIVE" : "DRAFT";
@@ -564,7 +616,7 @@ app.post("/api/coin/create", async (req, res) => {
     store.profiles[creatorWallet] = p;
 
     logPush(store, { type: "coin_create", coinId: coin.id, creatorWallet, status, initialSol });
-    await writeDB(store);
+    schedulePersist();
 
     res.json({ ok: true, coin });
   } catch (e) {
@@ -588,7 +640,7 @@ async function handleTrade(req, res, forcedSide) {
       return res.json({ ok: false, error: "side must be buy or sell" });
     }
 
-    const store = await readDB();
+    const store = await getStore();
     ensureTreasury(store);
 
     const coin = findCoin(store, coinId);
@@ -680,7 +732,7 @@ async function handleTrade(req, res, forcedSide) {
     p.updatedAt = nowMs();
     store.profiles[wallet] = p;
 
-    await writeDB(store);
+    schedulePersist();
 
     res.json({ ok: true, coin: ensureCoin(coin), profile: store.profiles[wallet] });
   } catch (e) {
@@ -694,6 +746,7 @@ app.post("/api/coin/sell", (req, res) => handleTrade(req, res, "sell"));
 app.post("/api/trade", (req, res) => handleTrade(req, res, null));
 app.get("/api/coin/buy", (req, res) => res.json({ ok: true, note: "BUY route is LIVE. Use POST." }));
 app.get("/api/coin/sell", (req, res) => res.json({ ok: true, note: "SELL route is LIVE. Use POST." }));
+
 // -------------------- WITHDRAW (demo accounting) --------------------
 async function handleWithdraw(req, res, mode) {
   try {
@@ -704,7 +757,7 @@ async function handleWithdraw(req, res, mode) {
     if (!wallet) return res.json({ ok: false, error: "wallet required" });
     if (!to) return res.json({ ok: false, error: "to required" });
 
-    const store = await readDB();
+    const store = await getStore();
     const p = ensureProfile(store.profiles?.[wallet], wallet);
 
     let withdrawn = 0;
@@ -724,7 +777,7 @@ async function handleWithdraw(req, res, mode) {
     store.profiles[wallet] = p;
 
     logPush(store, { type: "withdraw", wallet, to, kind, sol: withdrawn });
-    await writeDB(store);
+    schedulePersist();
 
     res.json({ ok: true, to, kind, sol: withdrawn });
   } catch (e) {
@@ -741,11 +794,15 @@ app.post("/api/transfer", (req, res) => handleWithdraw(req, res, "MANUAL"));
 app.post("/api/payout", (req, res) => handleWithdraw(req, res, "MANUAL"));
 
 // -------------------- START --------------------
-app.listen(PORT, "0.0.0.0", () => {
-  console.log(`✅ Backend running on port: ${PORT}`);
-  console.log(`✅ Solana RPC: ${SOLANA_RPC}`);
-  console.log(`✅ DB MODE: ${DB_MODE}`);
-  console.log(`✅ CORS_ORIGINS: ${CORS_ORIGINS.join(", ")}`);
-  console.log(`✅ JSON_LIMIT: ${JSON_LIMIT}`);
-  console.log(`✅ Fee: ${FEE_PCT}%`);
+app.listen(PORT, "0.0.0.0", async () => {
+  try {
+    STORE = await readDB();
+    console.log("✅ Store loaded into memory");
+  } catch (e) {
+    console.error("❌ Failed to load store:", e.message);
+  }
+
+  console.log(`🚀 Backend running on port: ${PORT}`);
+  console.log(`🔗 Solana RPC: ${SOLANA_RPC}`);
+  console.log(`🗄 DB MODE: ${DB_MODE}`);
 });

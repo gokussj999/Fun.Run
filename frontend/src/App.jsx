@@ -2,8 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import { useExportWallet } from "@privy-io/react-auth/solana";
 
-const API_BASE =
-  (import.meta?.env?.VITE_API_BASE || "http://localhost:5000").trim();
+const API_BASE = "https://zooming-solace-production-c360.up.railway.app";
 
 const MAX_LOGO_BYTES = 5 * 1024 * 1024;
 const STARTING_MC_USD = 6500;
@@ -26,7 +25,6 @@ function ThemeStyles() {
       [data-theme="ocean"]{ --bg:#061019; --card:#07192A; --card2:#061424; --primary:#6AD7FF; --accent2:#74F7B2; }
       [data-theme="rose"]{ --bg:#14070B; --card:#1B0B12; --card2:#170810; --primary:#FF86B1; --accent2:#FFB55C; }
       [data-theme="royal"]{ --bg:#070718; --card:#0B0B25; --card2:#09091D; --primary:#A0B4FF; --accent2:#74F7B2; }
-      [data-theme="sunset"]{ --bg:#120A06; --card:#1B110A; --card2:#140D08; --primary:#FFB55C; --accent2:#FF86B1; }
       [data-theme="lightgreen"]{ --bg:#07110B; --card:#0A1A12; --card2:#08150F; --primary:#9BFFB9; --accent2:#6AD7FF; }
 
       *{ box-sizing:border-box; }
@@ -321,10 +319,11 @@ function GhostButton({ children, onClick, disabled }) {
         padding: 12,
         borderRadius: 16,
         border: "1px solid var(--border)",
-        background: "transparent",
+        background: "rgba(255,255,255,.02)",
         color: "var(--text)",
         cursor: disabled ? "not-allowed" : "pointer",
         opacity: disabled ? 0.6 : 1,
+        fontWeight: 900,
       }}
     >
       {children}
@@ -348,8 +347,9 @@ function MiniBtn({ children, onClick, disabled, tone = "normal", style }) {
       style={{
         padding: "10px 12px",
         borderRadius: 14,
-        border: "1px solid var(--border)",
-        background: "rgba(255,255,255,.03)",
+        border: "1px solid rgba(255,255,255,.18)",
+        background:
+          "linear-gradient(180deg, rgba(255,255,255,.10), rgba(0,0,0,.10))",
         color: "var(--text)",
         cursor: disabled ? "not-allowed" : "pointer",
         opacity: disabled ? 0.6 : 1,
@@ -361,9 +361,7 @@ function MiniBtn({ children, onClick, disabled, tone = "normal", style }) {
       {children}
     </button>
   );
-}
-
-function Modal({
+}function Modal({
   open,
   title,
   children,
@@ -637,9 +635,7 @@ function Pager({ pages, pageIndex, setPageIndex }) {
               borderRadius: 999,
               border: "none",
               background:
-                i === pageIndex
-                  ? "var(--primary)"
-                  : "rgba(255,255,255,.14)",
+                i === pageIndex ? "var(--primary)" : "rgba(255,255,255,.14)",
               cursor: "pointer",
               transition: "all .15s ease",
             }}
@@ -718,7 +714,7 @@ function fmtTime(t) {
 }
 function shortWallet(w) {
   const s = String(w || "");
-  if (s.length <= 10) return s;
+  if (s.length <= 12) return s;
   return `${s.slice(0, 4)}…${s.slice(-4)}`;
 }
 function fmtUsd(n) {
@@ -773,44 +769,20 @@ function CoinLogo({ c, size = 46 }) {
   );
 }
 
-function CoinRow({ c, onClick, right }) {
+function SectionHeader({ title, right }) {
   return (
-    <button
-      onClick={onClick}
+    <div
       style={{
-        textAlign: "left",
-        padding: 12,
-        borderRadius: 18,
-        border: "1px solid var(--border)",
-        background:
-          "linear-gradient(180deg, rgba(255,255,255,.03), rgba(0,0,0,.14)), var(--card2)",
-        color: "var(--text)",
-        cursor: "pointer",
-        width: "100%",
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "baseline",
+        gap: 10,
+        marginBottom: 10,
       }}
     >
-      <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-        <CoinLogo c={c} />
-        <div style={{ flex: 1 }}>
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              gap: 10,
-              alignItems: "center",
-            }}
-          >
-            <div style={{ fontWeight: 950 }}>
-              {c.name} <span style={{ color: "var(--muted)" }}>({c.symbol})</span>
-            </div>
-            {right || <Pill>{c.status}</Pill>}
-          </div>
-          <div style={{ marginTop: 6, color: "var(--muted)", fontSize: 12 }}>
-            Tap to open market
-          </div>
-        </div>
-      </div>
-    </button>
+      <div style={{ fontWeight: 950 }}>{title}</div>
+      {right}
+    </div>
   );
 }
 
@@ -847,8 +819,7 @@ function CoinMiniCard({ c, subtitle, tag, accent = "var(--primary)", onOpen }) {
           <CoinLogo c={c} size={42} />
           <div style={{ flex: 1 }}>
             <div style={{ fontWeight: 950, lineHeight: 1.15 }}>
-              {c.name.length > 14 ? c.name.slice(0, 14) + "…" : c.name}{" "}
-              <span style={{ color: "var(--muted)" }}>({c.symbol})</span>
+              {c.symbol || "—"}
             </div>
             <div style={{ marginTop: 4, color: "var(--muted)", fontSize: 12 }}>
               {subtitle}
@@ -857,7 +828,12 @@ function CoinMiniCard({ c, subtitle, tag, accent = "var(--primary)", onOpen }) {
         </div>
 
         <div
-          style={{ marginTop: 10, display: "flex", gap: 10, flexWrap: "wrap" }}
+          style={{
+            marginTop: 10,
+            display: "flex",
+            gap: 10,
+            flexWrap: "wrap",
+          }}
         >
           <Pill tone={pos ? "good" : "danger"}>
             {pos ? "↑" : "↓"} {Math.abs(p).toFixed(1)}%
@@ -865,6 +841,44 @@ function CoinMiniCard({ c, subtitle, tag, accent = "var(--primary)", onOpen }) {
           <Pill>MC: {fmtUsd(c.mc || 0)}</Pill>
           <Pill>VOL: {Number(c.volumeSol || 0).toFixed(2)} SOL</Pill>
           {tag ? <Pill tone="warn">{tag}</Pill> : null}
+        </div>
+      </div>
+    </button>
+  );
+}function CoinRow({ c, onClick, right }) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        textAlign: "left",
+        padding: 12,
+        borderRadius: 18,
+        border: "1px solid var(--border)",
+        background:
+          "linear-gradient(180deg, rgba(255,255,255,.03), rgba(0,0,0,.14)), var(--card2)",
+        color: "var(--text)",
+        cursor: "pointer",
+        width: "100%",
+      }}
+    >
+      <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+        <CoinLogo c={c} />
+        <div style={{ flex: 1 }}>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              gap: 10,
+              alignItems: "center",
+            }}
+          >
+            <div style={{ fontWeight: 950 }}>{c.symbol || "—"}</div>
+            {right || <Pill>{c.status}</Pill>}
+          </div>
+          <div style={{ marginTop: 6, color: "var(--muted)", fontSize: 12 }}>
+            MC: {fmtUsd(c.mc || 0)} • VOL: {Number(c.volumeSol || 0).toFixed(2)}{" "}
+            SOL
+          </div>
         </div>
       </div>
     </button>
@@ -878,6 +892,7 @@ function PriceChart({ points, txMarkers, mode, onToggleMode }) {
 
   const safePoints =
     Array.isArray(points) && points.length ? points : [0, 0, 0, 0, 0];
+
   const min = Math.min(...safePoints);
   const max = Math.max(...safePoints);
   const span = Math.max(1, max - min);
@@ -886,8 +901,17 @@ function PriceChart({ points, txMarkers, mode, onToggleMode }) {
   const border = mode === "dark" ? "rgba(255,255,255,.10)" : "rgba(0,0,0,.10)";
   const text = mode === "dark" ? "rgba(255,255,255,.75)" : "rgba(0,0,0,.65)";
 
+  const last = safePoints[safePoints.length - 1] ?? 0;
+  const prev = safePoints[safePoints.length - 2] ?? last;
+  const isUp = last >= prev;
+
+  const stroke = "#16C784";
+  const glow = "rgba(22,199,132,.55)";
+  const areaTop = "rgba(22,199,132,.22)";
+
   const xFor = (i) =>
     PAD + (i * (W - PAD * 2)) / Math.max(1, safePoints.length - 1);
+
   const yFor = (v) => {
     const t = (Number(v) - min) / span;
     return PAD + (1 - t) * (H - PAD * 2);
@@ -900,18 +924,27 @@ function PriceChart({ points, txMarkers, mode, onToggleMode }) {
     d += i === 0 ? `M ${x} ${y}` : ` L ${x} ${y}`;
   });
 
-  const dots = Array.isArray(txMarkers) ? txMarkers.slice(0, 20) : [];
+  const area =
+    d +
+    ` L ${xFor(safePoints.length - 1)} ${H - PAD} L ${xFor(0)} ${
+      H - PAD
+    } Z`;
+
+  const dots = Array.isArray(txMarkers) ? txMarkers.slice(0, 30) : [];
   const dotItems = dots.map((t, idx) => {
     const i = Math.max(0, safePoints.length - 1 - idx * 2);
     const x = xFor(i);
     const y = yFor(safePoints[i]);
     const side = String(t.side || "").toUpperCase();
     const fill = side === "SELL" ? "#FF4D4D" : "#16C784";
-    return { x, y, fill, id: t.id || `${idx}` };
+    const shadow = side === "SELL" ? "rgba(255,77,77,.45)" : "rgba(22,199,132,.45)";
+    return { x, y, fill, shadow, id: t.id || `${idx}` };
   });
 
-  const lastV = safePoints[safePoints.length - 1];
-  const label = Number(lastV || 0) ? fmtUsd(lastV) : "—";
+  const label = Number(last || 0) ? fmtUsd(last) : "—";
+
+  const gid = `areaFill_${mode}_${isUp ? "up" : "down"}`;
+  const fid = `glow_${mode}_${isUp ? "up" : "down"}`;
 
   return (
     <div
@@ -946,13 +979,9 @@ function PriceChart({ points, txMarkers, mode, onToggleMode }) {
             borderRadius: 999,
             border: `1px solid ${border}`,
             background:
-              mode === "dark"
-                ? "rgba(255,255,255,.06)"
-                : "rgba(0,0,0,.04)",
+              mode === "dark" ? "rgba(255,255,255,.06)" : "rgba(0,0,0,.04)",
             color:
-              mode === "dark"
-                ? "rgba(255,255,255,.85)"
-                : "rgba(0,0,0,.75)",
+              mode === "dark" ? "rgba(255,255,255,.85)" : "rgba(0,0,0,.75)",
             cursor: "pointer",
             fontWeight: 900,
             fontSize: 12,
@@ -969,30 +998,55 @@ function PriceChart({ points, txMarkers, mode, onToggleMode }) {
         height="340"
         style={{ display: "block" }}
       >
+        <defs>
+          <linearGradient id={gid} x1="0" x2="0" y1="0" y2="1">
+            <stop offset="0%" stopColor={areaTop} />
+            <stop offset="100%" stopColor="rgba(0,0,0,0)" />
+          </linearGradient>
+
+          <filter id={fid} x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur stdDeviation="6" result="blur" />
+            <feMerge>
+              <feMergeNode in="blur" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+        </defs>
+
+        <path d={area} fill={`url(#${gid})`} />
+
         <path
           d={d}
           fill="none"
-          stroke={mode === "dark" ? "rgba(255,255,255,.35)" : "rgba(0,0,0,.30)"}
-          strokeWidth="2"
+          stroke={glow}
+          strokeWidth="7"
+          strokeLinejoin="round"
+          strokeLinecap="round"
+          filter={`url(#${fid})`}
+          opacity="0.9"
+        />
+
+        <path
+          d={d}
+          fill="none"
+          stroke={stroke}
+          strokeWidth="2.6"
           strokeLinejoin="round"
           strokeLinecap="round"
         />
+
         {dotItems.map((p) => (
-          <circle
-            key={p.id}
-            cx={p.x}
-            cy={p.y}
-            r="6"
-            fill={p.fill}
-            opacity="0.95"
-          />
+          <g key={p.id}>
+            <circle cx={p.x} cy={p.y} r="9" fill={p.shadow} opacity="0.55" />
+            <circle cx={p.x} cy={p.y} r="6" fill={p.fill} opacity="0.95" />
+          </g>
         ))}
       </svg>
     </div>
   );
 }
 
-function ThemeOption({ theme, current, setTheme, label, badge }) {
+function ThemeOption({ theme, current, setTheme, label }) {
   const active = current === theme;
   return (
     <button
@@ -1011,42 +1065,9 @@ function ThemeOption({ theme, current, setTheme, label, badge }) {
         fontWeight: 900,
       }}
     >
-      <span style={{ display: "inline-flex", gap: 10, alignItems: "center" }}>
-        <span>{label}</span>
-        {badge ? <Pill tone="warn">{badge}</Pill> : null}
-      </span>
-      <span style={{ color: "var(--muted)" }}>
-        {active ? "Selected" : "Tap"}
-      </span>
+      <span>{label}</span>
+      <span style={{ color: "var(--muted)" }}>{active ? "Selected" : "Tap"}</span>
     </button>
-  );
-}
-
-function Tabs({ value, onChange, items }) {
-  return (
-    <div className="hScroll" style={{ display: "flex", gap: 10, paddingBottom: 2 }}>
-      {items.map((it) => {
-        const active = value === it.value;
-        return (
-          <button
-            key={it.value}
-            onClick={() => onChange(it.value)}
-            style={{
-              padding: "10px 12px",
-              borderRadius: 999,
-              border: active ? "2px solid var(--primary)" : "1px solid var(--border)",
-              background: "rgba(255,255,255,.03)",
-              color: active ? "var(--text)" : "var(--muted)",
-              cursor: "pointer",
-              fontWeight: 950,
-              whiteSpace: "nowrap",
-            }}
-          >
-            {it.label}
-          </button>
-        );
-      })}
-    </div>
   );
 }
 
@@ -1100,32 +1121,15 @@ function NetLogo({ chain }) {
       />
     </svg>
   );
-}
-
-function SectionHeader({ title, right }) {
-  return (
-    <div
-      style={{
-        display: "flex",
-        justifyContent: "space-between",
-        alignItems: "baseline",
-        gap: 10,
-        marginBottom: 10,
-      }}
-    >
-      <div style={{ fontWeight: 950 }}>{title}</div>
-      {right}
-    </div>
-  );
-}
-
-export default function App() {
+}export default function App() {
   const { login, authenticated, user, ready, logout, connectOrCreateWallet } =
     usePrivy();
   const { exportWallet } = useExportWallet();
 
   const [toast, setToast] = useState("");
-  const [theme, setTheme] = useState(localStorage.getItem(LS_THEME) || "neon");
+  const [theme, setTheme] = useState(
+    localStorage.getItem(LS_THEME) || "neon"
+  );
   const [screen, setScreen] = useState("HOME");
   const [selectedCoinId, setSelectedCoinId] = useState(null);
   const [homePage, setHomePage] = useState(0);
@@ -1159,7 +1163,6 @@ export default function App() {
   const [dwOpen, setDwOpen] = useState(false);
   const [dwMode, setDwMode] = useState("DEPOSIT"); // DEPOSIT | WITHDRAW
   const [withdrawTo, setWithdrawTo] = useState("");
-
   const [oneClickW, setOneClickW] = useState("");
 
   function showToast(msg) {
@@ -1190,66 +1193,31 @@ export default function App() {
     }
   }
 
-  async function openDeposit() {
-    if (!solAddr) return showToast("Wallet not ready");
-    setDwMode("DEPOSIT");
-    setDwOpen(true);
-    await copyText(solAddr);
+  async function refreshBalance(addr = solAddr) {
+    if (!addr) return;
+    const address =
+      typeof addr === "string"
+        ? addr
+        : addr?.address || addr?.publicKey?.toBase58?.() || addr?.publicKey || "";
+    if (!address) return;
+
+    setLoadingBal(true);
+    try {
+      const data = await apiGet(`/api/balance/${encodeURIComponent(address)}`);
+      const sol =
+        Number.isFinite(Number(data?.sol))
+          ? Number(data.sol)
+          : Number.isFinite(Number(data?.balance))
+          ? Number(data.balance)
+          : Number.isFinite(Number(data?.lamports))
+          ? Number(data.lamports) / 1_000_000_000
+          : 0;
+      setBalance(sol.toFixed(4));
+    } catch {
+      setBalance("—");
+    }
+    setLoadingBal(false);
   }
-
-  async function openWithdraw() {
-    if (!solAddr) return showToast("Wallet not ready");
-    setDwMode("WITHDRAW");
-    setWithdrawTo("");
-    setDwOpen(true);
-  }
-
- async function refreshBalance(addr = solAddr) {
-  if (!addr) return;
-
-  // ✅ ensure string address
-  const address =
-    typeof addr === "string"
-      ? addr
-      : addr?.address ||
-        addr?.publicKey?.toBase58?.() ||
-        addr?.publicKey ||
-        "";
-
-  if (!address) return;
-
-  setLoadingBal(true);
-
-  try {
-    const data = await apiGet(
-      `/api/balance/${encodeURIComponent(address)}`
-    );
-
-    const sol =
-      Number.isFinite(Number(data?.sol))
-        ? Number(data.sol)
-        : Number.isFinite(Number(data?.balance))
-        ? Number(data.balance)
-        : Number.isFinite(Number(data?.lamports))
-        ? Number(data.lamports) / 1_000_000_000
-        : 0;
-
-    setBalance(sol.toFixed(4));
-  } catch {
-    setBalance("—");
-  }
-
-  setLoadingBal(false);
-}
-
-
-  useEffect(() => {
-    if (!authenticated || !solAddr) return;
-    refreshBalance();
-    const t = setInterval(() => refreshBalance(), 20000);
-    return () => clearInterval(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authenticated, solAddr]);
 
   async function loadCoins() {
     setLoadingCoins(true);
@@ -1259,6 +1227,25 @@ export default function App() {
     } catch {}
     setLoadingCoins(false);
   }
+
+  async function loadProfile() {
+    if (!solAddr) return;
+    setLoadingProfile(true);
+    try {
+      const j = await apiGet(`/api/profile/${solAddr}`);
+      if (j?.ok) setProfile(j.profile || null);
+    } catch {}
+    setLoadingProfile(false);
+  }
+
+  useEffect(() => {
+    if (!authenticated || !solAddr) return;
+    refreshBalance();
+    loadProfile();
+    const t = setInterval(() => refreshBalance(), 20000);
+    return () => clearInterval(t);
+  }, [authenticated, solAddr]);
+
   useEffect(() => {
     loadCoins();
   }, []);
@@ -1266,9 +1253,8 @@ export default function App() {
   useEffect(() => {
     if (!authenticated) return;
     if (!(screen === "HOME" || screen === "LATEST")) return;
-    const t = setInterval(() => loadCoins(), 5000);
+    const t = setInterval(() => loadCoins(), 8000);
     return () => clearInterval(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [screen, authenticated]);
 
   const coinsSorted = useMemo(() => {
@@ -1326,7 +1312,6 @@ export default function App() {
   const storyOk = isValidStory(story);
   const nSol = Number(initialSol);
   const paidOk = Number.isFinite(nSol) && (nSol === 0 || nSol >= 0.01);
-  const isFree = Number.isFinite(nSol) && nSol <= 0;
 
   const logoOk = !!logoPreview && !logoError;
   const canCreate = nameOk && symOk && storyOk && paidOk && logoOk;
@@ -1344,6 +1329,7 @@ export default function App() {
       reader.readAsDataURL(file);
     });
   }
+
   async function onPickLogo(file) {
     setLogoError("");
     setLogoPreview("");
@@ -1404,26 +1390,10 @@ export default function App() {
       else setRefStatus("invalid");
     } catch {}
   }
+
   useEffect(() => {
     if (!authenticated || !solAddr) return;
     trySetReferral();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authenticated, solAddr]);
-
-  async function loadProfile() {
-    if (!solAddr) return;
-    setLoadingProfile(true);
-    try {
-      const j = await apiGet(`/api/profile/${solAddr}`);
-      if (j?.ok) setProfile(j.profile || null);
-    } catch {}
-    setLoadingProfile(false);
-  }
-
-  useEffect(() => {
-    if (!authenticated || !solAddr) return;
-    loadProfile();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authenticated, solAddr]);
 
   const myHoldingsList = useMemo(() => {
@@ -1446,9 +1416,11 @@ export default function App() {
     return Number.isFinite(d) && d > 0 ? d : 0;
   }, [profile]);
 
-  const myCoins = useMemo(() => {
+  const myCreations = useMemo(() => {
     if (!solAddr) return [];
-    return coinsSorted.filter((c) => (c.creatorWallet || c.owner) === solAddr);
+    return coinsSorted.filter(
+      (c) => String(c.creatorWallet || c.owner || "") === String(solAddr)
+    );
   }, [coinsSorted, solAddr]);
 
   async function doTrade(coin, side, solAmount) {
@@ -1456,27 +1428,29 @@ export default function App() {
     if (!solAddr) return showToast("Wallet not ready");
     if (!Number.isFinite(s) || s <= 0) return showToast("Amount invalid");
 
+    const SIDE = String(side || "").toUpperCase();
+    const endpoint = SIDE === "BUY" ? "/api/coin/buy" : "/api/coin/sell";
+
     setTradeLoading(true);
     try {
-      const res = await apiPost("/api/trade", {
+      const res = await apiPost(endpoint, {
         wallet: solAddr,
         coinId: coin.id,
-        side,
         sol: s,
       });
 
       if (!res?.ok) {
-        if (res?.maxSol != null) {
-          showToast(`${res?.error || "Trade blocked"} (max ${res.maxSol} SOL)`);
-        } else {
-          showToast(res?.error || "Trade failed");
-        }
-      } else {
-        const updated = ensureCoinShape(res.coin);
-        setCoins((prev) => prev.map((x) => (x.id === updated.id ? updated : x)));
-        await loadProfile();
-        showToast(`${side} ${s} ✅`);
+        showToast(res?.error || "Trade failed");
+        return;
       }
+
+      if (res.coin) {
+        const updated = ensureCoinShape(res.coin);
+        setCoins((prev) => (prev || []).map((x) => (x.id === updated.id ? updated : x)));
+      }
+
+      await loadProfile();
+      showToast(`${SIDE} ${s} ✅`);
     } catch {
       showToast("Trade failed");
     }
@@ -1504,6 +1478,20 @@ export default function App() {
     setOneClickW("");
   }
 
+  function openDeposit() {
+    if (!solAddr) return showToast("Wallet not ready");
+    setDwMode("DEPOSIT");
+    setDwOpen(true);
+    copyText(solAddr);
+  }
+
+  function openWithdraw() {
+    if (!solAddr) return showToast("Wallet not ready");
+    setDwMode("WITHDRAW");
+    setWithdrawTo("");
+    setDwOpen(true);
+  }
+
   let content = null;
 
   if (!ready) {
@@ -1525,20 +1513,50 @@ export default function App() {
       const page1 = (
         <div>
           <Title
-            sub="Discovery auto-refresh every 5 seconds"
+            sub={null}
             right={
-              <MiniBtn onClick={loadCoins} disabled={loadingCoins}>
-                {loadingCoins ? "…" : "Reload"}
+              <MiniBtn onClick={() => setScreen("PROFILE")}>
+                Profile
               </MiniBtn>
             }
           >
-            Market
+            Home
           </Title>
 
-          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 12 }}>
-            <Pill>Balance: {balance} SOL</Pill>
-            <Pill tone="warn">Deposit in Profile</Pill>
-          </div>
+          <Card>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                gap: 10,
+                alignItems: "center",
+              }}
+            >
+              <div>
+                <div style={{ color: "var(--muted)", fontSize: 12 }}>Wallet</div>
+                <div style={{ fontWeight: 950 }}>{shortWallet(solAddr)}</div>
+              </div>
+              <div style={{ textAlign: "right" }}>
+                <div style={{ color: "var(--muted)", fontSize: 12 }}>Balance</div>
+                <div style={{ fontWeight: 950 }}>{balance} SOL</div>
+              </div>
+            </div>
+
+            <div style={{ height: 10 }} />
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+              <MiniBtn onClick={() => solAddr && copyText(solAddr)} disabled={!solAddr}>
+                Copy Address
+              </MiniBtn>
+              <MiniBtn onClick={loadCoins} disabled={loadingCoins}>
+                {loadingCoins ? "…" : "Refresh Coins"}
+              </MiniBtn>
+              <MiniBtn onClick={loadProfile} disabled={loadingProfile}>
+                {loadingProfile ? "…" : "Refresh Profile"}
+              </MiniBtn>
+            </div>
+          </Card>
+
+          <div style={{ height: 12 }} />
 
           <Card>
             <SectionHeader title="Top movers" right={<Pill tone="good">LIVE</Pill>} />
@@ -1564,13 +1582,13 @@ export default function App() {
           <Card>
             <SectionHeader title="Moon shooter" right={<Pill tone="warn">+15% 🚀</Pill>} />
             <div className="hScroll" style={{ display: "flex", gap: 10, paddingBottom: 4 }}>
-              {moonshots.slice(0, 10).map((c, i) => (
+              {moonshots.slice(0, 10).map((c) => (
                 <CoinMiniCard
                   key={c.id}
                   c={c}
                   subtitle={`Moon • ${fmtUsd(c.mc || 0)}`}
                   tag="MOON"
-                  accent={i % 2 === 0 ? "var(--warn)" : "var(--accent2)"}
+                  accent="var(--warn)"
                   onOpen={() => {
                     setSelectedCoinId(c.id);
                     setScreen("COIN");
@@ -1585,13 +1603,13 @@ export default function App() {
           <Card>
             <SectionHeader title="Top volume" right={<Pill tone="warn">Hot</Pill>} />
             <div className="hScroll" style={{ display: "flex", gap: 10, paddingBottom: 4 }}>
-              {topVolume.slice(0, 10).map((c, i) => (
+              {topVolume.slice(0, 10).map((c) => (
                 <CoinMiniCard
                   key={c.id}
                   c={c}
                   subtitle={`Volume • ${Number(c.volumeSol || 0).toFixed(2)} SOL`}
                   tag="VOL"
-                  accent={i % 3 === 0 ? "var(--warn)" : "var(--primary)"}
+                  accent="var(--primary)"
                   onOpen={() => {
                     setSelectedCoinId(c.id);
                     setScreen("COIN");
@@ -1605,43 +1623,17 @@ export default function App() {
 
       const page2 = (
         <div>
-          <Title
-            sub="Quick actions + discovery shortcuts"
-            right={<MiniBtn onClick={() => setScreen("LATEST")}>Open Latest</MiniBtn>}
-          >
+          <Title sub={null} right={<MiniBtn onClick={() => setScreen("LATEST")}>Open Latest</MiniBtn>}>
             Highlights
           </Title>
 
           <Card>
             <SectionHeader title="Quick actions" />
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-              <MiniBtn tone="good" onClick={() => setScreen("CREATE")}>
-                ✦ Create coin
-              </MiniBtn>
+              <MiniBtn tone="good" onClick={() => setScreen("CREATE")}>✦ Create coin</MiniBtn>
               <MiniBtn onClick={() => setScreen("SEARCH")}>⌕ Search</MiniBtn>
               <MiniBtn onClick={() => setScreen("PROFILE")}>👤 Profile</MiniBtn>
               <MiniBtn onClick={() => setScreen("SETTINGS")}>⚙ Settings</MiniBtn>
-            </div>
-          </Card>
-
-          <div style={{ height: 12 }} />
-
-          <Card>
-            <SectionHeader title="Top movers (shortcut)" right={<Pill>10</Pill>} />
-            <div className="hScroll" style={{ display: "flex", gap: 10, paddingBottom: 4 }}>
-              {movers.slice(0, 10).map((c, i) => (
-                <CoinMiniCard
-                  key={c.id}
-                  c={c}
-                  subtitle="Top mover"
-                  tag="MOVE"
-                  accent={i % 2 === 0 ? "var(--primary)" : "var(--accent2)"}
-                  onOpen={() => {
-                    setSelectedCoinId(c.id);
-                    setScreen("COIN");
-                  }}
-                />
-              ))}
             </div>
           </Card>
         </div>
@@ -1652,12 +1644,10 @@ export default function App() {
           <Pager pages={[page1, page2]} pageIndex={homePage} setPageIndex={setHomePage} />
         </ScreenShell>
       );
-    }
-
-    if (screen === "SEARCH") {
+    }    if (screen === "SEARCH") {
       content = (
         <ScreenShell>
-          <Title sub="Search + top volume">Search</Title>
+          <Title sub={null}>Search</Title>
 
           <Input
             label="Search for a coin"
@@ -1672,7 +1662,7 @@ export default function App() {
               title={searchQ.trim() ? `Results (${searchResults.length})` : "Top volume"}
               right={<Pill tone="good">Live</Pill>}
             />
-            <div className="miniScroll" style={{ maxHeight: 360, paddingRight: 6, display: "grid", gap: 10 }}>
+            <div className="miniScroll" style={{ maxHeight: 420, paddingRight: 6, display: "grid", gap: 10 }}>
               {(searchQ.trim() ? searchResults : topVolume.slice(0, 20)).map((c) => (
                 <CoinRow
                   key={c.id}
@@ -1696,10 +1686,10 @@ export default function App() {
       content = (
         <ScreenShell>
           <Title
-            sub="Discovery screen"
+            sub={null}
             right={
               <MiniBtn onClick={loadCoins} disabled={loadingCoins}>
-                {loadingCoins ? "…" : "Reload"}
+                {loadingCoins ? "…" : "Refresh"}
               </MiniBtn>
             }
           >
@@ -1714,7 +1704,7 @@ export default function App() {
                   key={c.id}
                   c={c}
                   subtitle="Top mover"
-                  tag="MOVE"
+                  tag={`#${i + 1}`}
                   accent={i % 2 === 0 ? "var(--primary)" : "var(--accent2)"}
                   onOpen={() => {
                     setSelectedCoinId(c.id);
@@ -1730,13 +1720,13 @@ export default function App() {
           <Card>
             <SectionHeader title="Moon shooter" right={<Pill tone="warn">+15% 🚀</Pill>} />
             <div className="hScroll" style={{ display: "flex", gap: 10, paddingBottom: 4 }}>
-              {moonshots.slice(0, 10).map((c, i) => (
+              {moonshots.slice(0, 10).map((c) => (
                 <CoinMiniCard
                   key={c.id}
                   c={c}
                   subtitle="Moon"
                   tag="MOON"
-                  accent={i % 2 === 0 ? "var(--warn)" : "var(--accent2)"}
+                  accent="var(--warn)"
                   onOpen={() => {
                     setSelectedCoinId(c.id);
                     setScreen("COIN");
@@ -1751,13 +1741,13 @@ export default function App() {
           <Card>
             <SectionHeader title="Top volume" right={<Pill tone="warn">SOL</Pill>} />
             <div className="hScroll" style={{ display: "flex", gap: 10, paddingBottom: 4 }}>
-              {topVolume.slice(0, 10).map((c, i) => (
+              {topVolume.slice(0, 10).map((c) => (
                 <CoinMiniCard
                   key={c.id}
                   c={c}
                   subtitle={`Volume • ${Number(c.volumeSol || 0).toFixed(2)} SOL`}
                   tag="VOL"
-                  accent={i % 3 === 0 ? "var(--warn)" : "var(--primary)"}
+                  accent="var(--primary)"
                   onOpen={() => {
                     setSelectedCoinId(c.id);
                     setScreen("COIN");
@@ -1774,44 +1764,33 @@ export default function App() {
       if (!selectedCoin) {
         content = (
           <ScreenShell>
-            <Title sub="Pick from Market">No coin selected</Title>
-            <GhostButton onClick={() => setScreen("HOME")}>Go to Market</GhostButton>
+            <Title sub="Pick from Home">No coin selected</Title>
+            <GhostButton onClick={() => setScreen("HOME")}>Go Home</GhostButton>
           </ScreenShell>
         );
       } else {
         const c = selectedCoin;
         const isLiveNow = c.status === "LIVE";
         const txMarkers = myTxList.filter((t) => t.coinId === c.id).slice(0, 20);
-
-        const myHoldingForCoin =
-          myHoldingsList.find((h) => h.coinId === c.id)?.amount || 0;
+        const myHoldingForCoin = myHoldingsList.find((h) => h.coinId === c.id)?.amount || 0;
 
         const totalSupply = Number(c.totalSupply || 0);
-        const myPct =
-          totalSupply > 0 ? (Number(myHoldingForCoin || 0) / totalSupply) * 100 : 0;
+        const myPct = totalSupply > 0 ? (Number(myHoldingForCoin || 0) / totalSupply) * 100 : 0;
 
         content = (
           <ScreenShell fullBleed>
             <Title
-              sub={
-                <span style={{ color: "var(--muted2)" }}>
-                  Coin: <b style={{ color: "var(--text)" }}>{shortWallet(c.id)}</b>
-                </span>
-              }
+              sub={<span style={{ color: "var(--muted2)" }}>Coin: <b style={{ color: "var(--text)" }}>{shortWallet(c.id)}</b></span>}
               right={
                 <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
                   <MiniBtn onClick={() => setScreen("HOME")}>Back</MiniBtn>
-                  <MiniBtn onClick={() => copyText(c.id)} tone="warn">
-                    Copy ID
-                  </MiniBtn>
+                  <MiniBtn onClick={() => copyText(c.id)} tone="warn">Copy ID</MiniBtn>
                 </div>
               }
             >
               <span style={{ display: "inline-flex", gap: 10, alignItems: "center" }}>
                 <CoinLogo c={c} size={30} />
-                <span>
-                  {c.name} <span style={{ color: "var(--muted)" }}>({c.symbol})</span>
-                </span>
+                <span style={{ fontWeight: 950 }}>{c.symbol || "—"}</span>
               </span>
             </Title>
 
@@ -1824,8 +1803,8 @@ export default function App() {
             </div>
 
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
-              <Pill>Supply: {Number(totalSupply || 0).toFixed(2)}</Pill>
-              <Pill tone="warn">Your: {Number(myHoldingForCoin || 0).toFixed(2)}</Pill>
+              <Pill>Supply: {Number(totalSupply || 0).toFixed(0)}</Pill>
+              <Pill tone="warn">Your: {Number(myHoldingForCoin || 0).toFixed(0)}</Pill>
               <Pill tone={myPct >= 20 ? "danger" : "good"}>Share: {myPct.toFixed(2)}%</Pill>
             </div>
 
@@ -1847,7 +1826,7 @@ export default function App() {
                     setTradeSol("0.05");
                     setTradeOpen(true);
                   }}
-                  tone="warn"
+                  tone="good"
                 >
                   Buy
                 </MiniBtn>
@@ -1862,20 +1841,14 @@ export default function App() {
                 >
                   Sell
                 </MiniBtn>
-
                 <Pill>On-chain SOL: {balance} SOL</Pill>
-<Pill>Demo Mode: Trades are simulated (no SOL spent)</Pill>
-
-                <Pill>Your tokens: {Number(myHoldingForCoin).toFixed(2)}</Pill>
-              </div>
-              <div style={{ marginTop: 10, color: "var(--muted)", fontSize: 12 }}>
-                Fee note: Buy/Sell fee (1%) backend split: 40% Dev • 40% Creator • 10% Referral • 10% Reserve
+                <Pill>Your tokens: {Number(myHoldingForCoin).toFixed(0)}</Pill>
               </div>
             </Card>
 
             <Modal
               open={tradeOpen}
-              title={`${tradeSide === "BUY" ? "Buy" : "Sell"} ${c.symbol}`}
+              title={`${tradeSide === "BUY" ? "Buy" : "Sell"} ${c.symbol || ""}`}
               onClose={() => (tradeLoading ? null : setTradeOpen(false))}
               onConfirm={async () => {
                 if (tradeLoading) return;
@@ -1892,13 +1865,10 @@ export default function App() {
                 placeholder="e.g. 0.05"
                 type="number"
               />
-              <div style={{ color: "var(--muted)", fontSize: 12 }}>
-                Real on-chain later. Abhi backend demo tracking.
-              </div>
             </Modal>
 
             <div style={{ height: 10 }} />
-            <GhostButton onClick={() => setScreen("HOME")}>Back to Market</GhostButton>
+            <GhostButton onClick={() => setScreen("HOME")}>Back</GhostButton>
           </ScreenShell>
         );
       }
@@ -1907,40 +1877,81 @@ export default function App() {
     if (screen === "CREATE") {
       content = (
         <ScreenShell>
-          <Title sub="Fees & supply hidden. Create = first buy.">Create Coin</Title>
+          <Title sub={null}>Create Coin</Title>
 
-          <Input label="Coin name" hint="2–32" value={tokenName} onChange={setTokenName} placeholder="e.g. Kashif" maxLength={32} error={nameErr} />
-          <Input label="Symbol" hint="A-Z/0-9" value={symbolUpper} onChange={setSymbol} placeholder="e.g. ABK" maxLength={10} error={symErr} />
-          <Input label="Initial SOL" hint="0 or 0.01+" value={initialSol} onChange={setInitialSol} placeholder="0 or 0.01+" type="number" error={solErr} />
-
-          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 12 }}>
-            <Pill>Status: {isFree ? "DRAFT" : "LIVE"}</Pill>
-            <Pill>Your Bal: {balance} SOL</Pill>
-            <Pill>On live MC: ${STARTING_MC_USD.toLocaleString()}</Pill>
-          </div>
+          <Input
+            label="Coin name"
+            hint="2–32"
+            value={tokenName}
+            onChange={setTokenName}
+            placeholder=""
+            maxLength={32}
+            error={nameErr}
+          />
+          <Input
+            label="Symbol"
+            hint="A-Z/0-9"
+            value={symbolUpper}
+            onChange={setSymbol}
+            placeholder=""
+            maxLength={10}
+            error={symErr}
+          />
+          <Input
+            label="Initial SOL"
+            hint="0 or 0.01+"
+            value={initialSol}
+            onChange={setInitialSol}
+            placeholder="0 or 0.01+"
+            type="number"
+            error={solErr}
+          />
 
           <Card>
             <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-              <div style={{ width: 60, height: 60, borderRadius: 20, border: "1px solid var(--border)", background: "rgba(0,0,0,.18)", overflow: "hidden", display: "grid", placeItems: "center" }}>
-                {logoPreview ? <img src={logoPreview} alt="logo" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <span style={{ color: "var(--muted)", fontSize: 12 }}>Logo</span>}
+              <div
+                style={{
+                  width: 60,
+                  height: 60,
+                  borderRadius: 20,
+                  border: "1px solid var(--border)",
+                  background: "rgba(0,0,0,.18)",
+                  overflow: "hidden",
+                  display: "grid",
+                  placeItems: "center",
+                }}
+              >
+                {logoPreview ? (
+                  <img src={logoPreview} alt="logo" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                ) : (
+                  <span style={{ color: "var(--muted)", fontSize: 12 }}>Logo</span>
+                )}
               </div>
 
               <div style={{ flex: 1 }}>
                 <div style={{ color: "var(--muted)", fontSize: 12, marginBottom: 6 }}>Logo (≤ 5MB)</div>
-                <input type="file" accept="image/png,image/jpeg,image/jpg,image/webp" onChange={(e) => onPickLogo(e.target.files?.[0])} style={{ width: "100%", color: "var(--muted)" }} />
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg,image/jpg,image/webp"
+                  onChange={(e) => onPickLogo(e.target.files?.[0])}
+                  style={{ width: "100%", color: "var(--muted)" }}
+                />
                 <div style={{ marginTop: 6, color: logoError ? "var(--danger)" : "var(--muted)", fontSize: 12 }}>
-                  {logoError ? logoError : (logoPreview ? "Selected ✅" : "Required")}
+                  {logoError ? logoError : logoPreview ? "Selected ✅" : "Required"}
                 </div>
               </div>
             </div>
           </Card>
 
           <div style={{ height: 12 }} />
-          <Textarea label="Your coin story" value={story} onChange={setStory} placeholder="20+ chars story..." maxLength={300} error={storyErr} />
-
-          <div style={{ marginBottom: 12, color: "var(--muted)", fontSize: 12, lineHeight: 1.5 }}>
-            Create fee note (1%): 70% Dev • 20% Referral • 10% Reserve. Remaining amount = first buy (backend logic).
-          </div>
+          <Textarea
+            label="Your coin story"
+            value={story}
+            onChange={setStory}
+            placeholder="20+ chars story..."
+            maxLength={300}
+            error={storyErr}
+          />
 
           <PrimaryButton disabled={!canCreate} onClick={() => setConfirmOpen(true)}>
             Review & Create
@@ -1989,7 +2000,9 @@ export default function App() {
             <Card>
               <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
                 <div style={{ width: 54, height: 54, borderRadius: 20, border: "1px solid var(--border)", overflow: "hidden", background: "rgba(0,0,0,.18)" }}>
-                  {logoPreview ? <img src={logoPreview} alt="logo" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : null}
+                  {logoPreview ? (
+                    <img src={logoPreview} alt="logo" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                  ) : null}
                 </div>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontWeight: 950 }}>{tokenName || "—"}</div>
@@ -2014,38 +2027,39 @@ export default function App() {
         })
         .filter((x) => x.amt > 0.0000001);
 
+      const txEnriched = myTxList.slice(0, 40).map((t) => {
+        const coin = coinsSorted.find((c) => c.id === t.coinId);
+        return { ...t, coin };
+      });
+
       content = (
         <ScreenShell allowYScroll={true}>
-          <Title
-            sub="Wallet • networks • rewards • holdings • tx"
-            right={<MiniBtn onClick={() => setScreen("SETTINGS")}>⚙ Settings</MiniBtn>}
-          >
+          <Title sub={null} right={<MiniBtn onClick={() => setScreen("SETTINGS")}>⚙ Settings</MiniBtn>}>
             Profile
           </Title>
 
           <Card>
             <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center" }}>
               <div>
-                <div style={{ color: "var(--muted)", fontSize: 12 }}>Wallet</div>
-                <div style={{ fontSize: 12, wordBreak: "break-all" }}>{solAddr || "Creating…"}</div>
+                <div style={{ color: "var(--muted)", fontSize: 12 }}>Address</div>
+                <div style={{ fontWeight: 950 }}>{shortWallet(solAddr)}</div>
               </div>
-              <div style={{ textAlign: "right" }}>
+              <MiniBtn disabled={!solAddr} onClick={() => solAddr && copyText(solAddr)}>
+                Copy
+              </MiniBtn>
+            </div>
+
+            <div style={{ height: 10 }} />
+
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+              <div>
                 <div style={{ color: "var(--muted)", fontSize: 12 }}>Balance</div>
                 <div style={{ fontWeight: 950 }}>{balance} SOL</div>
               </div>
-            </div>
-
-            <div style={{ display: "flex", gap: 10, marginTop: 10, flexWrap: "wrap" }}>
-              <MiniBtn disabled={!solAddr} onClick={() => solAddr && copyText(solAddr)}>Copy</MiniBtn>
-              <MiniBtn disabled={!solAddr || loadingBal} onClick={refreshBalance}>{loadingBal ? "…" : "Refresh"}</MiniBtn>
-              <MiniBtn disabled={!solAddr || loadingProfile} onClick={loadProfile}>{loadingProfile ? "…" : "Reload"}</MiniBtn>
-            </div>
-
-            <div style={{ height: 12 }} />
-
-            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-              <MiniBtn tone="good" disabled={!solAddr} onClick={openDeposit}>💳 Deposit</MiniBtn>
-              <MiniBtn tone="warn" disabled={!solAddr} onClick={openWithdraw}>⬇ Withdraw</MiniBtn>
+              <div style={{ display: "flex", gap: 10 }}>
+                <MiniBtn tone="good" disabled={!solAddr} onClick={openDeposit}>Deposit</MiniBtn>
+                <MiniBtn tone="warn" disabled={!solAddr} onClick={openWithdraw}>Withdraw</MiniBtn>
+              </div>
             </div>
 
             <div style={{ height: 12 }} />
@@ -2062,7 +2076,7 @@ export default function App() {
                   <Pill tone="good">Active</Pill>
                 </div>
 
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, opacity: 0.85 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, opacity: 0.9 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                     <NetLogo chain="bnb" />
                     <div style={{ fontWeight: 900 }}>BNB</div>
@@ -2070,7 +2084,7 @@ export default function App() {
                   <Pill>Coming soon</Pill>
                 </div>
 
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, opacity: 0.85 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, opacity: 0.9 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                     <NetLogo chain="polygon" />
                     <div style={{ fontWeight: 900 }}>Polygon</div>
@@ -2085,12 +2099,12 @@ export default function App() {
             <div style={{ padding: 12, borderRadius: 16, border: "1px solid var(--border)", background: "rgba(255,255,255,.03)" }}>
               <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center" }}>
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 950 }}>Your referral link</div>
-                  <div style={{ marginTop: 6, fontSize: 12, color: "var(--muted)", wordBreak: "break-all" }}>
-                    {myReferralLink ? myReferralLink : "Wallet loading…"}
+                  <div style={{ fontWeight: 950 }}>Referral</div>
+                  <div style={{ marginTop: 6, fontSize: 12, color: "var(--muted)" }}>
+                    {myReferralLink ? `${myReferralLink.slice(0, 24)}…` : "Wallet loading…"}
                   </div>
                   <div style={{ marginTop: 8, display: "flex", gap: 8, flexWrap: "wrap" }}>
-                    <Pill>Referral reward: 20%</Pill>
+                    <Pill tone="warn">Referral commission: 20%</Pill>
                     {refStatus ? (
                       <Pill>
                         {refStatus === "set"
@@ -2102,9 +2116,9 @@ export default function App() {
                     ) : null}
                   </div>
                 </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                  <MiniBtn disabled={!myReferralLink} onClick={() => myReferralLink && copyText(myReferralLink)}>Copy</MiniBtn>
-                </div>
+                <MiniBtn disabled={!myReferralLink} onClick={() => myReferralLink && copyText(myReferralLink)}>
+                  Copy
+                </MiniBtn>
               </div>
             </div>
           </Card>
@@ -2112,45 +2126,81 @@ export default function App() {
           <div style={{ height: 12 }} />
 
           <Card>
-            <div style={{ fontWeight: 950, marginBottom: 8 }}>Referral rewards</div>
-            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-              <Pill>Total: {Number(myReferralRewardsSol || 0).toFixed(6)} SOL</Pill>
-              <Pill>Rate: 20%</Pill>
+            <SectionHeader title="Referral Reward" right={<Pill tone="warn">20%</Pill>} />
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+              <div style={{ fontWeight: 950 }}>{Number(myReferralRewardsSol || 0).toFixed(6)} SOL</div>
+              <MiniBtn
+                tone="good"
+                disabled={oneClickW !== "" || Number(myReferralRewardsSol || 0) <= 0}
+                onClick={() => oneClickWithdraw("REF")}
+              >
+                {oneClickW === "REF" ? "Withdrawing…" : "Withdraw"}
+              </MiniBtn>
             </div>
-
-            <div style={{ height: 10 }} />
-            <MiniBtn
-              tone="good"
-              disabled={oneClickW !== "" || Number(myReferralRewardsSol || 0) <= 0}
-              onClick={() => oneClickWithdraw("REF")}
-            >
-              {oneClickW === "REF" ? "Withdrawing…" : "Withdraw (one click → main wallet)"}
-            </MiniBtn>
           </Card>
 
           <div style={{ height: 12 }} />
 
           <Card>
-            <div style={{ fontWeight: 950, marginBottom: 8 }}>Creator rewards</div>
-            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-              <Pill>Total: {Number(myRewards.totalSol || 0).toFixed(6)} SOL</Pill>
-              <Pill>Coins: {Object.keys(myRewards.byCoin || {}).length}</Pill>
+            <SectionHeader title="Creator Reward" right={<Pill>Coins: {Object.keys(myRewards.byCoin || {}).length}</Pill>} />
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+              <div style={{ fontWeight: 950 }}>{Number(myRewards.totalSol || 0).toFixed(6)} SOL</div>
+              <MiniBtn
+                tone="good"
+                disabled={oneClickW !== "" || Number(myRewards.totalSol || 0) <= 0}
+                onClick={() => oneClickWithdraw("CREATOR")}
+              >
+                {oneClickW === "CREATOR" ? "Withdrawing…" : "Withdraw"}
+              </MiniBtn>
             </div>
-
-            <div style={{ height: 10 }} />
-            <MiniBtn
-              tone="good"
-              disabled={oneClickW !== "" || Number(myRewards.totalSol || 0) <= 0}
-              onClick={() => oneClickWithdraw("CREATOR")}
-            >
-              {oneClickW === "CREATOR" ? "Withdrawing…" : "Withdraw (one click → main wallet)"}
-            </MiniBtn>
           </Card>
 
           <div style={{ height: 12 }} />
 
           <Card>
-            <div style={{ fontWeight: 950, marginBottom: 8 }}>My holdings</div>
+            <SectionHeader title="My Creations" right={<Pill>{myCreations.length}</Pill>} />
+            <div className="hScroll" style={{ display: "flex", gap: 10, paddingBottom: 6 }}>
+              {myCreations.length === 0 ? (
+                <div style={{ color: "var(--muted)", fontSize: 12 }}>No coins yet.</div>
+              ) : (
+                myCreations.map((c) => (
+                  <button
+                    key={c.id}
+                    onClick={() => {
+                      setSelectedCoinId(c.id);
+                      setScreen("COIN");
+                    }}
+                    style={{
+                      minWidth: 240,
+                      width: 240,
+                      padding: 12,
+                      borderRadius: 18,
+                      border: "1px solid var(--border)",
+                      background: "linear-gradient(180deg, rgba(255,255,255,.03), rgba(0,0,0,.14)), var(--card2)",
+                      color: "var(--text)",
+                      cursor: "pointer",
+                      textAlign: "left",
+                    }}
+                  >
+                    <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                      <CoinLogo c={c} size={44} />
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontWeight: 950 }}>{c.symbol || "—"}</div>
+                        <div style={{ marginTop: 4, color: "var(--muted)", fontSize: 12 }}>
+                          {fmtUsd(c.mc || 0)} • {Number(c.volumeSol || 0).toFixed(2)} SOL
+                        </div>
+                      </div>
+                    </div>
+                  </button>
+                ))
+              )}
+            </div>
+          </Card>
+
+          <div style={{ height: 12 }} />
+
+          <Card>
+            <SectionHeader title="My Holdings" right={<Pill>{holdingsEnriched.length}</Pill>} />
             <div className="miniScroll" style={{ maxHeight: 320, paddingRight: 6, display: "grid", gap: 10 }}>
               {holdingsEnriched.length === 0 ? (
                 <div style={{ color: "var(--muted)", fontSize: 12 }}>No holdings yet.</div>
@@ -2162,8 +2212,7 @@ export default function App() {
                       padding: 12,
                       borderRadius: 18,
                       border: "1px solid var(--border)",
-                      background:
-                        "linear-gradient(180deg, rgba(255,255,255,.03), rgba(0,0,0,.14)), var(--card2)",
+                      background: "linear-gradient(180deg, rgba(255,255,255,.03), rgba(0,0,0,.14)), var(--card2)",
                       display: "flex",
                       justifyContent: "space-between",
                       gap: 10,
@@ -2173,12 +2222,7 @@ export default function App() {
                     <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
                       <CoinLogo c={h.coin || { symbol: "?" }} size={38} />
                       <div>
-                        <div style={{ fontWeight: 950, lineHeight: 1.1 }}>
-                          {h.coin?.name || "Unknown"}{" "}
-                          <span style={{ color: "var(--muted)" }}>
-                            ({h.coin?.symbol || "—"})
-                          </span>
-                        </div>
+                        <div style={{ fontWeight: 950, lineHeight: 1.1 }}>{h.coin?.symbol || "—"}</div>
                         <div style={{ marginTop: 6, color: "var(--muted)", fontSize: 12 }}>
                           Last: {h.lastAt ? fmtTime(h.lastAt) : "—"}
                         </div>
@@ -2212,14 +2256,14 @@ export default function App() {
           <div style={{ height: 12 }} />
 
           <Card>
-            <div style={{ fontWeight: 950, marginBottom: 8 }}>Last transactions</div>
+            <SectionHeader title="Last Transactions" right={<Pill>{txEnriched.length}</Pill>} />
             <div className="miniScroll" style={{ maxHeight: 320, paddingRight: 6, display: "grid", gap: 10 }}>
-              {myTxList.length === 0 ? (
+              {txEnriched.length === 0 ? (
                 <div style={{ color: "var(--muted)", fontSize: 12 }}>No transactions yet.</div>
               ) : (
-                myTxList.slice(0, 30).map((t) => {
-                  const coin = coinsSorted.find((c) => c.id === t.coinId);
+                txEnriched.map((t) => {
                   const side = String(t.side || "").toUpperCase();
+                  const coin = t.coin || { symbol: "?" };
                   return (
                     <div
                       key={t.id || `${t.coinId}-${t.t}`}
@@ -2227,8 +2271,7 @@ export default function App() {
                         padding: 12,
                         borderRadius: 18,
                         border: "1px solid var(--border)",
-                        background:
-                          "linear-gradient(180deg, rgba(255,255,255,.03), rgba(0,0,0,.14)), var(--card2)",
+                        background: "linear-gradient(180deg, rgba(255,255,255,.03), rgba(0,0,0,.14)), var(--card2)",
                         display: "flex",
                         justifyContent: "space-between",
                         gap: 10,
@@ -2236,14 +2279,9 @@ export default function App() {
                       }}
                     >
                       <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-                        <CoinLogo c={coin || { symbol: "?" }} size={38} />
+                        <CoinLogo c={coin} size={38} />
                         <div>
-                          <div style={{ fontWeight: 950 }}>
-                            {coin?.symbol || "—"}{" "}
-                            <span style={{ color: "var(--muted)" }}>
-                              {coin?.name ? `• ${coin.name}` : ""}
-                            </span>
-                          </div>
+                          <div style={{ fontWeight: 950 }}>{coin.symbol || "TX"}</div>
                           <div style={{ marginTop: 6, color: "var(--muted)", fontSize: 12 }}>
                             {t.t ? fmtTime(t.t) : "—"}
                           </div>
@@ -2251,14 +2289,11 @@ export default function App() {
                       </div>
 
                       <div style={{ textAlign: "right" }}>
-                        <Pill tone={side === "SELL" ? "danger" : "good"}>
+                        <Pill tone={side === "SELL" ? "danger" : side === "BUY" ? "good" : "warn"}>
                           {side || "TX"}
                         </Pill>
                         <div style={{ marginTop: 8, fontWeight: 950 }}>
                           {Number(t.sol || 0).toFixed(4)} SOL
-                        </div>
-                        <div style={{ marginTop: 6, color: "var(--muted)", fontSize: 12 }}>
-                          Fee: {Number(t.feeSol || 0).toFixed(6)}
                         </div>
                       </div>
                     </div>
@@ -2277,7 +2312,7 @@ export default function App() {
     if (screen === "SETTINGS") {
       content = (
         <ScreenShell>
-          <Title sub="Theme + Wallet backup" right={<MiniBtn onClick={() => setScreen("PROFILE")}>Back</MiniBtn>}>
+          <Title sub={null} right={<MiniBtn onClick={() => setScreen("PROFILE")}>Back</MiniBtn>}>
             Settings
           </Title>
 
@@ -2288,8 +2323,7 @@ export default function App() {
               <ThemeOption theme="ocean" current={theme} setTheme={setTheme} label="Ocean" />
               <ThemeOption theme="rose" current={theme} setTheme={setTheme} label="Rose" />
               <ThemeOption theme="royal" current={theme} setTheme={setTheme} label="Royal" />
-              <ThemeOption theme="sunset" current={theme} setTheme={setTheme} label="Sunset" />
-              <ThemeOption theme="lightgreen" current={theme} setTheme={setTheme} label="Light Green" badge="New" />
+              <ThemeOption theme="lightgreen" current={theme} setTheme={setTheme} label="Light Green" />
             </div>
           </Card>
 
