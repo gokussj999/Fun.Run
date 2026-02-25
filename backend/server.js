@@ -35,6 +35,12 @@ const app = express();
 if (String(process.env.TRUST_PROXY || "") === "1") {
   app.set("trust proxy", 1);
 }
+process.on("unhandledRejection", (err) => {
+  console.error("❌ unhandledRejection:", err);
+});
+process.on("uncaughtException", (err) => {
+  console.error("❌ uncaughtException:", err);
+});
 
 // -------------------- MIDDLEWARE --------------------
 app.use(morgan("tiny"));
