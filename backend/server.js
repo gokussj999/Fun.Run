@@ -372,15 +372,7 @@ let writeInFlight = false;
 let writeQueued = false;
 let lastWriteAt = 0;
 
-function defaultStore() {
-  return {
-    coins: [],
-    profiles: {},
-    referrals: {},
-    withdrawals: [],
-    version: 1,
-  };
-}
+
 
 function now() {
   return Date.now();
