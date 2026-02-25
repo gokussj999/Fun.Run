@@ -106,7 +106,7 @@ const SOLANA_RPC =
   process.env.SOLANA_RPC_URL ||
   "http://127.0.0.1:8899";
 
-const connection = new Connection(SOLANA_RPC, "confirmed");
+const connection = new Connection(SOLANA_RPC, "processed");
 
 // Economics
 const STARTING_MC_USD = Number(process.env.STARTING_MC_USD || 6500);
