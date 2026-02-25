@@ -299,8 +299,8 @@ function findCoin(store, coinId) {
 let fileCache = null; // in-memory store
 let fileLoaded = false;
 
-let writeTimer = null;
-let writeInFlight = false;
+
+
 let pendingWrite = false;
 
 async function loadFileStoreOnce() {
@@ -359,9 +359,47 @@ function scheduleFileWrite() {
   }, DEBOUNCE_MS);
 }
 
-// -------------------- DB API --------------------
+// =================== FAST SUPABASE CACHE LAYER ===================
+// Idea: startup pe 1 dafa DB load -> RAM me cache
+// Trades/create: RAM update + response instantly
+// Supabase write: debounce (coalesce) + NOT awaited (fast)
+
+let STORE_CACHE = null;
+let STORE_LOADING = null;
+
+let writeTimer = null;
+let writeInFlight = false;
+let writeQueued = false;
+let lastWriteAt = 0;
+
+function defaultStore() {
+  return {
+    coins: [],
+    profiles: {},
+    referrals: {},
+    withdrawals: [],
+    version: 1,
+  };
+}
+
+function now() {
+  return Date.now();
+}
+
 async function readDB() {
-  if (DB_MODE === "supabase") {
+  // ✅ Always serve from RAM once loaded
+  if (STORE_CACHE) return STORE_CACHE;
+
+  // ✅ If already loading, await same promise
+  if (STORE_LOADING) return STORE_LOADING;
+
+  STORE_LOADING = (async () => {
+    // If file mode then fallback (but you want supabase)
+    if (DB_MODE !== "supabase") {
+      STORE_CACHE = defaultStore();
+      return STORE_CACHE;
+    }
+
     if (!supabase) throw new Error("Supabase not configured");
 
     const { data, error } = await supabase
@@ -372,20 +410,85 @@ async function readDB() {
 
     if (error) throw new Error("Supabase read failed: " + error.message);
 
-    if (!data) {
+    if (!data?.data) {
+      // initialize once
       const init = defaultStore();
-      const { error: upErr } = await supabase
+      const { error: e2 } = await supabase
         .from(SUPABASE_TABLE)
         .upsert({ id: "main", data: init }, { onConflict: "id" });
 
-      if (upErr) throw new Error("Supabase init failed: " + upErr.message);
-      return normalizeStore(init);
+      if (e2) throw new Error("Supabase init failed: " + e2.message);
+
+      STORE_CACHE = init;
+      return STORE_CACHE;
     }
 
-    return normalizeStore(data?.data || defaultStore());
+    STORE_CACHE = data.data || defaultStore();
+    return STORE_CACHE;
+  })();
+
+  const s = await STORE_LOADING;
+  STORE_LOADING = null;
+  return s;
+}
+
+function scheduleDBWrite() {
+  if (DB_MODE !== "supabase") return; // only supabase writes here
+
+  // if already scheduled, do nothing
+  if (writeTimer) return;
+
+  writeTimer = setTimeout(async () => {
+    writeTimer = null;
+
+    // if a write is already in flight, mark queued and exit
+    if (writeInFlight) {
+      writeQueued = true;
+      return;
+    }
+
+    try {
+      await flushSupabaseNow();
+    } catch (e) {
+      console.error("Supabase flush failed:", e?.message || e);
+      // retry later
+      scheduleDBWrite();
+    }
+  }, 500); // ✅ debounce window (fast but safe)
+}
+
+async function flushSupabaseNow() {
+  if (DB_MODE !== "supabase") return;
+  if (!supabase) throw new Error("Supabase not configured");
+  if (!STORE_CACHE) return;
+
+  writeInFlight = true;
+  const snapshot = STORE_CACHE; // current RAM store
+  try {
+    const { error } = await supabase
+      .from(SUPABASE_TABLE)
+      .upsert(
+        { id: "main", data: snapshot, updated_at: new Date().toISOString() },
+        { onConflict: "id" }
+      );
+
+    if (error) throw new Error(error.message);
+
+    lastWriteAt = now();
+  } finally {
+    writeInFlight = false;
   }
 
-  return await loadFileStoreOnce();
+  // if anything queued while writing, flush again quickly
+  if (writeQueued) {
+    writeQueued = false;
+    scheduleDBWrite();
+  }
+}
+
+// ✅ helper: whenever you change store in any route, call this
+function markStoreDirty() {
+  scheduleDBWrite();
 }
 
 async function writeDB(store) {
