@@ -1,789 +1,774 @@
-    if (screen === "SEARCH") {
-      content = (
-        <ScreenShell>
-          <Title sub={null}>Search</Title>
+// backend/server.js (FULL FILE) — FAST FILE-DB + SAME API (FIXED)
 
-          <Input
-            label="Search for a coin"
-            value={searchQ}
-            onChange={setSearchQ}
-            placeholder="type name or symbol…"
-            rightIcon={<span style={{ fontWeight: 950 }}>⌕</span>}
-          />
+import "dotenv/config";
+import express from "express";
+import cors from "cors";
+import path from "path";
+import crypto from "crypto";
+import helmet from "helmet";
+import rateLimit from "express-rate-limit";
+import compression from "compression";
+import morgan from "morgan";
 
-          <Card>
-            <SectionHeader
-              title={searchQ.trim() ? `Results (${searchResults.length})` : "Top volume"}
-              right={<Pill tone="good">Live</Pill>}
-            />
-            <div className="miniScroll" style={{ maxHeight: 420, paddingRight: 6, display: "grid", gap: 10 }}>
-              {(searchQ.trim() ? searchResults : topVolume.slice(0, 20)).map((c) => (
-                <CoinRow
-                  key={c.id}
-                  c={c}
-                  onClick={() => {
-                    setSelectedCoinId(c.id);
-                    setScreen("COIN");
-                  }}
-                />
-              ))}
-              {searchQ.trim() && searchResults.length === 0 ? (
-                <div style={{ color: "var(--muted)", fontSize: 12 }}>No results</div>
-              ) : null}
-            </div>
-          </Card>
-        </ScreenShell>
-      );
-    }
+import { createClient } from "@supabase/supabase-js";
+import { Connection, PublicKey } from "@solana/web3.js";
 
-    if (screen === "LATEST") {
-      content = (
-        <ScreenShell>
-          <Title
-            sub={null}
-            right={
-              <MiniBtn onClick={loadCoins} disabled={loadingCoins}>
-                {loadingCoins ? "…" : "Refresh"}
-              </MiniBtn>
-            }
-          >
-            Latest
-          </Title>
+import { fileURLToPath } from "url";
+import fs from "fs";
+import fsp from "fs/promises";
 
-          <Card>
-            <SectionHeader title="Top movers" right={<Pill tone="good">Live</Pill>} />
-            <div className="hScroll" style={{ display: "flex", gap: 10, paddingBottom: 4 }}>
-              {movers.slice(0, 10).map((c, i) => (
-                <CoinMiniCard
-                  key={c.id}
-                  c={c}
-                  subtitle="Top mover"
-                  tag={`#${i + 1}`}
-                  accent={i % 2 === 0 ? "var(--primary)" : "var(--accent2)"}
-                  onOpen={() => {
-                    setSelectedCoinId(c.id);
-                    setScreen("COIN");
-                  }}
-                />
-              ))}
-            </div>
-          </Card>
+const app = express();
 
-          <div style={{ height: 12 }} />
+// -------------------- TRUST PROXY (Railway/Render) --------------------
+if (String(process.env.TRUST_PROXY || "") === "1") {
+  app.set("trust proxy", 1);
+}
 
-          <Card>
-            <SectionHeader title="Moon shooter" right={<Pill tone="warn">+15% 🚀</Pill>} />
-            <div className="hScroll" style={{ display: "flex", gap: 10, paddingBottom: 4 }}>
-              {moonshots.slice(0, 10).map((c) => (
-                <CoinMiniCard
-                  key={c.id}
-                  c={c}
-                  subtitle="Moon"
-                  tag="MOON"
-                  accent="var(--warn)"
-                  onOpen={() => {
-                    setSelectedCoinId(c.id);
-                    setScreen("COIN");
-                  }}
-                />
-              ))}
-            </div>
-          </Card>
+// -------------------- MIDDLEWARE --------------------
+app.use(morgan("tiny"));
+app.use(helmet());
+app.use(compression());
 
-          <div style={{ height: 12 }} />
+const JSON_LIMIT = process.env.JSON_LIMIT || "15mb";
+app.use(express.json({ limit: JSON_LIMIT }));
+app.use(express.urlencoded({ extended: true, limit: JSON_LIMIT }));
 
-          <Card>
-            <SectionHeader title="Top volume" right={<Pill tone="warn">SOL</Pill>} />
-            <div className="hScroll" style={{ display: "flex", gap: 10, paddingBottom: 4 }}>
-              {topVolume.slice(0, 10).map((c) => (
-                <CoinMiniCard
-                  key={c.id}
-                  c={c}
-                  subtitle={`Volume • ${Number(c.volumeSol || 0).toFixed(2)} SOL`}
-                  tag="VOL"
-                  accent="var(--primary)"
-                  onOpen={() => {
-                    setSelectedCoinId(c.id);
-                    setScreen("COIN");
-                  }}
-                />
-              ))}
-            </div>
-          </Card>
-        </ScreenShell>
-      );
-    }
+app.use(
+  rateLimit({
+    windowMs: 60 * 1000,
+    max: 240,
+    standardHeaders: true,
+    legacyHeaders: false,
+  })
+);
 
-    if (screen === "COIN") {
-      if (!selectedCoin) {
-        content = (
-          <ScreenShell>
-            <Title sub="Pick from Home">No coin selected</Title>
-            <GhostButton onClick={() => setScreen("HOME")}>Go Home</GhostButton>
-          </ScreenShell>
-        );
-      } else {
-        const c = selectedCoin;
-        const isLiveNow = c.status === "LIVE";
-        const txMarkers = myTxList.filter((t) => t.coinId === c.id).slice(0, 20);
-        const myHoldingForCoin = myHoldingsList.find((h) => h.coinId === c.id)?.amount || 0;
+// -------------------- CORS --------------------
+function parseOrigins(val) {
+  return String(val || "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
 
-        const totalSupply = Number(c.totalSupply || 0);
-        const myPct = totalSupply > 0 ? (Number(myHoldingForCoin || 0) / totalSupply) * 100 : 0;
+const CORS_ORIGINS = parseOrigins(
+  process.env.CORS_ORIGINS ||
+    [
+      "http://localhost:5173",
+      "http://127.0.0.1:5173",
+      "https://fun-run-lovat.vercel.app",
+    ].join(",")
+);
 
-        content = (
-          <ScreenShell fullBleed>
-            <Title
-              sub={<span style={{ color: "var(--muted2)" }}>Coin: <b style={{ color: "var(--text)" }}>{shortWallet(c.id)}</b></span>}
-              right={
-                <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-                  <MiniBtn onClick={() => setScreen("HOME")}>Back</MiniBtn>
-                  <MiniBtn onClick={() => copyText(c.id)} tone="warn">Copy ID</MiniBtn>
-                </div>
-              }
-            >
-              <span style={{ display: "inline-flex", gap: 10, alignItems: "center" }}>
-                <CoinLogo c={c} size={30} />
-                <span style={{ fontWeight: 950 }}>{c.symbol || "—"}</span>
-              </span>
-            </Title>
+const ALLOW_VERCEL_PREVIEWS =
+  String(process.env.ALLOW_VERCEL_PREVIEWS || "1") === "1";
 
-            <div style={{ display: "flex", justifyContent: "space-between", gap: 10, marginBottom: 10 }}>
-              <Pill>Status: {c.status}</Pill>
-              <div style={{ display: "flex", gap: 10, flexWrap: "wrap", justifyContent: "flex-end" }}>
-                <Pill>MC: {fmtUsd(c.mc || 0)}</Pill>
-                <Pill>ATH: {fmtUsd(c.ath || 0)}</Pill>
-              </div>
-            </div>
+function isAllowedOrigin(origin) {
+  if (!origin) return true; // curl / server-to-server
+  if (CORS_ORIGINS.includes("*")) return true;
+  if (CORS_ORIGINS.includes(origin)) return true;
 
-            <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
-              <Pill>Supply: {Number(totalSupply || 0).toFixed(0)}</Pill>
-              <Pill tone="warn">Your: {Number(myHoldingForCoin || 0).toFixed(0)}</Pill>
-              <Pill tone={myPct >= 20 ? "danger" : "good"}>Share: {myPct.toFixed(2)}%</Pill>
-            </div>
+  if (ALLOW_VERCEL_PREVIEWS) {
+    try {
+      const u = new URL(origin);
+      if (u.hostname.endsWith(".vercel.app")) return true;
+    } catch {}
+  }
+  return false;
+}
 
-            <PriceChart
-              points={c.chart}
-              txMarkers={txMarkers}
-              mode={chartMode}
-              onToggleMode={() => setChartMode((m) => (m === "dark" ? "light" : "dark"))}
-            />
+app.use(
+  cors({
+    origin: (origin, cb) => {
+      if (isAllowedOrigin(origin)) return cb(null, true);
+      return cb(null, false);
+    },
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+    maxAge: 86400,
+  })
+);
 
-            <div style={{ height: 12 }} />
+app.options("*", cors());
 
-            <Card>
-              <div style={{ fontWeight: 950, marginBottom: 8 }}>Trade</div>
-              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                <MiniBtn
-                  onClick={() => {
-                    setTradeSide("BUY");
-                    setTradeSol("0.05");
-                    setTradeOpen(true);
-                  }}
-                  tone="good"
-                >
-                  Buy
-                </MiniBtn>
-                <MiniBtn
-                  disabled={!isLiveNow}
-                  onClick={() => {
-                    setTradeSide("SELL");
-                    setTradeSol("0.05");
-                    setTradeOpen(true);
-                  }}
-                  tone="danger"
-                >
-                  Sell
-                </MiniBtn>
-                <Pill>On-chain SOL: {balance} SOL</Pill>
-                <Pill>Your tokens: {Number(myHoldingForCoin).toFixed(0)}</Pill>
-              </div>
-            </Card>
+// -------------------- CONFIG --------------------
+const PORT = Number(process.env.PORT || 5000);
 
-            <Modal
-              open={tradeOpen}
-              title={`${tradeSide === "BUY" ? "Buy" : "Sell"} ${c.symbol || ""}`}
-              onClose={() => (tradeLoading ? null : setTradeOpen(false))}
-              onConfirm={async () => {
-                if (tradeLoading) return;
-                await doTrade(c, tradeSide, tradeSol);
-                setTradeOpen(false);
-              }}
-              confirmText={tradeLoading ? "..." : tradeSide === "BUY" ? "Confirm Buy" : "Confirm Sell"}
-              confirmTone={tradeSide === "BUY" ? "primary" : "danger"}
-            >
-              <Input
-                label="Amount (SOL)"
-                value={tradeSol}
-                onChange={setTradeSol}
-                placeholder="e.g. 0.05"
-                type="number"
-              />
-            </Modal>
+const DB_MODE_RAW = String(process.env.DB_MODE || "file").toLowerCase();
+const DB_MODE = DB_MODE_RAW === "local" ? "file" : DB_MODE_RAW;
 
-            <div style={{ height: 10 }} />
-            <GhostButton onClick={() => setScreen("HOME")}>Back</GhostButton>
-          </ScreenShell>
-        );
-      }
-    }
+const SUPABASE_URL = process.env.SUPABASE_URL || "";
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
+const SUPABASE_TABLE = process.env.SUPABASE_TABLE || "pumpmini_store";
 
-    if (screen === "CREATE") {
-      content = (
-        <ScreenShell>
-          <Title sub={null}>Create Coin</Title>
+const SOLANA_RPC =
+  process.env.SOLANA_RPC ||
+  process.env.SOLANA_RPC_URL ||
+  "http://127.0.0.1:8899";
 
-          <Input
-            label="Coin name"
-            hint="2–32"
-            value={tokenName}
-            onChange={setTokenName}
-            placeholder=""
-            maxLength={32}
-            error={nameErr}
-          />
-          <Input
-            label="Symbol"
-            hint="A-Z/0-9"
-            value={symbolUpper}
-            onChange={setSymbol}
-            placeholder=""
-            maxLength={10}
-            error={symErr}
-          />
-          <Input
-            label="Initial SOL"
-            hint="0 or 0.01+"
-            value={initialSol}
-            onChange={setInitialSol}
-            placeholder="0 or 0.01+"
-            type="number"
-            error={solErr}
-          />
+const connection = new Connection(SOLANA_RPC, "confirmed");
 
-          <Card>
-            <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-              <div
-                style={{
-                  width: 60,
-                  height: 60,
-                  borderRadius: 20,
-                  border: "1px solid var(--border)",
-                  background: "rgba(0,0,0,.18)",
-                  overflow: "hidden",
-                  display: "grid",
-                  placeItems: "center",
-                }}
-              >
-                {logoPreview ? (
-                  <img src={logoPreview} alt="logo" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                ) : (
-                  <span style={{ color: "var(--muted)", fontSize: 12 }}>Logo</span>
-                )}
-              </div>
+// Economics
+const STARTING_MC_USD = Number(process.env.STARTING_MC_USD || 6500);
+const TOTAL_SUPPLY_DEFAULT = Number(
+  process.env.TOTAL_SUPPLY_DEFAULT || 1_000_000_000
+);
+const CREATOR_PERCENT = Number(process.env.CREATOR_PERCENT || 2);
 
-              <div style={{ flex: 1 }}>
-                <div style={{ color: "var(--muted)", fontSize: 12, marginBottom: 6 }}>Logo (≤ 5MB)</div>
-                <input
-                  type="file"
-                  accept="image/png,image/jpeg,image/jpg,image/webp"
-                  onChange={(e) => onPickLogo(e.target.files?.[0])}
-                  style={{ width: "100%", color: "var(--muted)" }}
-                />
-                <div style={{ marginTop: 6, color: logoError ? "var(--danger)" : "var(--muted)", fontSize: 12 }}>
-                  {logoError ? logoError : logoPreview ? "Selected ✅" : "Required"}
-                </div>
-              </div>
-            </div>
-          </Card>
+// Fee
+const FEE_PCT = Number(process.env.FEE_PCT || 1);
 
-          <div style={{ height: 12 }} />
-          <Textarea
-            label="Your coin story"
-            value={story}
-            onChange={setStory}
-            placeholder="20+ chars story..."
-            maxLength={300}
-            error={storyErr}
-          />
+// Trade split
+const TRADE_DEV_PCT = Number(process.env.TRADE_DEV_PCT || 40);
+const TRADE_CREATOR_PCT = Number(process.env.TRADE_CREATOR_PCT || 40);
+const TRADE_REF_PCT = Number(process.env.TRADE_REF_PCT || 10);
+const TRADE_RESERVE_PCT = Number(process.env.TRADE_RESERVE_PCT || 10);
 
-          <PrimaryButton disabled={!canCreate} onClick={() => setConfirmOpen(true)}>
-            Review & Create
-          </PrimaryButton>
+// Create split
+const CREATE_DEV_PCT = Number(process.env.CREATE_DEV_PCT || 70);
+const CREATE_REF_PCT = Number(process.env.CREATE_REF_PCT || 20);
+const CREATE_RESERVE_PCT = Number(process.env.CREATE_RESERVE_PCT || 10);
 
-          <div style={{ height: 10 }} />
-          <GhostButton onClick={() => setScreen("HOME")}>Back</GhostButton>
+const DEV_WALLET = String(process.env.DEV_WALLET || "DEV_TREASURY").trim();
+const RESERVE_WALLET = String(process.env.RESERVE_WALLET || "RESERVE_TREASURY").trim();
 
-          <Modal
-            open={confirmOpen}
-            title="Confirm coin"
-            onClose={() => setConfirmOpen(false)}
-            onConfirm={async () => {
-              setConfirmOpen(false);
-              if (!solAddr) return showToast("Wallet not ready");
+// -------------------- FILE DB PATH --------------------
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const FILE_DB_PATH = path.join(__dirname, "db.json");
 
-              const payload = {
-                name: tokenName.trim(),
-                symbol: symbolUpper.trim(),
-                story: story.trim(),
-                logo: logoPreview,
-                initialSol: Number(initialSol || 0),
-                creatorWallet: solAddr,
-              };
+// -------------------- SUPABASE --------------------
+const supabase =
+  DB_MODE === "supabase" && SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY
+    ? createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+        auth: { persistSession: false },
+      })
+    : null;
 
-              const res = await apiPost("/api/coin/create", payload);
-              if (!res?.ok) return showToast(res?.error || "Create failed");
+// -------------------- UTIL --------------------
+function nowMs() {
+  return Date.now();
+}
+function uid() {
+  return crypto.randomUUID();
+}
+function safeNum(n, d = 0) {
+  const x = Number(n);
+  return Number.isFinite(x) ? x : d;
+}
+function clampPct(n) {
+  const x = safeNum(n, 0);
+  return Math.max(0, Math.min(100, x));
+}
+function pctToFrac(p) {
+  return clampPct(p) / 100;
+}
 
-              const created = ensureCoinShape(res.coin);
-              setCoins((p) => [created, ...p]);
+function defaultStore() {
+  return {
+    coins: [],
+    profiles: {},
+    referrals: {},
+    treasury: { devSol: 0, reserveSol: 0, updatedAt: nowMs() },
+    logs: [],
+  };
+}
 
-              setTokenName("");
-              setSymbol("");
-              setStory("");
-              setInitialSol("0.01");
-              setLogoPreview("");
-              setLogoError("");
+function ensureCoin(c) {
+  const createdAt = safeNum(c?.createdAt, nowMs());
+  const status = c?.status || "DRAFT";
+  const mc = safeNum(c?.mc, status === "LIVE" ? STARTING_MC_USD : 0);
+  const ath = safeNum(c?.ath, mc || STARTING_MC_USD);
+  const chart =
+    Array.isArray(c?.chart) && c.chart.length ? c.chart : [mc, mc, mc, mc, mc];
 
-              setSelectedCoinId(created.id);
-              setScreen("COIN");
-              showToast("Coin created ✅");
-              loadProfile();
-            }}
-            confirmText="Create"
-          >
-            <Card>
-              <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-                <div style={{ width: 54, height: 54, borderRadius: 20, border: "1px solid var(--border)", overflow: "hidden", background: "rgba(0,0,0,.18)" }}>
-                  {logoPreview ? (
-                    <img src={logoPreview} alt="logo" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                  ) : null}
-                </div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 950 }}>{tokenName || "—"}</div>
-                  <div style={{ color: "var(--muted)", fontSize: 12 }}>{symbolUpper || "—"}</div>
-                </div>
-                <Pill>{Number(initialSol) >= 0.01 ? "LIVE" : "DRAFT"}</Pill>
-              </div>
-            </Card>
-          </Modal>
-        </ScreenShell>
-      );
-    }
+  return {
+    id: c?.id || uid(),
+    name: String(c?.name || "").trim(),
+    symbol: String(c?.symbol || "").trim().toUpperCase(),
+    story: String(c?.story || "").trim(),
+    logo: c?.logo || "",
+    creatorWallet: c?.creatorWallet || c?.owner || "",
+    owner: c?.owner || c?.creatorWallet || "",
+    createdAt,
+    status,
+    mc,
+    ath,
+    chart,
+    volumeSol: safeNum(c?.volumeSol, 0),
+    creatorRewardsSol: safeNum(c?.creatorRewardsSol, 0),
+    totalSupply: safeNum(c?.totalSupply, TOTAL_SUPPLY_DEFAULT),
+    holders: c?.holders && typeof c.holders === "object" ? c.holders : {},
+    lastTradeAt: safeNum(c?.lastTradeAt, 0),
+  };
+}
 
-    if (screen === "PROFILE") {
-      const holdingsEnriched = myHoldingsList
-        .map((h) => {
-          const coin = coinsSorted.find((c) => c.id === h.coinId);
-          const supply = Number(coin?.totalSupply || 0);
-          const amt = Number(h.amount || 0);
-          const pct = supply > 0 ? (amt / supply) * 100 : 0;
-          return { ...h, coin, supply, amt, pct };
-        })
-        .filter((x) => x.amt > 0.0000001);
+function ensureProfile(p, wallet) {
+  const w = String(wallet || p?.wallet || "").trim();
+  const base = p && typeof p === "object" ? p : {};
+  return {
+    wallet: w,
+    holdings: Array.isArray(base.holdings) ? base.holdings : [],
+    txs: Array.isArray(base.txs) ? base.txs : [],
+    rewards:
+      base.rewards && typeof base.rewards === "object"
+        ? base.rewards
+        : { totalSol: 0, byCoin: {} },
+    referralRewards:
+      base.referralRewards && typeof base.referralRewards === "object"
+        ? base.referralRewards
+        : { totalSol: 0, byWallet: {} },
+    referrer: base.referrer || "",
+    updatedAt: nowMs(),
+  };
+}
 
-      const txEnriched = myTxList.slice(0, 40).map((t) => {
-        const coin = coinsSorted.find((c) => c.id === t.coinId);
-        return { ...t, coin };
-      });
+function logPush(store, item) {
+  store.logs = Array.isArray(store.logs) ? store.logs : [];
+  store.logs.unshift({ t: nowMs(), ...item });
+  store.logs = store.logs.slice(0, 300);
+}
 
-      content = (
-        <ScreenShell allowYScroll={true}>
-          <Title sub={null} right={<MiniBtn onClick={() => setScreen("SETTINGS")}>⚙ Settings</MiniBtn>}>
-            Profile
-          </Title>
+function normalizeStore(store) {
+  const merged = { ...defaultStore(), ...(store || {}) };
+  merged.coins = Array.isArray(merged.coins) ? merged.coins.map(ensureCoin) : [];
+  merged.profiles =
+    merged.profiles && typeof merged.profiles === "object" ? merged.profiles : {};
+  merged.referrals =
+    merged.referrals && typeof merged.referrals === "object" ? merged.referrals : {};
+  merged.treasury =
+    merged.treasury && typeof merged.treasury === "object"
+      ? merged.treasury
+      : defaultStore().treasury;
+  merged.logs = Array.isArray(merged.logs) ? merged.logs : [];
+  return merged;
+}
 
-          <Card>
-            <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center" }}>
-              <div>
-                <div style={{ color: "var(--muted)", fontSize: 12 }}>Address</div>
-                <div style={{ fontWeight: 950 }}>{shortWallet(solAddr)}</div>
-              </div>
-              <MiniBtn disabled={!solAddr} onClick={() => solAddr && copyText(solAddr)}>
-                Copy
-              </MiniBtn>
-            </div>
+function ensureTreasury(store) {
+  store.treasury = store.treasury && typeof store.treasury === "object" ? store.treasury : {};
+  store.treasury.devSol = safeNum(store.treasury.devSol, 0);
+  store.treasury.reserveSol = safeNum(store.treasury.reserveSol, 0);
+  store.treasury.updatedAt = nowMs();
+}
 
-            <div style={{ height: 10 }} />
+function creditCreatorReward(store, coin, amountSol) {
+  const creator = String(coin?.creatorWallet || coin?.owner || "").trim();
+  if (!creator || amountSol <= 0) return;
 
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
-              <div>
-                <div style={{ color: "var(--muted)", fontSize: 12 }}>Balance</div>
-                <div style={{ fontWeight: 950 }}>{balance} SOL</div>
-              </div>
-              <div style={{ display: "flex", gap: 10 }}>
-                <MiniBtn tone="good" disabled={!solAddr} onClick={openDeposit}>Deposit</MiniBtn>
-                <MiniBtn tone="warn" disabled={!solAddr} onClick={openWithdraw}>Withdraw</MiniBtn>
-              </div>
-            </div>
+  const p = ensureProfile(store.profiles?.[creator], creator);
+  p.rewards.totalSol = safeNum(p.rewards?.totalSol, 0) + amountSol;
+  p.rewards.byCoin =
+    p.rewards.byCoin && typeof p.rewards.byCoin === "object" ? p.rewards.byCoin : {};
+  p.rewards.byCoin[coin.id] = safeNum(p.rewards.byCoin[coin.id], 0) + amountSol;
+  p.updatedAt = nowMs();
+  store.profiles[creator] = p;
 
-            <div style={{ height: 12 }} />
+  coin.creatorRewardsSol = safeNum(coin.creatorRewardsSol, 0) + amountSol;
+}
 
-            <div style={{ padding: 12, borderRadius: 16, border: "1px solid var(--border)", background: "rgba(255,255,255,.03)" }}>
-              <div style={{ fontWeight: 950, marginBottom: 10 }}>Networks</div>
+function creditReferralReward(store, traderWallet, amountSol) {
+  const w = String(traderWallet || "").trim();
+  if (!w || amountSol <= 0) return;
 
-              <div style={{ display: "grid", gap: 10 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    <NetLogo chain="solana" />
-                    <div style={{ fontWeight: 900 }}>Solana</div>
-                  </div>
-                  <Pill tone="good">Active</Pill>
-                </div>
+  const ref = String(store.referrals?.[w] || "").trim();
+  if (!ref || ref.length < 20) return;
 
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, opacity: 0.9 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    <NetLogo chain="bnb" />
-                    <div style={{ fontWeight: 900 }}>BNB</div>
-                  </div>
-                  <Pill>Coming soon</Pill>
-                </div>
+  const rp = ensureProfile(store.profiles?.[ref], ref);
+  rp.referralRewards.totalSol = safeNum(rp.referralRewards?.totalSol, 0) + amountSol;
+  rp.referralRewards.byWallet =
+    rp.referralRewards.byWallet && typeof rp.referralRewards.byWallet === "object"
+      ? rp.referralRewards.byWallet
+      : {};
+  rp.referralRewards.byWallet[w] = safeNum(rp.referralRewards.byWallet[w], 0) + amountSol;
+  rp.updatedAt = nowMs();
+  store.profiles[ref] = rp;
+}
 
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, opacity: 0.9 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    <NetLogo chain="polygon" />
-                    <div style={{ fontWeight: 900 }}>Polygon</div>
-                  </div>
-                  <Pill>Coming soon</Pill>
-                </div>
-              </div>
-            </div>
+function takeFee(solAmount) {
+  const fee = solAmount * pctToFrac(FEE_PCT);
+  const net = Math.max(0, solAmount - fee);
+  return { feeSol: fee, netSol: net };
+}
 
-            <div style={{ height: 12 }} />
+function findCoin(store, coinId) {
+  const id = String(coinId || "").trim();
+  return (store.coins || []).find((x) => x.id === id) || null;
+}
 
-            <div style={{ padding: 12, borderRadius: 16, border: "1px solid var(--border)", background: "rgba(255,255,255,.03)" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center" }}>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 950 }}>Referral</div>
-                  <div style={{ marginTop: 6, fontSize: 12, color: "var(--muted)" }}>
-                    {myReferralLink ? `${myReferralLink.slice(0, 24)}…` : "Wallet loading…"}
-                  </div>
-                  <div style={{ marginTop: 8, display: "flex", gap: 8, flexWrap: "wrap" }}>
-                    <Pill tone="warn">Referral commission: 20%</Pill>
-                    {refStatus ? (
-                      <Pill>
-                        {refStatus === "set"
-                          ? "Referral applied ✅"
-                          : refStatus === "already"
-                          ? "Referral locked"
-                          : "Referral invalid"}
-                      </Pill>
-                    ) : null}
-                  </div>
-                </div>
-                <MiniBtn disabled={!myReferralLink} onClick={() => myReferralLink && copyText(myReferralLink)}>
-                  Copy
-                </MiniBtn>
-              </div>
-            </div>
-          </Card>
+// -------------------- FAST FILE DB (CACHE + DEBOUNCED WRITE) --------------------
+let fileCache = null; // in-memory store
+let fileLoaded = false;
 
-          <div style={{ height: 12 }} />
+let writeTimer = null;
+let writeInFlight = false;
+let pendingWrite = false;
 
-          <Card>
-            <SectionHeader title="Referral Reward" right={<Pill tone="warn">20%</Pill>} />
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
-              <div style={{ fontWeight: 950 }}>{Number(myReferralRewardsSol || 0).toFixed(6)} SOL</div>
-              <MiniBtn
-                tone="good"
-                disabled={oneClickW !== "" || Number(myReferralRewardsSol || 0) <= 0}
-                onClick={() => oneClickWithdraw("REF")}
-              >
-                {oneClickW === "REF" ? "Withdrawing…" : "Withdraw"}
-              </MiniBtn>
-            </div>
-          </Card>
+async function loadFileStoreOnce() {
+  if (fileLoaded && fileCache) return fileCache;
 
-          <div style={{ height: 12 }} />
-
-          <Card>
-            <SectionHeader title="Creator Reward" right={<Pill>Coins: {Object.keys(myRewards.byCoin || {}).length}</Pill>} />
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
-              <div style={{ fontWeight: 950 }}>{Number(myRewards.totalSol || 0).toFixed(6)} SOL</div>
-              <MiniBtn
-                tone="good"
-                disabled={oneClickW !== "" || Number(myRewards.totalSol || 0) <= 0}
-                onClick={() => oneClickWithdraw("CREATOR")}
-              >
-                {oneClickW === "CREATOR" ? "Withdrawing…" : "Withdraw"}
-              </MiniBtn>
-            </div>
-          </Card>
-
-          <div style={{ height: 12 }} />
-
-          <Card>
-            <SectionHeader title="My Creations" right={<Pill>{myCreations.length}</Pill>} />
-            <div className="hScroll" style={{ display: "flex", gap: 10, paddingBottom: 6 }}>
-              {myCreations.length === 0 ? (
-                <div style={{ color: "var(--muted)", fontSize: 12 }}>No coins yet.</div>
-              ) : (
-                myCreations.map((c) => (
-                  <button
-                    key={c.id}
-                    onClick={() => {
-                      setSelectedCoinId(c.id);
-                      setScreen("COIN");
-                    }}
-                    style={{
-                      minWidth: 240,
-                      width: 240,
-                      padding: 12,
-                      borderRadius: 18,
-                      border: "1px solid var(--border)",
-                      background: "linear-gradient(180deg, rgba(255,255,255,.03), rgba(0,0,0,.14)), var(--card2)",
-                      color: "var(--text)",
-                      cursor: "pointer",
-                      textAlign: "left",
-                    }}
-                  >
-                    <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-                      <CoinLogo c={c} size={44} />
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontWeight: 950 }}>{c.symbol || "—"}</div>
-                        <div style={{ marginTop: 4, color: "var(--muted)", fontSize: 12 }}>
-                          {fmtUsd(c.mc || 0)} • {Number(c.volumeSol || 0).toFixed(2)} SOL
-                        </div>
-                      </div>
-                    </div>
-                  </button>
-                ))
-              )}
-            </div>
-          </Card>
-
-          <div style={{ height: 12 }} />
-
-          <Card>
-            <SectionHeader title="My Holdings" right={<Pill>{holdingsEnriched.length}</Pill>} />
-            <div className="miniScroll" style={{ maxHeight: 320, paddingRight: 6, display: "grid", gap: 10 }}>
-              {holdingsEnriched.length === 0 ? (
-                <div style={{ color: "var(--muted)", fontSize: 12 }}>No holdings yet.</div>
-              ) : (
-                holdingsEnriched.map((h) => (
-                  <div
-                    key={h.coinId}
-                    style={{
-                      padding: 12,
-                      borderRadius: 18,
-                      border: "1px solid var(--border)",
-                      background: "linear-gradient(180deg, rgba(255,255,255,.03), rgba(0,0,0,.14)), var(--card2)",
-                      display: "flex",
-                      justifyContent: "space-between",
-                      gap: 10,
-                      alignItems: "center",
-                    }}
-                  >
-                    <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-                      <CoinLogo c={h.coin || { symbol: "?" }} size={38} />
-                      <div>
-                        <div style={{ fontWeight: 950, lineHeight: 1.1 }}>{h.coin?.symbol || "—"}</div>
-                        <div style={{ marginTop: 6, color: "var(--muted)", fontSize: 12 }}>
-                          Last: {h.lastAt ? fmtTime(h.lastAt) : "—"}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div style={{ textAlign: "right" }}>
-                      <div style={{ fontWeight: 950 }}>{Number(h.amt || 0).toFixed(2)}</div>
-                      <div style={{ marginTop: 6, color: "var(--muted)", fontSize: 12 }}>
-                        {h.supply > 0 ? `${h.pct.toFixed(2)}% of supply` : "supply —"}
-                      </div>
-                      <div style={{ marginTop: 8 }}>
-                        <MiniBtn
-                          onClick={() => {
-                            setSelectedCoinId(h.coinId);
-                            setScreen("COIN");
-                          }}
-                          tone="warn"
-                          style={{ padding: "8px 10px", borderRadius: 12 }}
-                        >
-                          Open
-                        </MiniBtn>
-                      </div>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </Card>
-
-          <div style={{ height: 12 }} />
-
-          <Card>
-            <SectionHeader title="Last Transactions" right={<Pill>{txEnriched.length}</Pill>} />
-            <div className="miniScroll" style={{ maxHeight: 320, paddingRight: 6, display: "grid", gap: 10 }}>
-              {txEnriched.length === 0 ? (
-                <div style={{ color: "var(--muted)", fontSize: 12 }}>No transactions yet.</div>
-              ) : (
-                txEnriched.map((t) => {
-                  const side = String(t.side || "").toUpperCase();
-                  const coin = t.coin || { symbol: "?" };
-                  return (
-                    <div
-                      key={t.id || `${t.coinId}-${t.t}`}
-                      style={{
-                        padding: 12,
-                        borderRadius: 18,
-                        border: "1px solid var(--border)",
-                        background: "linear-gradient(180deg, rgba(255,255,255,.03), rgba(0,0,0,.14)), var(--card2)",
-                        display: "flex",
-                        justifyContent: "space-between",
-                        gap: 10,
-                        alignItems: "center",
-                      }}
-                    >
-                      <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-                        <CoinLogo c={coin} size={38} />
-                        <div>
-                          <div style={{ fontWeight: 950 }}>{coin.symbol || "TX"}</div>
-                          <div style={{ marginTop: 6, color: "var(--muted)", fontSize: 12 }}>
-                            {t.t ? fmtTime(t.t) : "—"}
-                          </div>
-                        </div>
-                      </div>
-
-                      <div style={{ textAlign: "right" }}>
-                        <Pill tone={side === "SELL" ? "danger" : side === "BUY" ? "good" : "warn"}>
-                          {side || "TX"}
-                        </Pill>
-                        <div style={{ marginTop: 8, fontWeight: 950 }}>
-                          {Number(t.sol || 0).toFixed(4)} SOL
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-          </Card>
-
-          <div style={{ height: 12 }} />
-          <GhostButton onClick={logout}>Logout</GhostButton>
-        </ScreenShell>
-      );
-    }
-
-    if (screen === "SETTINGS") {
-      content = (
-        <ScreenShell>
-          <Title sub={null} right={<MiniBtn onClick={() => setScreen("PROFILE")}>Back</MiniBtn>}>
-            Settings
-          </Title>
-
-          <Card>
-            <div style={{ fontWeight: 950, marginBottom: 8 }}>Theme</div>
-            <div style={{ display: "grid", gap: 10 }}>
-              <ThemeOption theme="neon" current={theme} setTheme={setTheme} label="Neon" />
-              <ThemeOption theme="ocean" current={theme} setTheme={setTheme} label="Ocean" />
-              <ThemeOption theme="rose" current={theme} setTheme={setTheme} label="Rose" />
-              <ThemeOption theme="royal" current={theme} setTheme={setTheme} label="Royal" />
-              <ThemeOption theme="lightgreen" current={theme} setTheme={setTheme} label="Light Green" />
-            </div>
-          </Card>
-
-          <div style={{ height: 12 }} />
-
-          <Card>
-            <div style={{ fontWeight: 950, marginBottom: 8 }}>Wallet Backup</div>
-            <div style={{ color: "var(--warn)", fontSize: 12, lineHeight: 1.5 }}>
-              ⚠️ Warning: Apni private key / recovery phrase kisi ko mat dena. Backup sirf apne paas safe rakho.
-            </div>
-            <div style={{ height: 10 }} />
-            <MiniBtn onClick={openPrivyBackup}>Open Backup</MiniBtn>
-          </Card>
-
-          <div style={{ height: 12 }} />
-          <GhostButton onClick={logout}>Logout</GhostButton>
-        </ScreenShell>
-      );
-    }
+  try {
+    await fsp.access(FILE_DB_PATH, fs.constants.F_OK);
+  } catch {
+    await fsp.writeFile(FILE_DB_PATH, JSON.stringify(defaultStore()), "utf-8");
   }
 
-  return (
-    <>
-      <ThemeStyles />
-      {content}
-      {ready && authenticated ? <BottomNav screen={screen} setScreen={setScreen} /> : null}
-      <Toast msg={toast} />
-
-      <Modal
-        open={dwOpen}
-        title={dwMode === "DEPOSIT" ? "Solana Deposit Address" : "Solana Withdraw"}
-        onClose={() => setDwOpen(false)}
-        onConfirm={async () => {
-          if (dwMode === "DEPOSIT") {
-            if (!solAddr) return;
-            await copyText(solAddr);
-            return;
-          }
-          const to = String(withdrawTo || "").trim();
-          if (to.length < 20) return showToast("Paste valid address");
-
-          const res = await apiPostTry(
-            ["/api/withdraw", "/api/withdraw/manual", "/api/transfer", "/api/payout"],
-            { wallet: solAddr, to, kind: "MANUAL" }
-          );
-
-          if (res?.ok) {
-            showToast("Withdraw confirmed ✅");
-            setDwOpen(false);
-            await loadProfile();
-            await refreshBalance();
-          } else {
-            showToast(res?.error || "Withdraw failed");
-          }
-        }}
-        confirmText={dwMode === "DEPOSIT" ? "Copy address" : "Confirm"}
-      >
-        <Card>
-          <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center" }}>
-            <div>
-              <div style={{ color: "var(--muted)", fontSize: 12 }}>Network</div>
-              <div style={{ fontWeight: 950, display: "flex", gap: 10, alignItems: "center" }}>
-                <NetLogo chain="solana" /> Solana
-              </div>
-            </div>
-            <Pill tone="good">{dwMode === "DEPOSIT" ? "Deposit" : "Withdraw"}</Pill>
-          </div>
-
-          <div style={{ height: 12 }} />
-
-          {dwMode === "DEPOSIT" ? (
-            <>
-              <div style={{ color: "var(--muted)", fontSize: 12 }}>Address</div>
-              <div
-                style={{
-                  marginTop: 6,
-                  padding: 12,
-                  borderRadius: 14,
-                  border: "1px solid var(--border)",
-                  background: "rgba(0,0,0,.18)",
-                  fontSize: 12,
-                  wordBreak: "break-all",
-                }}
-              >
-                {solAddr || "—"}
-              </div>
-
-              <div style={{ marginTop: 10, color: "var(--muted)", fontSize: 12, lineHeight: 1.5 }}>
-                Is address par SOL send karo. (Auto-copy ho chuka hai.)
-              </div>
-            </>
-          ) : (
-            <>
-              <Input
-                label="Withdraw to (destination address)"
-                value={withdrawTo}
-                onChange={setWithdrawTo}
-                placeholder="Paste Solana address…"
-              />
-              <div style={{ marginTop: 6, color: "var(--muted)", fontSize: 12, lineHeight: 1.5 }}>
-                Manual withdraw: destination paste karo. (On-chain later)
-              </div>
-            </>
-          )}
-        </Card>
-      </Modal>
-    </>
-  );
+  const raw = await fsp.readFile(FILE_DB_PATH, "utf-8");
+  const parsed = raw ? JSON.parse(raw) : {};
+  fileCache = normalizeStore(parsed);
+  fileLoaded = true;
+  return fileCache;
 }
+
+async function flushFileStoreNow() {
+  if (!fileCache) return;
+
+  if (writeInFlight) {
+    pendingWrite = true;
+    return;
+  }
+
+  writeInFlight = true;
+  pendingWrite = false;
+
+  try {
+    const tmp = FILE_DB_PATH + ".tmp";
+    const data = JSON.stringify(fileCache); // FAST (no pretty print)
+    await fsp.writeFile(tmp, data, "utf-8");
+    await fsp.rename(tmp, FILE_DB_PATH);
+  } finally {
+    writeInFlight = false;
+  }
+
+  if (pendingWrite) {
+    pendingWrite = false;
+    await flushFileStoreNow();
+  }
+}
+
+function scheduleFileWrite() {
+  const DEBOUNCE_MS = 1500; // stable (fast feel + low IO)
+  if (writeTimer) clearTimeout(writeTimer);
+
+  writeTimer = setTimeout(async () => {
+    writeTimer = null;
+    try {
+      await flushFileStoreNow();
+    } catch (e) {
+      console.error("File DB flush failed:", e?.message || e);
+    }
+  }, DEBOUNCE_MS);
+}
+
+// -------------------- DB API --------------------
+async function readDB() {
+  if (DB_MODE === "supabase") {
+    if (!supabase) throw new Error("Supabase not configured");
+
+    const { data, error } = await supabase
+      .from(SUPABASE_TABLE)
+      .select("data")
+      .eq("id", "main")
+      .maybeSingle();
+
+    if (error) throw new Error("Supabase read failed: " + error.message);
+
+    if (!data) {
+      const init = defaultStore();
+      const { error: upErr } = await supabase
+        .from(SUPABASE_TABLE)
+        .upsert({ id: "main", data: init }, { onConflict: "id" });
+
+      if (upErr) throw new Error("Supabase init failed: " + upErr.message);
+      return normalizeStore(init);
+    }
+
+    return normalizeStore(data?.data || defaultStore());
+  }
+
+  return await loadFileStoreOnce();
+}
+
+async function writeDB(store) {
+  if (DB_MODE === "supabase") {
+    if (!supabase) throw new Error("Supabase not configured");
+
+    const { error } = await supabase
+      .from(SUPABASE_TABLE)
+      .upsert({ id: "main", data: store }, { onConflict: "id" });
+
+    if (error) throw new Error("Supabase write failed: " + error.message);
+    return;
+  }
+
+  // file mode: update cache + schedule write (FAST)
+  fileCache = normalizeStore(store);
+  fileLoaded = true;
+  scheduleFileWrite();
+}
+
+// -------------------- SOLANA HELPERS --------------------
+async function getSolBalance(wallet) {
+  try {
+    if (!wallet) return 0;
+    const pub = new PublicKey(wallet);
+    const lamports = await connection.getBalance(pub);
+    return lamports / 1_000_000_000;
+  } catch (err) {
+    console.log("Balance fetch failed, returning 0:", err.message);
+    return 0;
+  }
+}
+
+// -------------------- ROUTES --------------------
+app.get("/", (req, res) =>
+  res.json({ ok: true, name: "funrun-backend", ts: nowMs(), dbMode: DB_MODE })
+);
+app.get("/health", (req, res) => {
+  res.status(200).json({ ok: true });
+});
+
+app.get("/api/coin/list", async (req, res) => {
+  try {
+    const store = await readDB();
+    const coins = (store.coins || []).map(ensureCoin);
+    coins.sort((a, b) => safeNum(b.createdAt) - safeNum(a.createdAt));
+    res.json({ ok: true, coins });
+  } catch (e) {
+    console.error("coin/list error:", e);
+    res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+app.get("/api/profile/:wallet", async (req, res) => {
+  try {
+    const wallet = String(req.params.wallet || "").trim();
+    const store = await readDB();
+    const p = ensureProfile(store.profiles?.[wallet], wallet);
+
+    if (!p.referrer && store.referrals?.[wallet]) p.referrer = store.referrals[wallet];
+
+    store.profiles[wallet] = p;
+    await writeDB(store); // in file mode: debounced
+    res.json({ ok: true, profile: p });
+  } catch (e) {
+    console.error("profile error:", e);
+    res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+app.get("/api/balance/:wallet", async (req, res) => {
+  try {
+    const wallet = String(req.params.wallet || "").trim();
+    if (!wallet) return res.json({ ok: false, error: "wallet required" });
+    const sol = await getSolBalance(wallet);
+    res.json({ ok: true, sol });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+// -------------------- REFERRAL (immutable set) --------------------
+app.post("/api/referral/set", async (req, res) => {
+  try {
+    const wallet = String(req.body?.wallet || "").trim();
+    const referrer = String(req.body?.referrer || "").trim();
+
+    if (!wallet || wallet.length < 20) return res.json({ ok: false, error: "wallet required" });
+    if (!referrer || referrer.length < 20) return res.json({ ok: false, error: "referrer invalid" });
+    if (wallet === referrer) return res.json({ ok: false, error: "self referral not allowed" });
+
+    const store = await readDB();
+    store.referrals = store.referrals && typeof store.referrals === "object" ? store.referrals : {};
+
+    if (store.referrals[wallet]) {
+      return res.json({ ok: false, error: "immutable: referral already set" });
+    }
+
+    store.referrals[wallet] = referrer;
+
+    const p = ensureProfile(store.profiles?.[wallet], wallet);
+    p.referrer = referrer;
+    p.updatedAt = nowMs();
+    store.profiles[wallet] = p;
+
+    logPush(store, { type: "referral_set", wallet, referrer });
+    await writeDB(store);
+
+    res.json({ ok: true });
+  } catch (e) {
+    console.error("referral/set error:", e);
+    res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+// -------------------- CREATE COIN --------------------
+app.post("/api/coin/create", async (req, res) => {
+  try {
+    const name = String(req.body?.name || "").trim();
+    const symbol = String(req.body?.symbol || "").trim().toUpperCase();
+    const story = String(req.body?.story || "").trim();
+    const logo = req.body?.logo || "";
+    const initialSol = safeNum(req.body?.initialSol, 0);
+    const creatorWallet = String(req.body?.creatorWallet || "").trim();
+
+    if (!name || !symbol || !creatorWallet) {
+      return res.json({ ok: false, error: "name/symbol/creatorWallet required" });
+    }
+
+    const store = await readDB();
+    ensureTreasury(store);
+
+    const status = initialSol >= 0.01 ? "LIVE" : "DRAFT";
+
+    let createFeeSol = 0;
+    if (status === "LIVE" && initialSol > 0) {
+      const f = takeFee(initialSol);
+      createFeeSol = f.feeSol;
+
+      const dev = createFeeSol * pctToFrac(CREATE_DEV_PCT);
+      const ref = createFeeSol * pctToFrac(CREATE_REF_PCT);
+      const reserve = createFeeSol * pctToFrac(CREATE_RESERVE_PCT);
+
+      store.treasury.devSol += dev;
+      store.treasury.reserveSol += reserve;
+
+      creditReferralReward(store, creatorWallet, ref);
+
+      logPush(store, {
+        type: "create_fee",
+        wallet: creatorWallet,
+        feeSol: createFeeSol,
+        split: { dev, ref, reserve },
+        devWallet: DEV_WALLET,
+        reserveWallet: RESERVE_WALLET,
+      });
+    }
+
+    const coin = ensureCoin({
+      id: uid(),
+      name,
+      symbol,
+      story,
+      logo,
+      creatorWallet,
+      owner: creatorWallet,
+      status,
+      createdAt: nowMs(),
+      mc: status === "LIVE" ? STARTING_MC_USD : 0,
+      ath: status === "LIVE" ? STARTING_MC_USD : 0,
+      chart:
+        status === "LIVE"
+          ? [STARTING_MC_USD, STARTING_MC_USD, STARTING_MC_USD, STARTING_MC_USD, STARTING_MC_USD]
+          : [0, 0, 0, 0, 0],
+      volumeSol: status === "LIVE" ? initialSol : 0,
+      totalSupply: TOTAL_SUPPLY_DEFAULT,
+      holders: {},
+    });
+
+    const creatorTokens = Math.floor((coin.totalSupply * CREATOR_PERCENT) / 100);
+    coin.holders[creatorWallet] = (coin.holders[creatorWallet] || 0) + creatorTokens;
+
+    store.coins.unshift(coin);
+
+    const p = ensureProfile(store.profiles?.[creatorWallet], creatorWallet);
+    const existing = p.holdings.find((h) => h.coinId === coin.id);
+    if (existing) existing.amount = (existing.amount || 0) + creatorTokens;
+    else p.holdings.unshift({ coinId: coin.id, symbol: coin.symbol, amount: creatorTokens, lastAt: nowMs() });
+
+    p.txs.unshift({
+      id: uid(),
+      t: nowMs(),
+      coinId: coin.id,
+      side: "CREATE",
+      sol: initialSol,
+      feeSol: createFeeSol,
+    });
+    store.profiles[creatorWallet] = p;
+
+    logPush(store, { type: "coin_create", coinId: coin.id, creatorWallet, status, initialSol });
+    await writeDB(store);
+
+    res.json({ ok: true, coin });
+  } catch (e) {
+    console.error("coin/create error:", e);
+    res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+// -------------------- TRADE CORE --------------------
+async function handleTrade(req, res, forcedSide) {
+  try {
+    const wallet = String(req.body?.wallet || "").trim();
+    const coinId = String(req.body?.coinId || "").trim();
+    const sideRaw = String(forcedSide || req.body?.side || "").trim().toLowerCase();
+    const sol = safeNum(req.body?.sol, 0);
+
+    if (!wallet || !coinId || !sideRaw || sol <= 0) {
+      return res.json({ ok: false, error: "wallet/coinId/side/sol required" });
+    }
+    if (sideRaw !== "buy" && sideRaw !== "sell") {
+      return res.json({ ok: false, error: "side must be buy or sell" });
+    }
+
+    const store = await readDB();
+    ensureTreasury(store);
+
+    const coin = findCoin(store, coinId);
+    if (!coin) return res.json({ ok: false, error: "Coin not found" });
+    if (coin.status !== "LIVE") return res.json({ ok: false, error: "Coin not LIVE" });
+
+    const p = ensureProfile(store.profiles?.[wallet], wallet);
+
+    const { feeSol } = takeFee(sol);
+
+    const feeDev = feeSol * pctToFrac(TRADE_DEV_PCT);
+    const feeCreator = feeSol * pctToFrac(TRADE_CREATOR_PCT);
+    const feeRef = feeSol * pctToFrac(TRADE_REF_PCT);
+    const feeReserve = feeSol * pctToFrac(TRADE_RESERVE_PCT);
+
+    store.treasury.devSol += feeDev;
+    store.treasury.reserveSol += feeReserve;
+
+    creditCreatorReward(store, coin, feeCreator);
+    creditReferralReward(store, wallet, feeRef);
+
+    const mc = Math.max(coin.mc || STARTING_MC_USD, 1000);
+    const tokensPerSol = Math.max(1, Math.floor(coin.totalSupply / mc));
+    const tokens = Math.max(1, Math.floor(sol * tokensPerSol));
+
+    if (sideRaw === "buy") {
+      coin.holders[wallet] = (coin.holders[wallet] || 0) + tokens;
+
+      const h = p.holdings.find((x) => x.coinId === coinId);
+      if (h) {
+        h.amount = safeNum(h.amount, 0) + tokens;
+        h.lastAt = nowMs();
+      } else {
+        p.holdings.unshift({ coinId, symbol: coin.symbol, amount: tokens, lastAt: nowMs() });
+      }
+
+      coin.volumeSol = safeNum(coin.volumeSol, 0) + sol;
+
+      coin.mc = Math.round(Math.max(1000, coin.mc + sol * 120));
+      coin.ath = Math.max(coin.ath || coin.mc, coin.mc);
+      coin.chart = Array.isArray(coin.chart) ? coin.chart : [];
+      coin.chart.push(coin.mc);
+      coin.chart = coin.chart.slice(-60);
+
+      p.txs.unshift({ id: uid(), t: nowMs(), coinId, side: "BUY", sol, tokens, feeSol });
+
+      logPush(store, {
+        type: "trade",
+        side: "BUY",
+        wallet,
+        coinId,
+        sol,
+        tokens,
+        feeSol,
+        split: { dev: feeDev, creator: feeCreator, ref: feeRef, reserve: feeReserve },
+      });
+    } else {
+      const h = p.holdings.find((x) => x.coinId === coinId);
+      const have = safeNum(h?.amount, 0);
+      if (!h || have <= 0) return res.json({ ok: false, error: "No tokens to sell" });
+
+      const sellTokens = Math.min(have, tokens);
+      h.amount = have - sellTokens;
+      h.lastAt = nowMs();
+
+      coin.holders[wallet] = Math.max(0, safeNum(coin.holders[wallet], 0) - sellTokens);
+      coin.volumeSol = safeNum(coin.volumeSol, 0) + sol;
+
+      coin.mc = Math.round(Math.max(1000, coin.mc - sol * 110));
+      coin.chart = Array.isArray(coin.chart) ? coin.chart : [];
+      coin.chart.push(coin.mc);
+      coin.chart = coin.chart.slice(-60);
+
+      p.txs.unshift({ id: uid(), t: nowMs(), coinId, side: "SELL", sol, tokens: sellTokens, feeSol });
+
+      logPush(store, {
+        type: "trade",
+        side: "SELL",
+        wallet,
+        coinId,
+        sol,
+        tokens: sellTokens,
+        feeSol,
+        split: { dev: feeDev, creator: feeCreator, ref: feeRef, reserve: feeReserve },
+      });
+    }
+
+    coin.lastTradeAt = nowMs();
+    p.updatedAt = nowMs();
+    store.profiles[wallet] = p;
+
+    await writeDB(store);
+
+    res.json({ ok: true, coin: ensureCoin(coin), profile: store.profiles[wallet] });
+  } catch (e) {
+    console.error("trade error:", e);
+    res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+}
+
+app.post("/api/coin/buy", (req, res) => handleTrade(req, res, "buy"));
+app.post("/api/coin/sell", (req, res) => handleTrade(req, res, "sell"));
+app.post("/api/trade", (req, res) => handleTrade(req, res, null));
+app.get("/api/coin/buy", (req, res) => res.json({ ok: true, note: "BUY route is LIVE. Use POST." }));
+app.get("/api/coin/sell", (req, res) => res.json({ ok: true, note: "SELL route is LIVE. Use POST." }));
+
+// -------------------- WITHDRAW (demo accounting) --------------------
+async function handleWithdraw(req, res, mode) {
+  try {
+    const wallet = String(req.body?.wallet || "").trim();
+    const to = String(req.body?.to || "").trim();
+    const kind = String(req.body?.kind || mode || "").trim().toUpperCase();
+
+    if (!wallet) return res.json({ ok: false, error: "wallet required" });
+    if (!to) return res.json({ ok: false, error: "to required" });
+
+    const store = await readDB();
+    const p = ensureProfile(store.profiles?.[wallet], wallet);
+
+    let withdrawn = 0;
+
+    if (kind === "CREATOR") {
+      withdrawn = safeNum(p.rewards?.totalSol, 0);
+      p.rewards = { totalSol: 0, byCoin: {} };
+    } else if (kind === "REF") {
+      withdrawn = safeNum(p.referralRewards?.totalSol, 0);
+      p.referralRewards = { totalSol: 0, byWallet: {} };
+    } else {
+      withdrawn = 0;
+    }
+
+    p.txs.unshift({ id: uid(), t: nowMs(), coinId: "", side: "WITHDRAW", sol: withdrawn, to, kind });
+    p.updatedAt = nowMs();
+    store.profiles[wallet] = p;
+
+    logPush(store, { type: "withdraw", wallet, to, kind, sol: withdrawn });
+    await writeDB(store);
+
+    res.json({ ok: true, to, kind, sol: withdrawn });
+  } catch (e) {
+    console.error("withdraw error:", e);
+    res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+}
+
+app.post("/api/withdraw", (req, res) => handleWithdraw(req, res, "MANUAL"));
+app.post("/api/withdraw/manual", (req, res) => handleWithdraw(req, res, "MANUAL"));
+app.post("/api/withdraw/creator", (req, res) => handleWithdraw(req, res, "CREATOR"));
+app.post("/api/withdraw/referral", (req, res) => handleWithdraw(req, res, "REF"));
+app.post("/api/transfer", (req, res) => handleWithdraw(req, res, "MANUAL"));
+app.post("/api/payout", (req, res) => handleWithdraw(req, res, "MANUAL"));
+
+// -------------------- START --------------------
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`✅ Backend running on port: ${PORT}`);
+  console.log(`✅ Solana RPC: ${SOLANA_RPC}`);
+  console.log(`✅ DB MODE: ${DB_MODE}`);
+  console.log(`✅ CORS_ORIGINS: ${CORS_ORIGINS.join(", ")}`);
+  console.log(`✅ JSON_LIMIT: ${JSON_LIMIT}`);
+  console.log(`✅ Fee: ${FEE_PCT}%`);
+});
