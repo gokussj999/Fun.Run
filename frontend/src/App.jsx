@@ -1,72 +1,176 @@
-// =========================== App.jsx (FULL FILE) — PART 1 / 5 ===========================
 import { useEffect, useMemo, useRef, useState } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import { useExportWallet } from "@privy-io/react-auth/solana";
+const INTRO_MS = 2600;
+
+// ✅ apna logo yahan do (recommended):
+// Option A: public folder: /public/logo.png  -> "/logo.png"
+// Option B: full https url
+// Option C: data:image/png;base64,...
+const APP_LOGO_URL = "/logo.png";
 
 const API_BASE = "https://zooming-solace-production-c360.up.railway.app";
 
 const MAX_LOGO_BYTES = 5 * 1024 * 1024;
 const STARTING_MC_USD = 6500;
-const LS_THEME = "theme";
+const LS_THEME = "theme"; // "calm" | "neon" | "ocean" | "rose" | "royal" | "lightgreen"
 
 function ThemeStyles() {
   return (
     <style>{`
       :root{
-        --bg:#060A0B;
-        --card:#0B1210;
-        --card2:#0A1713;
+        --bg:#070B0E;
+        --card:#0D1416;
+        --card2:#0B1716;
         --border:rgba(255,255,255,.10);
 
         --text:#F4FFF9;
-        --muted:rgba(244,255,249,.68);
-        --muted2:rgba(244,255,249,.46);
+        --muted:rgba(244,255,249,.70);
+        --muted2:rgba(244,255,249,.48);
 
         --primary:#19E6A2;
-        --primary2:#7CFFB8;
+        --primary2:#8FFFD0;
         --accent2:#6AD7FF;
         --accent3:#A78BFA;
 
         --warn:#FFD36A;
         --danger:#FF6B6B;
 
-        --shadow: 0 22px 70px rgba(0,0,0,.55);
-        --shadow2: 0 18px 55px rgba(0,0,0,.55);
-        --r:24px;
+        --shadow: 0 26px 90px rgba(0,0,0,.65);
+        --shadow2: 0 18px 60px rgba(0,0,0,.55);
 
-        --glowP: rgba(25,230,162,.28);
-        --glowA: rgba(106,215,255,.18);
-        --glowV: rgba(167,139,250,.14);
+        --r:28px;
+
+        --glowP: rgba(25,230,162,.16);
+        --glowA: rgba(106,215,255,.11);
+        --glowV: rgba(167,139,250,.10);
+
+        --ease: cubic-bezier(.22,1,.36,1);
       }
 
+      [data-theme="calm"]{
+        --bg:#070B0E; --card:#0D1416; --card2:#0B1716;
+        --primary:#19E6A2; --primary2:#8FFFD0;
+        --accent2:#6AD7FF; --accent3:#A78BFA;
+        --glowP: rgba(25,230,162,.14);
+        --glowA: rgba(106,215,255,.10);
+        --glowV: rgba(167,139,250,.09);
+      }
       [data-theme="neon"]{
-        --bg:#060A0B; --card:#0B1210; --card2:#0A1713;
-        --primary:#19E6A2; --primary2:#7CFFB8; --accent2:#6AD7FF; --accent3:#A78BFA;
+        --bg:#05080A; --card:#0A1211; --card2:#081412;
+        --primary:#19E6A2; --primary2:#7CFFB8;
+        --accent2:#6AD7FF; --accent3:#A78BFA;
+        --glowP: rgba(25,230,162,.24);
+        --glowA: rgba(106,215,255,.16);
+        --glowV: rgba(167,139,250,.14);
       }
       [data-theme="ocean"]{
         --bg:#041014; --card:#071A1F; --card2:#06161C;
-        --primary:#38F6C7; --primary2:#7CFFB8; --accent2:#47B7FF; --accent3:#7C83FF;
+        --primary:#38F6C7; --primary2:#A1FFE1;
+        --accent2:#47B7FF; --accent3:#7C83FF;
+        --glowP: rgba(56,246,199,.16);
+        --glowA: rgba(71,183,255,.12);
+        --glowV: rgba(124,131,255,.10);
       }
       [data-theme="rose"]{
-        --bg:#10070B; --card:#1A0B12; --card2:#170810;
-        --primary:#1EE6A1; --primary2:#FF86B1; --accent2:#FFB55C; --accent3:#A78BFA;
+        --bg:#0D070A; --card:#160B11; --card2:#130910;
+        --primary:#1EE6A1; --primary2:#FF86B1;
+        --accent2:#FFB55C; --accent3:#A78BFA;
+        --glowP: rgba(30,230,161,.16);
+        --glowA: rgba(255,181,92,.12);
+        --glowV: rgba(255,134,177,.10);
       }
       [data-theme="royal"]{
         --bg:#06061A; --card:#0B0B22; --card2:#09091D;
-        --primary:#19E6A2; --primary2:#7CFFB8; --accent2:#A0B4FF; --accent3:#6AD7FF;
+        --primary:#19E6A2; --primary2:#7CFFB8;
+        --accent2:#A0B4FF; --accent3:#6AD7FF;
+        --glowP: rgba(25,230,162,.16);
+        --glowA: rgba(160,180,255,.12);
+        --glowV: rgba(106,215,255,.10);
       }
       [data-theme="lightgreen"]{
         --bg:#06110A; --card:#081A10; --card2:#07150E;
-        --primary:#20F5A7; --primary2:#B7FFD1; --accent2:#6AD7FF; --accent3:#A78BFA;
+        --primary:#20F5A7; --primary2:#B7FFD1;
+        --accent2:#6AD7FF; --accent3:#A78BFA;
+        --glowP: rgba(32,245,167,.16);
+        --glowA: rgba(106,215,255,.11);
+        --glowV: rgba(167,139,250,.10);
       }
 
       *{ box-sizing:border-box; }
+      html, body { height:100%; }
       button, input, textarea { font-family:inherit; }
+
       input::-webkit-outer-spin-button, input::-webkit-inner-spin-button{ -webkit-appearance: none; margin: 0; }
       input[type=number]{ -moz-appearance:textfield; }
 
-      .fadeIn{ animation: fadeIn .18s ease-out; }
-      @keyframes fadeIn{ from{opacity:.0; transform: translateY(6px);} to{opacity:1; transform: translateY(0);} }
+      body{
+        margin:0;
+        color: var(--text);
+        background: var(--bg);
+        font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+
+        background:
+          radial-gradient(1200px 700px at 50% -10%, rgba(255,255,255,.05), transparent 60%),
+          radial-gradient(900px 520px at 15% 15%, var(--glowP), transparent 60%),
+          radial-gradient(800px 480px at 85% 25%, var(--glowA), transparent 60%),
+          radial-gradient(900px 540px at 50% 110%, var(--glowV), transparent 55%),
+          var(--bg);
+      }
+
+      body::before,
+      body::after{
+        content:"";
+        position:fixed;
+        inset:-48px;
+        pointer-events:none;
+        z-index:0;
+        filter: blur(26px);
+        opacity:.55;
+      }
+      body::before{
+        background:
+          radial-gradient(520px 280px at 20% 20%, rgba(25,230,162,.16), transparent 70%),
+          radial-gradient(560px 320px at 85% 35%, rgba(106,215,255,.12), transparent 70%),
+          radial-gradient(620px 360px at 45% 90%, rgba(167,139,250,.10), transparent 70%);
+        animation: floatGlow 18s var(--ease) infinite;
+      }
+      body::after{
+        background:
+          radial-gradient(560px 340px at 30% 80%, rgba(25,230,162,.10), transparent 70%),
+          radial-gradient(600px 360px at 70% 15%, rgba(106,215,255,.08), transparent 70%),
+          repeating-linear-gradient(
+            0deg,
+            rgba(255,255,255,.018),
+            rgba(255,255,255,.018) 1px,
+            rgba(0,0,0,0) 2px,
+            rgba(0,0,0,0) 4px
+          );
+        animation: floatGlow2 26s var(--ease) infinite;
+        opacity:.35;
+        mix-blend-mode: overlay;
+      }
+
+      @keyframes floatGlow{
+        0%{ transform: translate3d(0,0,0) scale(1); }
+        50%{ transform: translate3d(14px,-12px,0) scale(1.02); }
+        100%{ transform: translate3d(0,0,0) scale(1); }
+      }
+      @keyframes floatGlow2{
+        0%{ transform: translate3d(0,0,0) scale(1); }
+        50%{ transform: translate3d(-16px,12px,0) scale(1.03); }
+        100%{ transform: translate3d(0,0,0) scale(1); }
+      }
+
+      @media (prefers-reduced-motion: reduce){
+        *{ animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+        body::before, body::after{ animation:none !important; }
+      }
+
+      .fadeIn{ animation: fadeIn .22s var(--ease); }
+      @keyframes fadeIn{ from{opacity:.0; transform: translateY(8px);} to{opacity:1; transform: translateY(0);} }
 
       .noScrollbar{ scrollbar-width: none; -ms-overflow-style: none; }
       .noScrollbar::-webkit-scrollbar{ display:none; }
@@ -80,55 +184,208 @@ function ThemeStyles() {
       .snapX{ scroll-snap-type: x mandatory; }
       .snapItem{ scroll-snap-align: start; }
 
-      body{
-        background:
-          radial-gradient(1200px 700px at 50% -10%, rgba(255,255,255,.05), transparent 60%),
-          radial-gradient(900px 520px at 15% 15%, var(--glowP), transparent 60%),
-          radial-gradient(800px 480px at 85% 25%, var(--glowA), transparent 60%),
-          radial-gradient(900px 540px at 50% 110%, var(--glowV), transparent 55%),
-          var(--bg);
+      button{
+        transition: transform .18s var(--ease), filter .18s var(--ease), box-shadow .18s var(--ease), opacity .18s var(--ease);
       }
-      body::before,
-      body::after{
-        content:"";
-        position:fixed;
-        inset:-40px;
-        pointer-events:none;
-        z-index:0;
-        filter: blur(24px);
-        opacity:.55;
-      }
-      body::before{
-        background:
-          radial-gradient(500px 260px at 20% 20%, rgba(25,230,162,.22), transparent 70%),
-          radial-gradient(520px 280px at 85% 35%, rgba(106,215,255,.16), transparent 70%),
-          radial-gradient(560px 300px at 45% 90%, rgba(167,139,250,.12), transparent 70%);
-        animation: floatGlow 10s ease-in-out infinite;
-      }
-      body::after{
-        background:
-          radial-gradient(520px 300px at 30% 80%, rgba(25,230,162,.12), transparent 70%),
-          radial-gradient(560px 320px at 70% 15%, rgba(106,215,255,.10), transparent 70%);
-        animation: floatGlow2 14s ease-in-out infinite;
-        opacity:.45;
-      }
-      @keyframes floatGlow{
-        0%{ transform: translate3d(0,0,0) scale(1); }
-        50%{ transform: translate3d(10px,-12px,0) scale(1.02); }
-        100%{ transform: translate3d(0,0,0) scale(1); }
-      }
-      @keyframes floatGlow2{
-        0%{ transform: translate3d(0,0,0) scale(1); }
-        50%{ transform: translate3d(-14px,10px,0) scale(1.03); }
-        100%{ transform: translate3d(0,0,0) scale(1); }
-      }
-
-      button{ transition: transform .14s ease, filter .14s ease, box-shadow .14s ease, opacity .14s ease; }
       button:hover{ filter: brightness(1.02); }
       button:active{ transform: translateY(1px) scale(.99); }
 
-      button:hover{
-        box-shadow: 0 18px 55px rgba(0,0,0,.45), 0 0 0 1px rgba(25,230,162,.10);
+      :focus-visible{
+        outline: 2px solid rgba(25,230,162,.55);
+        outline-offset: 2px;
+        border-radius: 14px;
+      }
+
+      ::selection{ background: rgba(25,230,162,.22); }
+
+      @keyframes breatheCard{
+        0%{ transform: translateZ(0) scale(1); }
+        50%{ transform: translateZ(0) scale(1.012); }
+        100%{ transform: translateZ(0) scale(1); }
+      }
+      .breathe{
+        animation: breatheCard 7s var(--ease) infinite;
+      }
+
+      /* ===== Intro / Factory Splash ===== */
+      @keyframes logoSpin { to { transform: rotate(360deg); } }
+      @keyframes chainMove { to { background-position: 160px 0; } }
+      @keyframes coinRide {
+        0%{ transform: translateX(-120px) rotate(-10deg); opacity:0; }
+        12%{opacity:1;}
+        100%{ transform: translateX(640px) rotate(18deg); opacity:1; }
+      }
+      @keyframes smoke {
+        0%{ transform: translateY(18px); opacity:0; }
+        20%{opacity:.35;}
+        100%{ transform: translateY(-26px); opacity:0; }
+      }
+      @keyframes pulseGlow {
+        0%,100%{ opacity:.35; transform: scale(1); }
+        50%{ opacity:.65; transform: scale(1.03); }
+      }
+
+      .introOverlay{
+        position: fixed;
+        inset: 0;
+        z-index: 999999;
+        display: grid;
+        place-items: center;
+        background:
+          radial-gradient(900px 520px at 50% 20%, rgba(25,230,162,.16), transparent 60%),
+          radial-gradient(900px 520px at 20% 80%, rgba(106,215,255,.12), transparent 60%),
+          radial-gradient(900px 520px at 80% 85%, rgba(167,139,250,.11), transparent 60%),
+          rgba(0,0,0,.72);
+        backdrop-filter: blur(16px);
+      }
+
+      .introCard{
+        width: 540px;
+        max-width: 92vw;
+        border-radius: 28px;
+        border: 1px solid rgba(255,255,255,.12);
+        background:
+          linear-gradient(180deg, rgba(255,255,255,.06), rgba(0,0,0,.30)),
+          rgba(10,14,16,.78);
+        box-shadow: 0 40px 120px rgba(0,0,0,.75);
+        overflow: hidden;
+        position: relative;
+        padding: 18px;
+      }
+
+      .introGlow{
+        position:absolute; inset:-40px;
+        background:
+          radial-gradient(420px 220px at 20% 30%, rgba(25,230,162,.25), transparent 60%),
+          radial-gradient(420px 220px at 80% 20%, rgba(106,215,255,.18), transparent 60%),
+          radial-gradient(520px 260px at 60% 85%, rgba(167,139,250,.14), transparent 60%);
+        filter: blur(18px);
+        animation: pulseGlow 3.2s var(--ease) infinite;
+        pointer-events:none;
+      }
+
+      .logoRing{
+        width: 92px; height: 92px;
+        border-radius: 30px;
+        border: 1px solid rgba(255,255,255,.14);
+        background: rgba(0,0,0,.22);
+        display: grid;
+        place-items: center;
+        box-shadow:
+          0 26px 80px rgba(0,0,0,.55),
+          0 0 60px rgba(25,230,162,.12);
+      }
+
+      .logoSpin{
+        width: 72px; height: 72px;
+        border-radius: 24px;
+        overflow: hidden;
+        display: grid;
+        place-items: center;
+        animation: logoSpin 1.15s linear infinite;
+        background: linear-gradient(135deg, rgba(25,230,162,.22), rgba(106,215,255,.14));
+        border: 1px solid rgba(255,255,255,.10);
+      }
+
+      .logoSpin img{
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+        transform: rotate(0deg);
+      }
+
+      .factoryStage{
+        margin-top: 14px;
+        border-radius: 22px;
+        border: 1px solid rgba(255,255,255,.10);
+        background: rgba(0,0,0,.22);
+        padding: 14px;
+        position: relative;
+        overflow: hidden;
+      }
+
+      .chainRow{
+        height: 16px;
+        border-radius: 999px;
+        border: 1px solid rgba(255,255,255,.10);
+        background:
+          repeating-linear-gradient(
+            90deg,
+            rgba(255,255,255,.18) 0 14px,
+            rgba(0,0,0,.0) 14px 22px
+          );
+        background-size: 160px 16px;
+        animation: chainMove .55s linear infinite;
+        box-shadow: inset 0 0 0 1px rgba(0,0,0,.18);
+      }
+
+      .chainRow.second{
+        margin-top: 10px;
+        opacity: .85;
+        animation-duration: .75s;
+      }
+
+      .conveyor{
+        margin-top: 14px;
+        height: 52px;
+        border-radius: 18px;
+        border: 1px solid rgba(255,255,255,.10);
+        background:
+          linear-gradient(180deg, rgba(255,255,255,.06), rgba(0,0,0,.18)),
+          rgba(10,12,14,.55);
+        position: relative;
+        overflow: hidden;
+      }
+
+      .coin{
+        position: absolute;
+        top: 9px;
+        width: 34px;
+        height: 34px;
+        border-radius: 999px;
+        display: grid;
+        place-items: center;
+        font-size: 18px;
+        border: 1px solid rgba(255,255,255,.14);
+        background: rgba(0,0,0,.22);
+        box-shadow: 0 14px 45px rgba(0,0,0,.35);
+        animation: coinRide 1.9s var(--ease) infinite;
+      }
+
+      .coin.c2{ animation-delay: .22s; opacity: .95; }
+      .coin.c3{ animation-delay: .44s; opacity: .90; }
+      .coin.c4{ animation-delay: .66s; opacity: .86; }
+
+      .smokePuff{
+        position: absolute;
+        left: 18px;
+        bottom: 10px;
+        width: 120px;
+        height: 60px;
+        background: radial-gradient(closest-side, rgba(255,255,255,.16), rgba(255,255,255,0));
+        filter: blur(2px);
+        opacity: 0;
+        animation: smoke 1.35s var(--ease) infinite;
+      }
+
+      .introText{
+        margin-top: 14px;
+        display:flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .introTitle{
+        font-weight: 980;
+        letter-spacing: .25px;
+      }
+
+      .introSub{
+        margin-top: 6px;
+        color: var(--muted);
+        font-size: 12px;
       }
     `}</style>
   );
@@ -139,18 +396,13 @@ function ScreenShell({ children, fullBleed = false, allowYScroll = false }) {
     <div
       style={{
         minHeight: "100vh",
-        background: `
-          radial-gradient(1200px 700px at 50% -10%, rgba(255,255,255,.05), transparent 60%),
-          radial-gradient(900px 500px at 10% 10%, rgba(25,230,162,.18), transparent 60%),
-          radial-gradient(800px 450px at 90% 20%, rgba(106,215,255,.14), transparent 60%),
-          radial-gradient(900px 500px at 50% 110%, rgba(167,139,250,.12), transparent 55%),
-          var(--bg)
-        `,
         color: "var(--text)",
         fontFamily: "system-ui, -apple-system, Segoe UI, Roboto, Arial",
         paddingBottom: 86,
         display: "grid",
         placeItems: "center",
+        position: "relative",
+        zIndex: 1,
       }}
     >
       <div
@@ -160,17 +412,17 @@ function ScreenShell({ children, fullBleed = false, allowYScroll = false }) {
           maxWidth: "92vw",
           padding: fullBleed ? 12 : 18,
           background: `
-            linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02)),
-            linear-gradient(180deg, rgba(0,0,0,.18), rgba(0,0,0,.35)),
+            linear-gradient(180deg, rgba(255,255,255,.07), rgba(255,255,255,.02)),
+            linear-gradient(180deg, rgba(0,0,0,.12), rgba(0,0,0,.32)),
             var(--card)
           `,
           backdropFilter: "blur(18px)",
           WebkitBackdropFilter: "blur(18px)",
           border: "1px solid rgba(255,255,255,.10)",
-          borderRadius: "28px",
+          borderRadius: "var(--r)",
           boxShadow: `
-            0 30px 80px rgba(0,0,0,.65),
-            0 0 60px rgba(25,230,162,.10)
+            0 34px 110px rgba(0,0,0,.70),
+            0 0 70px rgba(25,230,162,.08)
           `,
           maxHeight: allowYScroll ? "calc(100vh - 110px)" : undefined,
           overflowY: allowYScroll ? "auto" : "hidden",
@@ -181,34 +433,36 @@ function ScreenShell({ children, fullBleed = false, allowYScroll = false }) {
           style={{
             position: "absolute",
             inset: 0,
-            borderRadius: "28px",
+            borderRadius: "var(--r)",
             pointerEvents: "none",
-            background: `radial-gradient(400px 120px at 50% 0%, rgba(25,230,162,.15), transparent 70%)`,
+            background: `
+              radial-gradient(420px 120px at 50% 0%, rgba(25,230,162,.12), transparent 70%),
+              linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,0) 35%)
+            `,
+            opacity: 0.9,
           }}
         />
         <div style={{ position: "relative", zIndex: 1 }}>{children}</div>
       </div>
     </div>
   );
-}
-
-function Title({ children, sub, right }) {
+}function Title({ children, sub, right }) {
   return (
     <div
       style={{
         marginBottom: 14,
         display: "flex",
         justifyContent: "space-between",
-        gap: 10,
+        gap: 12,
         alignItems: "flex-start",
       }}
     >
       <div>
-        <div style={{ fontWeight: 950, fontSize: 18, letterSpacing: 0.2 }}>
+        <div style={{ fontWeight: 980, fontSize: 19, letterSpacing: 0.25, lineHeight: 1.15 }}>
           {children}
         </div>
         {sub ? (
-          <div style={{ marginTop: 6, color: "var(--muted)", fontSize: 12 }}>
+          <div style={{ marginTop: 7, color: "var(--muted)", fontSize: 12, lineHeight: 1.45 }}>
             {sub}
           </div>
         ) : null}
@@ -217,16 +471,77 @@ function Title({ children, sub, right }) {
     </div>
   );
 }
+function SplashIntro({ logoUrl }) {
+  return (
+    <div className="introOverlay">
+      <div className="introCard">
+        <div className="introGlow" />
 
-function Card({ children, style }) {
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <div className="logoRing">
+              <div className="logoSpin" aria-label="App logo spinning">
+                {logoUrl ? (
+                  <img src={logoUrl} alt="logo" />
+                ) : (
+                  <div style={{ fontWeight: 950, color: "var(--text)" }}>LOGO</div>
+                )}
+              </div>
+            </div>
+
+            <div>
+              <div className="introTitle">Cooking memes…</div>
+              <div className="introSub">Chains running • coins printing • launchpad warming up</div>
+            </div>
+          </div>
+
+          <Pill tone="good">LIVE</Pill>
+        </div>
+
+        <div className="factoryStage">
+          <div className="smokePuff" />
+          <div className="chainRow" />
+          <div className="chainRow second" />
+
+          <div className="conveyor" style={{ marginTop: 14 }}>
+            <div className="coin c1" title="Doge">🐶</div>
+            <div className="coin c2" title="Shiba">🐕</div>
+            <div className="coin c3" title="Pepe">🐸</div>
+            <div className="coin c4" title="Rocket">🚀</div>
+          </div>
+
+          <div className="introText">
+            <div style={{ color: "var(--muted)", fontSize: 12 }}>
+              Creator-first • Reward-driven • Smooth & Fast
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <Pill>Referral 20%</Pill>
+              <Pill tone="warn">Factory Mode</Pill>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Card({ children, style, breathe = true }) {
   return (
     <div
+      className={breathe ? "breathe" : ""}
       style={{
-        padding: 12,
-        borderRadius: 18,
+        padding: 14,
+        borderRadius: 22,
         border: "1px solid var(--border)",
-        background:
-          "linear-gradient(180deg, rgba(255,255,255,.03), rgba(0,0,0,.12)), var(--card2)",
+        background: `
+          linear-gradient(180deg, rgba(255,255,255,.05), rgba(0,0,0,.18)),
+          var(--card2)
+        `,
+        boxShadow: `
+          0 20px 70px rgba(0,0,0,.55),
+          0 0 40px rgba(25,230,162,.05)
+        `,
+        transition: "all .25s var(--ease)",
         ...style,
       }}
     >
@@ -237,34 +552,39 @@ function Card({ children, style }) {
 
 function Pill({ children, tone = "muted" }) {
   const color =
-    tone === "good"
-      ? "var(--primary)"
-      : tone === "warn"
-      ? "var(--warn)"
-      : tone === "danger"
-      ? "var(--danger)"
-      : "var(--muted)";
+    tone === "good" ? "var(--primary)" : tone === "warn" ? "var(--warn)" : tone === "danger" ? "var(--danger)" : "var(--muted)";
   const border =
     tone === "good"
-      ? "rgba(116,247,178,.25)"
+      ? "rgba(25,230,162,.24)"
       : tone === "warn"
-      ? "rgba(255,207,106,.25)"
+      ? "rgba(255,211,106,.24)"
       : tone === "danger"
-      ? "rgba(255,122,122,.25)"
-      : "var(--border)";
+      ? "rgba(255,107,107,.28)"
+      : "rgba(255,255,255,.10)";
+  const bg =
+    tone === "good"
+      ? "rgba(25,230,162,.08)"
+      : tone === "warn"
+      ? "rgba(255,211,106,.08)"
+      : tone === "danger"
+      ? "rgba(255,107,107,.08)"
+      : "rgba(255,255,255,.05)";
+
   return (
     <span
       style={{
         display: "inline-flex",
         alignItems: "center",
         gap: 6,
-        padding: "8px 10px",
+        padding: "7px 10px",
         borderRadius: 999,
         border: `1px solid ${border}`,
-        background: "rgba(255,255,255,.04)",
+        background: bg,
         color,
         fontSize: 12,
-        fontWeight: 850,
+        fontWeight: 900,
+        letterSpacing: 0.15,
+        boxShadow: "0 10px 30px rgba(0,0,0,.25)",
       }}
     >
       {children}
@@ -272,189 +592,28 @@ function Pill({ children, tone = "muted" }) {
   );
 }
 
-function Input({
-  label,
-  value,
-  onChange,
-  placeholder,
-  type = "text",
-  maxLength,
-  hint,
-  error,
-  rightIcon,
-}) {
-  return (
-    <div style={{ marginBottom: 14 }}>
-      <div
-        style={{
-          marginBottom: 6,
-          color: "var(--muted)",
-          display: "flex",
-          justifyContent: "space-between",
-        }}
-      >
-        <span>{label}</span>
-        {hint ? <span style={{ color: "var(--muted2)" }}>{hint}</span> : null}
-      </div>
-      <div style={{ position: "relative" }}>
-        <input
-          value={value}
-          maxLength={maxLength}
-          type={type}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder={placeholder}
-          style={{
-            width: "100%",
-            padding: rightIcon ? "12px 44px 12px 12px" : 12,
-            borderRadius: 14,
-            border: `1px solid ${
-              error ? "rgba(255,122,122,.6)" : "var(--border)"
-            }`,
-            background: "rgba(0,0,0,.18)",
-            color: "var(--text)",
-            outline: "none",
-          }}
-        />
-        {rightIcon ? (
-          <div
-            style={{
-              position: "absolute",
-              right: 10,
-              top: 0,
-              bottom: 0,
-              display: "grid",
-              placeItems: "center",
-              color: "var(--muted)",
-            }}
-          >
-            {rightIcon}
-          </div>
-        ) : null}
-      </div>
-      {error ? (
-        <div style={{ marginTop: 7, color: "var(--danger)", fontSize: 12 }}>
-          {error}
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
-function Textarea({ label, value, onChange, placeholder, maxLength, error }) {
-  return (
-    <div style={{ marginBottom: 14 }}>
-      <div
-        style={{
-          marginBottom: 6,
-          color: "var(--muted)",
-          display: "flex",
-          justifyContent: "space-between",
-        }}
-      >
-        <span>{label}</span>
-        <span style={{ color: "var(--muted2)" }}>
-          {value.length}/{maxLength}
-        </span>
-      </div>
-      <textarea
-        value={value}
-        maxLength={maxLength}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        rows={4}
-        style={{
-          width: "100%",
-          padding: 12,
-          borderRadius: 14,
-          border: `1px solid ${
-            error ? "rgba(255,122,122,.6)" : "var(--border)"
-          }`,
-          background: "rgba(0,0,0,.18)",
-          color: "var(--text)",
-          outline: "none",
-          resize: "none",
-        }}
-      />
-      {error ? (
-        <div style={{ marginTop: 7, color: "var(--danger)", fontSize: 12 }}>
-          {error}
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
-function PrimaryButton({ children, onClick, disabled }) {
-  return (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      style={{
-        width: "100%",
-        padding: 12,
-        borderRadius: 16,
-        border: "none",
-        background: disabled ? "rgba(255,255,255,.10)" : "var(--primary)",
-        color: disabled ? "rgba(255,255,255,.6)" : "#000",
-        fontWeight: 950,
-        cursor: disabled ? "not-allowed" : "pointer",
-        boxShadow: disabled ? "none" : "var(--shadow2)",
-      }}
-    >
-      {children}
-    </button>
-  );
-}
-
-function GhostButton({ children, onClick, disabled }) {
-  return (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      style={{
-        width: "100%",
-        padding: 12,
-        borderRadius: 16,
-        border: "1px solid var(--border)",
-        background: "rgba(255,255,255,.02)",
-        color: "var(--text)",
-        cursor: disabled ? "not-allowed" : "pointer",
-        opacity: disabled ? 0.6 : 1,
-        fontWeight: 900,
-      }}
-    >
-      {children}
-    </button>
-  );
-}
-
 function MiniBtn({ children, onClick, disabled, tone = "muted", style }) {
-  const bg =
-    tone === "good"
-      ? "rgba(22,199,132,.14)"
-      : tone === "warn"
-      ? "rgba(255,207,106,.12)"
-      : tone === "danger"
-      ? "rgba(255,122,122,.12)"
-      : "rgba(255,255,255,.04)";
+  const isGood = tone === "good";
+  const isWarn = tone === "warn";
+  const isDanger = tone === "danger";
 
-  const border =
-    tone === "good"
-      ? "rgba(22,199,132,.28)"
-      : tone === "warn"
-      ? "rgba(255,207,106,.25)"
-      : tone === "danger"
-      ? "rgba(255,122,122,.25)"
-      : "var(--border)";
+  const border = isGood
+    ? "rgba(25,230,162,.30)"
+    : isWarn
+    ? "rgba(255,211,106,.30)"
+    : isDanger
+    ? "rgba(255,107,107,.34)"
+    : "rgba(255,255,255,.10)";
 
-  const color =
-    tone === "good"
-      ? "#16C784"
-      : tone === "warn"
-      ? "var(--warn)"
-      : tone === "danger"
-      ? "var(--danger)"
-      : "var(--text)";
+  const bg = isGood
+    ? "rgba(25,230,162,.10)"
+    : isWarn
+    ? "rgba(255,211,106,.10)"
+    : isDanger
+    ? "rgba(255,107,107,.10)"
+    : "rgba(255,255,255,.04)";
+
+  const color = isGood ? "var(--primary)" : isWarn ? "var(--warn)" : isDanger ? "var(--danger)" : "var(--text)";
 
   return (
     <button
@@ -467,16 +626,210 @@ function MiniBtn({ children, onClick, disabled, tone = "muted", style }) {
         background: bg,
         color,
         cursor: disabled ? "not-allowed" : "pointer",
-        opacity: disabled ? 0.6 : 1,
+        opacity: disabled ? 0.55 : 1,
         fontWeight: 950,
+        fontSize: 12,
+        letterSpacing: 0.15,
+        transition: "all .22s var(--ease)",
+        boxShadow: "0 14px 45px rgba(0,0,0,.35)",
         ...style,
+      }}
+      onMouseEnter={(e) => {
+        if (disabled) return;
+        e.currentTarget.style.transform = "translateY(-2px)";
+        e.currentTarget.style.boxShadow = "0 18px 60px rgba(0,0,0,.45)";
+      }}
+      onMouseLeave={(e) => {
+        if (disabled) return;
+        e.currentTarget.style.transform = "translateY(0px)";
+        e.currentTarget.style.boxShadow = "0 14px 45px rgba(0,0,0,.35)";
       }}
     >
       {children}
     </button>
   );
-}// =========================== App.jsx (FULL FILE) — PART 2 / 5 ===========================
-function CoinLogo({ c, size = 46 }) {
+}
+
+function Input({ label, value, onChange, placeholder, type = "text", maxLength, hint, error, rightIcon }) {
+  return (
+    <div style={{ marginBottom: 14 }}>
+      <div
+        style={{
+          marginBottom: 7,
+          color: "var(--muted)",
+          display: "flex",
+          justifyContent: "space-between",
+          fontSize: 12,
+        }}
+      >
+        <span>{label}</span>
+        {hint ? <span style={{ color: "var(--muted2)" }}>{hint}</span> : null}
+      </div>
+
+      <div style={{ position: "relative" }}>
+        <input
+          value={value}
+          maxLength={maxLength}
+          type={type}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder}
+          style={{
+            width: "100%",
+            padding: rightIcon ? "13px 44px 13px 13px" : 13,
+            borderRadius: 16,
+            border: `1px solid ${error ? "rgba(255,107,107,.55)" : "rgba(255,255,255,.10)"}`,
+            background: "rgba(0,0,0,.18)",
+            color: "var(--text)",
+            outline: "none",
+            boxShadow: "inset 0 0 0 1px rgba(0,0,0,.10)",
+            transition: "all .22s var(--ease)",
+          }}
+        />
+        {rightIcon ? (
+          <div
+            style={{
+              position: "absolute",
+              right: 12,
+              top: 0,
+              bottom: 0,
+              display: "grid",
+              placeItems: "center",
+              color: "var(--muted)",
+            }}
+          >
+            {rightIcon}
+          </div>
+        ) : null}
+      </div>
+
+      {error ? <div style={{ marginTop: 7, color: "var(--danger)", fontSize: 12 }}>{error}</div> : null}
+    </div>
+  );
+}
+
+function Textarea({ label, value, onChange, placeholder, maxLength, error }) {
+  return (
+    <div style={{ marginBottom: 14 }}>
+      <div
+        style={{
+          marginBottom: 7,
+          color: "var(--muted)",
+          display: "flex",
+          justifyContent: "space-between",
+          fontSize: 12,
+        }}
+      >
+        <span>{label}</span>
+        <span style={{ color: "var(--muted2)" }}>{value.length}/{maxLength}</span>
+      </div>
+
+      <textarea
+        value={value}
+        maxLength={maxLength}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        rows={4}
+        style={{
+          width: "100%",
+          padding: 13,
+          borderRadius: 16,
+          border: `1px solid ${error ? "rgba(255,107,107,.55)" : "rgba(255,255,255,.10)"}`,
+          background: "rgba(0,0,0,.18)",
+          color: "var(--text)",
+          outline: "none",
+          resize: "none",
+          boxShadow: "inset 0 0 0 1px rgba(0,0,0,.10)",
+          transition: "all .22s var(--ease)",
+        }}
+      />
+
+      {error ? <div style={{ marginTop: 7, color: "var(--danger)", fontSize: 12 }}>{error}</div> : null}
+    </div>
+  );
+}
+
+function PrimaryButton({ children, onClick, disabled, style }) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      style={{
+        width: "100%",
+        padding: 14,
+        borderRadius: 18,
+        border: "none",
+        background: disabled ? "rgba(255,255,255,.12)" : "linear-gradient(135deg, var(--primary), var(--primary2))",
+        color: disabled ? "rgba(255,255,255,.6)" : "#000",
+        fontWeight: 950,
+        cursor: disabled ? "not-allowed" : "pointer",
+        boxShadow: disabled ? "none" : "0 18px 60px rgba(25,230,162,.25)",
+        transition: "all .25s var(--ease)",
+        ...style,
+      }}
+      onMouseEnter={(e) => {
+        if (disabled) return;
+        e.currentTarget.style.transform = "translateY(-3px) scale(1.02)";
+      }}
+      onMouseLeave={(e) => {
+        if (disabled) return;
+        e.currentTarget.style.transform = "translateY(0px) scale(1)";
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
+function GhostButton({ children, onClick, disabled, style }) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      style={{
+        width: "100%",
+        padding: 14,
+        borderRadius: 18,
+        border: "1px solid var(--border)",
+        background: "rgba(255,255,255,.03)",
+        color: "var(--text)",
+        cursor: disabled ? "not-allowed" : "pointer",
+        opacity: disabled ? 0.5 : 1,
+        fontWeight: 900,
+        transition: "all .25s var(--ease)",
+        ...style,
+      }}
+      onMouseEnter={(e) => {
+        if (disabled) return;
+        e.currentTarget.style.transform = "translateY(-2px)";
+        e.currentTarget.style.boxShadow = "0 12px 40px rgba(25,230,162,.12)";
+      }}
+      onMouseLeave={(e) => {
+        if (disabled) return;
+        e.currentTarget.style.transform = "translateY(0px)";
+        e.currentTarget.style.boxShadow = "none";
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
+function SectionHeader({ title, right }) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "baseline",
+        gap: 10,
+        marginBottom: 10,
+      }}
+    >
+      <div style={{ fontWeight: 980, letterSpacing: 0.15 }}>{title}</div>
+      {right}
+    </div>
+  );
+}function CoinLogo({ c, size = 46 }) {
   const src = c?.logo || "";
   const has = !!src;
   return (
@@ -494,15 +847,9 @@ function CoinLogo({ c, size = 46 }) {
       }}
     >
       {has ? (
-        <img
-          src={src}
-          alt="logo"
-          style={{ width: "100%", height: "100%", objectFit: "cover" }}
-        />
+        <img src={src} alt="logo" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
       ) : (
-        <span style={{ color: "var(--muted)", fontSize: 12 }}>
-          {(c?.symbol || "•").slice(0, 2)}
-        </span>
+        <span style={{ color: "var(--muted)", fontSize: 12 }}>{(c?.symbol || "•").slice(0, 2)}</span>
       )}
     </div>
   );
@@ -518,7 +865,7 @@ function CoinRow({ c, onClick, right }) {
         borderRadius: 20,
         border: "1px solid rgba(255,255,255,.10)",
         background: `
-          radial-gradient(280px 120px at 20% 0%, rgba(25,230,162,.12), transparent 60%),
+          radial-gradient(280px 120px at 20% 0%, rgba(25,230,162,.10), transparent 60%),
           linear-gradient(180deg, rgba(255,255,255,.05), rgba(0,0,0,.20)),
           var(--card2)
         `,
@@ -527,12 +874,11 @@ function CoinRow({ c, onClick, right }) {
         cursor: "pointer",
         width: "100%",
         boxShadow: "0 18px 55px rgba(0,0,0,.35)",
-        transition: "all .18s ease",
+        transition: "all .18s var(--ease)",
       }}
       onMouseEnter={(e) => {
         e.currentTarget.style.transform = "translateY(-3px)";
-        e.currentTarget.style.boxShadow =
-          "0 26px 80px rgba(0,0,0,.55), 0 0 60px rgba(25,230,162,.12)";
+        e.currentTarget.style.boxShadow = "0 26px 80px rgba(0,0,0,.55), 0 0 60px rgba(25,230,162,.10)";
       }}
       onMouseLeave={(e) => {
         e.currentTarget.style.transform = "translateY(0px)";
@@ -542,23 +888,12 @@ function CoinRow({ c, onClick, right }) {
       <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
         <CoinLogo c={c} />
         <div style={{ flex: 1 }}>
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              gap: 10,
-              alignItems: "center",
-            }}
-          >
-            <div style={{ fontWeight: 950, fontSize: 15 }}>
-              {c.symbol || "—"}
-            </div>
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center" }}>
+            <div style={{ fontWeight: 950, fontSize: 15 }}>{c.symbol || "—"}</div>
             {right || <Pill>{c.status}</Pill>}
           </div>
-
           <div style={{ marginTop: 6, color: "var(--muted)", fontSize: 12 }}>
-            MC: {fmtUsd(c.mc || 0)} • VOL: {Number(c.volumeSol || 0).toFixed(2)}{" "}
-            SOL
+            MC: {fmtUsd(c.mc || 0)} • VOL: {Number(c.volumeSol || 0).toFixed(2)} SOL
           </div>
         </div>
       </div>
@@ -566,15 +901,7 @@ function CoinRow({ c, onClick, right }) {
   );
 }
 
-function Modal({
-  open,
-  title,
-  children,
-  onClose,
-  onConfirm,
-  confirmText = "Confirm",
-  confirmTone = "primary",
-}) {
+function Modal({ open, title, children, onClose, onConfirm, confirmText = "Confirm", confirmTone = "primary" }) {
   if (!open) return null;
   return (
     <div
@@ -602,44 +929,28 @@ function Modal({
           padding: 16,
         }}
       >
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            gap: 10,
-          }}
-        >
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
           <div style={{ fontWeight: 950 }}>{title}</div>
           <button
             onClick={onClose}
-            style={{
-              border: "none",
-              background: "transparent",
-              color: "var(--muted)",
-              cursor: "pointer",
-              fontSize: 18,
-            }}
+            style={{ border: "none", background: "transparent", color: "var(--muted)", cursor: "pointer", fontSize: 18 }}
           >
             ✕
           </button>
         </div>
-
         <div style={{ marginTop: 12 }}>{children}</div>
-
         <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
           <GhostButton onClick={onClose}>Close</GhostButton>
-
           {onConfirm ? (
             confirmTone === "danger" ? (
               <button
                 onClick={onConfirm}
                 style={{
                   width: "100%",
-                  padding: 12,
-                  borderRadius: 16,
-                  border: "1px solid rgba(255,122,122,.35)",
-                  background: "rgba(255,122,122,.12)",
+                  padding: 14,
+                  borderRadius: 18,
+                  border: "1px solid rgba(255,107,107,.35)",
+                  background: "rgba(255,107,107,.12)",
                   color: "var(--danger)",
                   fontWeight: 950,
                   cursor: "pointer",
@@ -700,7 +1011,7 @@ function NavBtn({ active, onClick, icon, text }) {
         height: "100%",
         background: "transparent",
         border: "none",
-        color: active ? "#16C784" : "var(--muted)",
+        color: active ? "var(--primary)" : "var(--muted)",
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
@@ -709,7 +1020,7 @@ function NavBtn({ active, onClick, icon, text }) {
         cursor: "pointer",
         fontSize: 18,
         position: "relative",
-        transition: "all .15s ease",
+        transition: "all .15s var(--ease)",
       }}
     >
       {active && (
@@ -720,12 +1031,11 @@ function NavBtn({ active, onClick, icon, text }) {
             width: 32,
             height: 4,
             borderRadius: 999,
-            background: "linear-gradient(90deg,#16C784,#7CFFB8)",
-            boxShadow: "0 0 20px rgba(22,199,132,.45)",
+            background: "linear-gradient(90deg, var(--primary), var(--primary2))",
+            boxShadow: "0 0 20px rgba(25,230,162,.35)",
           }}
         />
       )}
-
       <span style={{ fontWeight: 950 }}>{icon}</span>
       {text ? <span style={{ fontSize: 11 }}>{text}</span> : null}
     </button>
@@ -741,34 +1051,17 @@ function BottomNav({ screen, setScreen }) {
         right: 0,
         bottom: 0,
         height: 70,
-        background: "rgba(12,16,32,.85)",
+        background: "rgba(9,12,14,.78)",
         borderTop: "1px solid var(--border)",
         display: "flex",
         alignItems: "center",
         zIndex: 9999,
-        backdropFilter: "blur(12px)",
+        backdropFilter: "blur(14px)",
       }}
     >
-      <NavBtn
-        active={screen === "HOME"}
-        onClick={() => setScreen("HOME")}
-        icon="🏠"
-        text="Home"
-      />
-      <NavBtn
-        active={screen === "SEARCH"}
-        onClick={() => setScreen("SEARCH")}
-        icon="⌕"
-        text="Search"
-      />
-      <div
-        style={{
-          flex: 1,
-          display: "flex",
-          justifyContent: "center",
-          marginTop: -28,
-        }}
-      >
+      <NavBtn active={screen === "HOME"} onClick={() => setScreen("HOME")} icon="🏠" text="Home" />
+      <NavBtn active={screen === "SEARCH"} onClick={() => setScreen("SEARCH")} icon="⌕" text="Search" />
+      <div style={{ flex: 1, display: "flex", justifyContent: "center", marginTop: -28 }}>
         <button
           onClick={() => setScreen("CREATE")}
           style={{
@@ -776,9 +1069,8 @@ function BottomNav({ screen, setScreen }) {
             height: 64,
             borderRadius: 24,
             border: "1px solid rgba(255,255,255,.12)",
-            background:
-              "linear-gradient(180deg, rgba(255,255,255,.18), rgba(0,0,0,.14))",
-            boxShadow: "0 22px 60px rgba(0,0,0,.65)",
+            background: "linear-gradient(135deg, rgba(255,255,255,.20), rgba(0,0,0,.10))",
+            boxShadow: "0 22px 60px rgba(0,0,0,.65), 0 0 50px rgba(25,230,162,.10)",
             color: "var(--text)",
             fontSize: 22,
             cursor: "pointer",
@@ -788,18 +1080,8 @@ function BottomNav({ screen, setScreen }) {
           ✦
         </button>
       </div>
-      <NavBtn
-        active={screen === "LATEST"}
-        onClick={() => setScreen("LATEST")}
-        icon="◷"
-        text="Latest"
-      />
-      <NavBtn
-        active={screen === "PROFILE"}
-        onClick={() => setScreen("PROFILE")}
-        icon="👤"
-        text="Profile"
-      />
+      <NavBtn active={screen === "LATEST"} onClick={() => setScreen("LATEST")} icon="◷" text="Latest" />
+      <NavBtn active={screen === "PROFILE"} onClick={() => setScreen("PROFILE")} icon="👤" text="Profile" />
     </div>
   );
 }
@@ -824,31 +1106,15 @@ function Pager({ pages, pageIndex, setPageIndex }) {
 
   return (
     <div>
-      <div
-        ref={ref}
-        onScroll={onScroll}
-        className="hScroll snapX"
-        style={{ display: "flex", gap: 0, width: "100%" }}
-      >
+      <div ref={ref} onScroll={onScroll} className="hScroll snapX" style={{ display: "flex", gap: 0, width: "100%" }}>
         {pages.map((p, i) => (
-          <div
-            key={i}
-            className="snapItem"
-            style={{ width: "100%", flex: "0 0 100%" }}
-          >
+          <div key={i} className="snapItem" style={{ width: "100%", flex: "0 0 100%" }}>
             {p}
           </div>
         ))}
       </div>
 
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "center",
-          gap: 8,
-          marginTop: 10,
-        }}
-      >
+      <div style={{ display: "flex", justifyContent: "center", gap: 8, marginTop: 10 }}>
         {pages.map((_, i) => (
           <button
             key={i}
@@ -858,12 +1124,9 @@ function Pager({ pages, pageIndex, setPageIndex }) {
               height: 8,
               borderRadius: 999,
               border: "none",
-              background:
-                i === pageIndex
-                  ? "var(--primary)"
-                  : "rgba(255,255,255,.14)",
+              background: i === pageIndex ? "var(--primary)" : "rgba(255,255,255,.14)",
               cursor: "pointer",
-              transition: "all .15s ease",
+              transition: "all .15s var(--ease)",
             }}
             title={`Page ${i + 1}`}
           />
@@ -897,7 +1160,8 @@ async function apiPostTry(paths, body) {
     }
   }
   return last || { ok: false, error: "No endpoint responded" };
-}// =========================== App.jsx (FULL FILE) — PART 3 / 5 ===========================
+}
+
 function isValidSymbol(s) {
   const v = (s || "").trim();
   if (v.length < 2 || v.length > 10) return false;
@@ -911,7 +1175,6 @@ function isValidStory(s) {
   const v = (s || "").trim();
   return v.length >= 20 && v.length <= 300;
 }
-
 function ensureCoinShape(c) {
   const live = c?.status === "LIVE";
   const baseMC = live ? Number(c?.mc || STARTING_MC_USD) : 0;
@@ -934,7 +1197,6 @@ function ensureCoinShape(c) {
     totalSupply: Number(c?.totalSupply || 0),
   };
 }
-
 function fmtTime(t) {
   const d = new Date(t);
   return d.toLocaleString();
@@ -964,23 +1226,6 @@ function pctFromChart(chart) {
   return ((b - a) / a) * 100;
 }
 
-function SectionHeader({ title, right }) {
-  return (
-    <div
-      style={{
-        display: "flex",
-        justifyContent: "space-between",
-        alignItems: "baseline",
-        gap: 10,
-        marginBottom: 10,
-      }}
-    >
-      <div style={{ fontWeight: 950 }}>{title}</div>
-      {right}
-    </div>
-  );
-}
-
 function CoinMiniCard({ c, subtitle, tag, accent = "var(--primary)", onOpen }) {
   const p = pctFromChart(c.chart);
   const pos = p >= 0;
@@ -994,8 +1239,7 @@ function CoinMiniCard({ c, subtitle, tag, accent = "var(--primary)", onOpen }) {
         padding: 12,
         borderRadius: 18,
         border: "1px solid var(--border)",
-        background:
-          "linear-gradient(180deg, rgba(255,255,255,.03), rgba(0,0,0,.16)), var(--card2)",
+        background: "linear-gradient(180deg, rgba(255,255,255,.03), rgba(0,0,0,.16)), var(--card2)",
         color: "var(--text)",
         cursor: "pointer",
         position: "relative",
@@ -1013,26 +1257,13 @@ function CoinMiniCard({ c, subtitle, tag, accent = "var(--primary)", onOpen }) {
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <CoinLogo c={c} size={42} />
           <div style={{ flex: 1 }}>
-            <div style={{ fontWeight: 950, lineHeight: 1.15 }}>
-              {c.symbol || "—"}
-            </div>
-            <div style={{ marginTop: 4, color: "var(--muted)", fontSize: 12 }}>
-              {subtitle}
-            </div>
+            <div style={{ fontWeight: 950, lineHeight: 1.15 }}>{c.symbol || "—"}</div>
+            <div style={{ marginTop: 4, color: "var(--muted)", fontSize: 12 }}>{subtitle}</div>
           </div>
         </div>
 
-        <div
-          style={{
-            marginTop: 10,
-            display: "flex",
-            gap: 10,
-            flexWrap: "wrap",
-          }}
-        >
-          <Pill tone={pos ? "good" : "danger"}>
-            {pos ? "↑" : "↓"} {Math.abs(p).toFixed(1)}%
-          </Pill>
+        <div style={{ marginTop: 10, display: "flex", gap: 10, flexWrap: "wrap" }}>
+          <Pill tone={pos ? "good" : "danger"}>{pos ? "↑" : "↓"} {Math.abs(p).toFixed(1)}%</Pill>
           <Pill>MC: {fmtUsd(c.mc || 0)}</Pill>
           <Pill>VOL: {Number(c.volumeSol || 0).toFixed(2)} SOL</Pill>
           {tag ? <Pill tone="warn">{tag}</Pill> : null}
@@ -1040,15 +1271,12 @@ function CoinMiniCard({ c, subtitle, tag, accent = "var(--primary)", onOpen }) {
       </div>
     </button>
   );
-}
-
-function PriceChart({ points, txMarkers, mode, onToggleMode }) {
+}function PriceChart({ points, txMarkers, mode, onToggleMode }) {
   const W = 1000;
   const H = 380;
   const PAD = 22;
 
-  const safePoints =
-    Array.isArray(points) && points.length ? points : [0, 0, 0, 0, 0];
+  const safePoints = Array.isArray(points) && points.length ? points : [0, 0, 0, 0, 0];
 
   const min = Math.min(...safePoints);
   const max = Math.max(...safePoints);
@@ -1066,8 +1294,7 @@ function PriceChart({ points, txMarkers, mode, onToggleMode }) {
   const glow = isUp ? "rgba(22,199,132,.55)" : "rgba(255,77,77,.55)";
   const areaTop = isUp ? "rgba(22,199,132,.20)" : "rgba(255,77,77,.16)";
 
-  const xFor = (i) =>
-    PAD + (i * (W - PAD * 2)) / Math.max(1, safePoints.length - 1);
+  const xFor = (i) => PAD + (i * (W - PAD * 2)) / Math.max(1, safePoints.length - 1);
 
   const yFor = (v) => {
     const t = (Number(v) - min) / span;
@@ -1081,14 +1308,10 @@ function PriceChart({ points, txMarkers, mode, onToggleMode }) {
     d += i === 0 ? `M ${x} ${y}` : ` L ${x} ${y}`;
   });
 
-  const area =
-    d + ` L ${xFor(safePoints.length - 1)} ${H - PAD} L ${xFor(0)} ${H - PAD} Z`;
+  const area = d + ` L ${xFor(safePoints.length - 1)} ${H - PAD} L ${xFor(0)} ${H - PAD} Z`;
 
   const gridLines = 5;
-  const grid = Array.from({ length: gridLines }, (_, i) => {
-    const y = PAD + (i * (H - PAD * 2)) / (gridLines - 1);
-    return y;
-  });
+  const grid = Array.from({ length: gridLines }, (_, i) => PAD + (i * (H - PAD * 2)) / (gridLines - 1));
 
   const lx = xFor(safePoints.length - 1);
   const ly = yFor(last);
@@ -1100,14 +1323,12 @@ function PriceChart({ points, txMarkers, mode, onToggleMode }) {
     const y = yFor(safePoints[i]);
     const side = String(t.side || "").toUpperCase();
     const fill = side === "SELL" ? "#FF4D4D" : "#16C784";
-    const shadow =
-      side === "SELL" ? "rgba(255,77,77,.45)" : "rgba(22,199,132,.45)";
+    const shadow = side === "SELL" ? "rgba(255,77,77,.45)" : "rgba(22,199,132,.45)";
     return { x, y, fill, shadow, id: t.id || `${idx}` };
   });
 
   const label = Number(last || 0) ? fmtUsd(last) : "—";
-  const pct =
-    prev && Number.isFinite(prev) && prev !== 0 ? ((last - prev) / prev) * 100 : 0;
+  const pct = prev && Number.isFinite(prev) && prev !== 0 ? ((last - prev) / prev) * 100 : 0;
 
   const gid = `areaFill_${mode}_${isUp ? "up" : "down"}`;
   const fid = `glow_${mode}_${isUp ? "up" : "down"}`;
@@ -1120,10 +1341,7 @@ function PriceChart({ points, txMarkers, mode, onToggleMode }) {
         overflow: "hidden",
         border: `1px solid ${border}`,
         background: bg,
-        boxShadow:
-          mode === "dark"
-            ? "0 22px 70px rgba(0,0,0,.55)"
-            : "0 18px 55px rgba(0,0,0,.12)",
+        boxShadow: mode === "dark" ? "0 22px 70px rgba(0,0,0,.55)" : "0 18px 55px rgba(0,0,0,.12)",
       }}
     >
       <div
@@ -1142,22 +1360,15 @@ function PriceChart({ points, txMarkers, mode, onToggleMode }) {
       >
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <div style={{ fontSize: 12, color: text, fontWeight: 950 }}>
-            Price:{" "}
-            <span style={{ color: mode === "dark" ? "#fff" : "#000" }}>
-              {label}
-            </span>
+            Price: <span style={{ color: mode === "dark" ? "#fff" : "#000" }}>{label}</span>
           </div>
 
           <div
             style={{
               padding: "6px 10px",
               borderRadius: 999,
-              border: `1px solid ${
-                isUp ? "rgba(22,199,132,.30)" : "rgba(255,77,77,.30)"
-              }`,
-              background: isUp
-                ? "rgba(22,199,132,.10)"
-                : "rgba(255,77,77,.10)",
+              border: `1px solid ${isUp ? "rgba(22,199,132,.30)" : "rgba(255,77,77,.30)"}`,
+              background: isUp ? "rgba(22,199,132,.10)" : "rgba(255,77,77,.10)",
               color: isUp ? "#16C784" : "#FF4D4D",
               fontWeight: 950,
               fontSize: 12,
@@ -1173,10 +1384,8 @@ function PriceChart({ points, txMarkers, mode, onToggleMode }) {
             padding: "8px 10px",
             borderRadius: 999,
             border: `1px solid ${border}`,
-            background:
-              mode === "dark" ? "rgba(255,255,255,.06)" : "rgba(0,0,0,.04)",
-            color:
-              mode === "dark" ? "rgba(255,255,255,.85)" : "rgba(0,0,0,.75)",
+            background: mode === "dark" ? "rgba(255,255,255,.06)" : "rgba(0,0,0,.04)",
+            color: mode === "dark" ? "rgba(255,255,255,.85)" : "rgba(0,0,0,.75)",
             cursor: "pointer",
             fontWeight: 950,
             fontSize: 12,
@@ -1233,14 +1442,7 @@ function PriceChart({ points, txMarkers, mode, onToggleMode }) {
           opacity="0.9"
         />
 
-        <path
-          d={d}
-          fill="none"
-          stroke={stroke}
-          strokeWidth="2.8"
-          strokeLinejoin="round"
-          strokeLinecap="round"
-        />
+        <path d={d} fill="none" stroke={stroke} strokeWidth="2.8" strokeLinejoin="round" strokeLinecap="round" />
 
         {dotItems.map((p) => (
           <g key={p.id}>
@@ -1260,7 +1462,8 @@ function PriceChart({ points, txMarkers, mode, onToggleMode }) {
       </svg>
     </div>
   );
-}// =========================== App.jsx (FULL FILE) — PART 4 / 5 ===========================
+}
+
 function ThemeOption({ theme, current, setTheme, label }) {
   const active = current === theme;
   return (
@@ -1336,22 +1539,19 @@ function NetLogo({ chain }) {
       />
     </svg>
   );
-}
-
-export default function App() {
-  const { login, authenticated, user, ready, logout, connectOrCreateWallet } =
-    usePrivy();
+}export default function App() {
+  const { login, authenticated, user, ready, logout, connectOrCreateWallet } = usePrivy();
   const { exportWallet } = useExportWallet();
 
-  const [toast, setToast] = useState("");
-  const [theme, setTheme] = useState(() => {
-    try {
-      return localStorage.getItem(LS_THEME) || "neon";
-    } catch {
-      return "neon";
-    }
-  });
+  const [showIntro, setShowIntro] = useState(true);
 
+useEffect(() => {
+  const t = setTimeout(() => setShowIntro(false), INTRO_MS);
+  return () => clearTimeout(t);
+}, []);
+
+  const [toast, setToast] = useState("");
+  const [theme, setTheme] = useState(() => localStorage.getItem(LS_THEME) || "calm");
   const [screen, setScreen] = useState("HOME");
   const [selectedCoinId, setSelectedCoinId] = useState(null);
   const [homePage, setHomePage] = useState(0);
@@ -1383,7 +1583,7 @@ export default function App() {
   const [tradeLoading, setTradeLoading] = useState(false);
 
   const [dwOpen, setDwOpen] = useState(false);
-  const [dwMode, setDwMode] = useState("DEPOSIT"); // DEPOSIT | WITHDRAW
+  const [dwMode, setDwMode] = useState("DEPOSIT");
   const [withdrawTo, setWithdrawTo] = useState("");
   const [oneClickW, setOneClickW] = useState("");
 
@@ -1394,15 +1594,11 @@ export default function App() {
 
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme);
-    try {
-      localStorage.setItem(LS_THEME, theme);
-    } catch {}
+    localStorage.setItem(LS_THEME, theme);
   }, [theme]);
 
   const solAddr = useMemo(() => {
-    const w = user?.linkedAccounts?.find(
-      (a) => a.type === "wallet" && a.chainType === "solana"
-    );
+    const w = user?.linkedAccounts?.find((a) => a.type === "wallet" && a.chainType === "solana");
     return w?.address || null;
   }, [user]);
 
@@ -1441,7 +1637,8 @@ export default function App() {
       setBalance("—");
     }
     setLoadingBal(false);
-  }// =========================== App.jsx (FULL FILE) — PART 5 / 5 ===========================
+  }
+
   async function loadCoins() {
     setLoadingCoins(true);
     try {
@@ -1502,9 +1699,7 @@ export default function App() {
 
   const topVolume = useMemo(() => {
     const live = coinsSorted.filter((c) => c.status === "LIVE");
-    const arr = [...live].sort(
-      (a, b) => Number(b.volumeSol || 0) - Number(a.volumeSol || 0)
-    );
+    const arr = [...live].sort((a, b) => Number(b.volumeSol || 0) - Number(a.volumeSol || 0));
     return arr.slice(0, 12);
   }, [coinsSorted]);
 
@@ -1522,9 +1717,7 @@ export default function App() {
   const searchResults = useMemo(() => {
     if (!searchQ.trim()) return [];
     return coinsSorted
-      .filter((c) =>
-        `${c.name} ${c.symbol}`.toLowerCase().includes(searchQ.toLowerCase())
-      )
+      .filter((c) => `${c.name} ${c.symbol}`.toLowerCase().includes(searchQ.toLowerCase()))
       .slice(0, 25);
   }, [searchQ, coinsSorted]);
 
@@ -1557,9 +1750,7 @@ export default function App() {
     setLogoError("");
     setLogoPreview("");
     if (!file) return;
-    const okType = ["image/png", "image/jpeg", "image/jpg", "image/webp"].includes(
-      file.type
-    );
+    const okType = ["image/png", "image/jpeg", "image/jpg", "image/webp"].includes(file.type);
     if (!okType) return setLogoError("PNG/JPG/WEBP only");
     if (file.size > MAX_LOGO_BYTES) return setLogoError("Logo 5MB se chota hona chahiye");
     if (file.size < 10 * 1024) return setLogoError("Logo bohat choti (min 10KB)");
@@ -1603,13 +1794,9 @@ export default function App() {
     if (referralFromUrl === solAddr) return;
 
     try {
-      const res = await apiPost("/api/referral/set", {
-        wallet: solAddr,
-        referrer: referralFromUrl,
-      });
+      const res = await apiPost("/api/referral/set", { wallet: solAddr, referrer: referralFromUrl });
       if (res?.ok) setRefStatus("set");
-      else if (String(res?.error || "").toLowerCase().includes("immutable"))
-        setRefStatus("already");
+      else if (String(res?.error || "").toLowerCase().includes("immutable")) setRefStatus("already");
       else setRefStatus("invalid");
     } catch {}
   }
@@ -1629,10 +1816,7 @@ export default function App() {
     return [...arr].sort((a, b) => (b.t || 0) - (a.t || 0));
   }, [profile]);
 
-  const myRewards = useMemo(
-    () => profile?.rewards || { totalSol: 0, byCoin: {} },
-    [profile]
-  );
+  const myRewards = useMemo(() => profile?.rewards || { totalSol: 0, byCoin: {} }, [profile]);
 
   const myReferralRewardsSol = useMemo(() => {
     const d = Number(profile?.referralRewards?.totalSol || 0);
@@ -1641,9 +1825,7 @@ export default function App() {
 
   const myCreations = useMemo(() => {
     if (!solAddr) return [];
-    return coinsSorted.filter(
-      (c) => String(c.creatorWallet || c.owner || "") === String(solAddr)
-    );
+    return coinsSorted.filter((c) => String(c.creatorWallet || c.owner || "") === String(solAddr));
   }, [coinsSorted, solAddr]);
 
   async function doTrade(coin, side, solAmount) {
@@ -1656,11 +1838,7 @@ export default function App() {
 
     setTradeLoading(true);
     try {
-      const res = await apiPost(endpoint, {
-        wallet: solAddr,
-        coinId: coin.id,
-        sol: s,
-      });
+      const res = await apiPost(endpoint, { wallet: solAddr, coinId: coin.id, sol: s });
 
       if (!res?.ok) {
         showToast(res?.error || "Trade failed");
@@ -1669,9 +1847,7 @@ export default function App() {
 
       if (res.coin) {
         const updated = ensureCoinShape(res.coin);
-        setCoins((prev) =>
-          (prev || []).map((x) => (x.id === updated.id ? updated : x))
-        );
+        setCoins((prev) => (prev || []).map((x) => (x.id === updated.id ? updated : x)));
       }
 
       await loadProfile();
@@ -1687,10 +1863,7 @@ export default function App() {
     setOneClickW(kind);
 
     const body = { wallet: solAddr, to: solAddr, kind };
-    const res = await apiPostTry(
-      ["/api/withdraw", "/api/withdraw/creator", "/api/withdraw/referral"],
-      body
-    );
+    const res = await apiPostTry(["/api/withdraw", "/api/withdraw/creator", "/api/withdraw/referral"], body);
 
     if (res?.ok) {
       showToast("Withdraw ✅ (sent to main wallet)");
@@ -1737,22 +1910,12 @@ export default function App() {
     if (screen === "HOME") {
       const page1 = (
         <div>
-          <Title
-            sub={null}
-            right={<MiniBtn onClick={() => setScreen("PROFILE")}>Profile</MiniBtn>}
-          >
+          <Title sub={null} right={<MiniBtn onClick={() => setScreen("PROFILE")}>Profile</MiniBtn>}>
             Home
           </Title>
 
           <Card>
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                gap: 10,
-                alignItems: "center",
-              }}
-            >
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center" }}>
               <div>
                 <div style={{ color: "var(--muted)", fontSize: 12 }}>Wallet</div>
                 <div style={{ fontWeight: 950 }}>{shortWallet(solAddr)}</div>
@@ -1765,10 +1928,7 @@ export default function App() {
 
             <div style={{ height: 10 }} />
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-              <MiniBtn
-                onClick={() => solAddr && copyText(solAddr)}
-                disabled={!solAddr}
-              >
+              <MiniBtn onClick={() => solAddr && copyText(solAddr)} disabled={!solAddr}>
                 Copy Address
               </MiniBtn>
               <MiniBtn onClick={loadCoins} disabled={loadingCoins}>
@@ -1783,14 +1943,8 @@ export default function App() {
           <div style={{ height: 12 }} />
 
           <Card>
-            <SectionHeader
-              title="Top movers"
-              right={<Pill tone="good">LIVE</Pill>}
-            />
-            <div
-              className="hScroll"
-              style={{ display: "flex", gap: 10, paddingBottom: 4 }}
-            >
+            <SectionHeader title="Top movers" right={<Pill tone="good">LIVE</Pill>} />
+            <div className="hScroll" style={{ display: "flex", gap: 10, paddingBottom: 4 }}>
               {movers.slice(0, 10).map((c, i) => (
                 <CoinMiniCard
                   key={c.id}
@@ -1810,14 +1964,8 @@ export default function App() {
           <div style={{ height: 12 }} />
 
           <Card>
-            <SectionHeader
-              title="Moon shooter"
-              right={<Pill tone="warn">+15% 🚀</Pill>}
-            />
-            <div
-              className="hScroll"
-              style={{ display: "flex", gap: 10, paddingBottom: 4 }}
-            >
+            <SectionHeader title="Moon shooter" right={<Pill tone="warn">+15% 🚀</Pill>} />
+            <div className="hScroll" style={{ display: "flex", gap: 10, paddingBottom: 4 }}>
               {moonshots.slice(0, 10).map((c) => (
                 <CoinMiniCard
                   key={c.id}
@@ -1838,10 +1986,7 @@ export default function App() {
 
           <Card>
             <SectionHeader title="Top volume" right={<Pill tone="warn">Hot</Pill>} />
-            <div
-              className="hScroll"
-              style={{ display: "flex", gap: 10, paddingBottom: 4 }}
-            >
+            <div className="hScroll" style={{ display: "flex", gap: 10, paddingBottom: 4 }}>
               {topVolume.slice(0, 10).map((c) => (
                 <CoinMiniCard
                   key={c.id}
@@ -1862,21 +2007,14 @@ export default function App() {
 
       const page2 = (
         <div>
-          <Title
-            sub={null}
-            right={
-              <MiniBtn onClick={() => setScreen("LATEST")}>Open Latest</MiniBtn>
-            }
-          >
+          <Title sub={null} right={<MiniBtn onClick={() => setScreen("LATEST")}>Open Latest</MiniBtn>}>
             Highlights
           </Title>
 
           <Card>
             <SectionHeader title="Quick actions" />
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-              <MiniBtn tone="good" onClick={() => setScreen("CREATE")}>
-                ✦ Create coin
-              </MiniBtn>
+              <MiniBtn tone="good" onClick={() => setScreen("CREATE")}>✦ Create coin</MiniBtn>
               <MiniBtn onClick={() => setScreen("SEARCH")}>⌕ Search</MiniBtn>
               <MiniBtn onClick={() => setScreen("PROFILE")}>👤 Profile</MiniBtn>
               <MiniBtn onClick={() => setScreen("SETTINGS")}>⚙ Settings</MiniBtn>
@@ -1887,11 +2025,7 @@ export default function App() {
 
       content = (
         <ScreenShell>
-          <Pager
-            pages={[page1, page2]}
-            pageIndex={homePage}
-            setPageIndex={setHomePage}
-          />
+          <Pager pages={[page1, page2]} pageIndex={homePage} setPageIndex={setHomePage} />
         </ScreenShell>
       );
     }
@@ -1910,38 +2044,19 @@ export default function App() {
           />
 
           <Card>
-            <SectionHeader
-              title={
-                searchQ.trim() ? `Results (${searchResults.length})` : "Top volume"
-              }
-              right={<Pill tone="good">Live</Pill>}
-            />
-            <div
-              className="miniScroll"
-              style={{
-                maxHeight: 420,
-                paddingRight: 6,
-                display: "grid",
-                gap: 10,
-              }}
-            >
-              {(searchQ.trim() ? searchResults : topVolume.slice(0, 20)).map(
-                (c) => (
-                  <CoinRow
-                    key={c.id}
-                    c={c}
-                    onClick={() => {
-                      setSelectedCoinId(c.id);
-                      setScreen("COIN");
-                    }}
-                  />
-                )
-              )}
-              {searchQ.trim() && searchResults.length === 0 ? (
-                <div style={{ color: "var(--muted)", fontSize: 12 }}>
-                  No results
-                </div>
-              ) : null}
+            <SectionHeader title={searchQ.trim() ? `Results (${searchResults.length})` : "Top volume"} right={<Pill tone="good">Live</Pill>} />
+            <div className="miniScroll" style={{ maxHeight: 420, paddingRight: 6, display: "grid", gap: 10 }}>
+              {(searchQ.trim() ? searchResults : topVolume.slice(0, 20)).map((c) => (
+                <CoinRow
+                  key={c.id}
+                  c={c}
+                  onClick={() => {
+                    setSelectedCoinId(c.id);
+                    setScreen("COIN");
+                  }}
+                />
+              ))}
+              {searchQ.trim() && searchResults.length === 0 ? <div style={{ color: "var(--muted)", fontSize: 12 }}>No results</div> : null}
             </div>
           </Card>
         </ScreenShell>
@@ -1951,23 +2066,13 @@ export default function App() {
     if (screen === "LATEST") {
       content = (
         <ScreenShell>
-          <Title
-            sub={null}
-            right={
-              <MiniBtn onClick={loadCoins} disabled={loadingCoins}>
-                {loadingCoins ? "…" : "Refresh"}
-              </MiniBtn>
-            }
-          >
+          <Title sub={null} right={<MiniBtn onClick={loadCoins} disabled={loadingCoins}>{loadingCoins ? "…" : "Refresh"}</MiniBtn>}>
             Latest
           </Title>
 
           <Card>
             <SectionHeader title="Top movers" right={<Pill tone="good">Live</Pill>} />
-            <div
-              className="hScroll"
-              style={{ display: "flex", gap: 10, paddingBottom: 4 }}
-            >
+            <div className="hScroll" style={{ display: "flex", gap: 10, paddingBottom: 4 }}>
               {movers.slice(0, 10).map((c, i) => (
                 <CoinMiniCard
                   key={c.id}
@@ -1987,14 +2092,8 @@ export default function App() {
           <div style={{ height: 12 }} />
 
           <Card>
-            <SectionHeader
-              title="Moon shooter"
-              right={<Pill tone="warn">+15% 🚀</Pill>}
-            />
-            <div
-              className="hScroll"
-              style={{ display: "flex", gap: 10, paddingBottom: 4 }}
-            >
+            <SectionHeader title="Moon shooter" right={<Pill tone="warn">+15% 🚀</Pill>} />
+            <div className="hScroll" style={{ display: "flex", gap: 10, paddingBottom: 4 }}>
               {moonshots.slice(0, 10).map((c) => (
                 <CoinMiniCard
                   key={c.id}
@@ -2015,10 +2114,7 @@ export default function App() {
 
           <Card>
             <SectionHeader title="Top volume" right={<Pill tone="warn">SOL</Pill>} />
-            <div
-              className="hScroll"
-              style={{ display: "flex", gap: 10, paddingBottom: 4 }}
-            >
+            <div className="hScroll" style={{ display: "flex", gap: 10, paddingBottom: 4 }}>
               {topVolume.slice(0, 10).map((c) => (
                 <CoinMiniCard
                   key={c.id}
@@ -2050,30 +2146,23 @@ export default function App() {
         const c = selectedCoin;
         const isLiveNow = c.status === "LIVE";
         const txMarkers = myTxList.filter((t) => t.coinId === c.id).slice(0, 20);
-        const myHoldingForCoin =
-          myHoldingsList.find((h) => h.coinId === c.id)?.amount || 0;
+        const myHoldingForCoin = myHoldingsList.find((h) => h.coinId === c.id)?.amount || 0;
 
         const totalSupply = Number(c.totalSupply || 0);
-        const myPct =
-          totalSupply > 0
-            ? (Number(myHoldingForCoin || 0) / totalSupply) * 100
-            : 0;
+        const myPct = totalSupply > 0 ? (Number(myHoldingForCoin || 0) / totalSupply) * 100 : 0;
 
         content = (
           <ScreenShell fullBleed>
             <Title
               sub={
                 <span style={{ color: "var(--muted2)" }}>
-                  Coin:{" "}
-                  <b style={{ color: "var(--text)" }}>{shortWallet(c.id)}</b>
+                  Coin: <b style={{ color: "var(--text)" }}>{shortWallet(c.id)}</b>
                 </span>
               }
               right={
                 <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
                   <MiniBtn onClick={() => setScreen("HOME")}>Back</MiniBtn>
-                  <MiniBtn onClick={() => copyText(c.id)} tone="warn">
-                    Copy ID
-                  </MiniBtn>
+                  <MiniBtn onClick={() => copyText(c.id)} tone="warn">Copy ID</MiniBtn>
                 </div>
               }
             >
@@ -2119,7 +2208,6 @@ export default function App() {
                 >
                   Buy
                 </MiniBtn>
-
                 <MiniBtn
                   disabled={!isLiveNow}
                   onClick={() => {
@@ -2131,7 +2219,6 @@ export default function App() {
                 >
                   Sell
                 </MiniBtn>
-
                 <Pill>On-chain SOL: {balance} SOL</Pill>
                 <Pill>Your tokens: {Number(myHoldingForCoin).toFixed(0)}</Pill>
               </div>
@@ -2146,18 +2233,10 @@ export default function App() {
                 await doTrade(c, tradeSide, tradeSol);
                 setTradeOpen(false);
               }}
-              confirmText={
-                tradeLoading ? "..." : tradeSide === "BUY" ? "Confirm Buy" : "Confirm Sell"
-              }
+              confirmText={tradeLoading ? "..." : tradeSide === "BUY" ? "Confirm Buy" : "Confirm Sell"}
               confirmTone={tradeSide === "BUY" ? "primary" : "danger"}
             >
-              <Input
-                label="Amount (SOL)"
-                value={tradeSol}
-                onChange={setTradeSol}
-                placeholder="e.g. 0.05"
-                type="number"
-              />
+              <Input label="Amount (SOL)" value={tradeSol} onChange={setTradeSol} placeholder="e.g. 0.05" type="number" />
             </Modal>
 
             <div style={{ height: 10 }} />
@@ -2172,33 +2251,9 @@ export default function App() {
         <ScreenShell>
           <Title sub={null}>Create Coin</Title>
 
-          <Input
-            label="Coin name"
-            hint="2–32"
-            value={tokenName}
-            onChange={setTokenName}
-            placeholder=""
-            maxLength={32}
-            error={nameErr}
-          />
-          <Input
-            label="Symbol"
-            hint="A-Z/0-9"
-            value={symbolUpper}
-            onChange={setSymbol}
-            placeholder=""
-            maxLength={10}
-            error={symErr}
-          />
-          <Input
-            label="Initial SOL"
-            hint="0 or 0.01+"
-            value={initialSol}
-            onChange={setInitialSol}
-            placeholder="0 or 0.01+"
-            type="number"
-            error={solErr}
-          />
+          <Input label="Coin name" hint="2–32" value={tokenName} onChange={setTokenName} placeholder="" maxLength={32} error={nameErr} />
+          <Input label="Symbol" hint="A-Z/0-9" value={symbolUpper} onChange={setSymbol} placeholder="" maxLength={10} error={symErr} />
+          <Input label="Initial SOL" hint="0 or 0.01+" value={initialSol} onChange={setInitialSol} placeholder="0 or 0.01+" type="number" error={solErr} />
 
           <Card>
             <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
@@ -2222,9 +2277,7 @@ export default function App() {
               </div>
 
               <div style={{ flex: 1 }}>
-                <div style={{ color: "var(--muted)", fontSize: 12, marginBottom: 6 }}>
-                  Logo (≤ 5MB)
-                </div>
+                <div style={{ color: "var(--muted)", fontSize: 12, marginBottom: 6 }}>Logo (≤ 5MB)</div>
                 <input
                   type="file"
                   accept="image/png,image/jpeg,image/jpg,image/webp"
@@ -2240,14 +2293,7 @@ export default function App() {
 
           <div style={{ height: 12 }} />
 
-          <Textarea
-            label="Your coin story"
-            value={story}
-            onChange={setStory}
-            placeholder="20+ chars story..."
-            maxLength={300}
-            error={storyErr}
-          />
+          <Textarea label="Your coin story" value={story} onChange={setStory} placeholder="20+ chars story..." maxLength={300} error={storyErr} />
 
           <PrimaryButton disabled={!canCreate} onClick={() => setConfirmOpen(true)}>
             Review & Create
@@ -2296,9 +2342,7 @@ export default function App() {
             <Card>
               <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
                 <div style={{ width: 54, height: 54, borderRadius: 20, border: "1px solid var(--border)", overflow: "hidden", background: "rgba(0,0,0,.18)" }}>
-                  {logoPreview ? (
-                    <img src={logoPreview} alt="logo" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                  ) : null}
+                  {logoPreview ? <img src={logoPreview} alt="logo" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : null}
                 </div>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontWeight: 950 }}>{tokenName || "—"}</div>
@@ -2403,11 +2447,7 @@ export default function App() {
                     <Pill tone="warn">Referral commission: 20%</Pill>
                     {refStatus ? (
                       <Pill>
-                        {refStatus === "set"
-                          ? "Referral applied ✅"
-                          : refStatus === "already"
-                          ? "Referral locked"
-                          : "Referral invalid"}
+                        {refStatus === "set" ? "Referral applied ✅" : refStatus === "already" ? "Referral locked" : "Referral invalid"}
                       </Pill>
                     ) : null}
                   </div>
@@ -2425,11 +2465,7 @@ export default function App() {
             <SectionHeader title="Referral Reward" right={<Pill tone="warn">20%</Pill>} />
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
               <div style={{ fontWeight: 950 }}>{Number(myReferralRewardsSol || 0).toFixed(6)} SOL</div>
-              <MiniBtn
-                tone="good"
-                disabled={oneClickW !== "" || Number(myReferralRewardsSol || 0) <= 0}
-                onClick={() => oneClickWithdraw("REF")}
-              >
+              <MiniBtn tone="good" disabled={oneClickW !== "" || Number(myReferralRewardsSol || 0) <= 0} onClick={() => oneClickWithdraw("REF")}>
                 {oneClickW === "REF" ? "Withdrawing…" : "Withdraw"}
               </MiniBtn>
             </div>
@@ -2441,11 +2477,7 @@ export default function App() {
             <SectionHeader title="Creator Reward" right={<Pill>Coins: {Object.keys(myRewards.byCoin || {}).length}</Pill>} />
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
               <div style={{ fontWeight: 950 }}>{Number(myRewards.totalSol || 0).toFixed(6)} SOL</div>
-              <MiniBtn
-                tone="good"
-                disabled={oneClickW !== "" || Number(myRewards.totalSol || 0) <= 0}
-                onClick={() => oneClickWithdraw("CREATOR")}
-              >
+              <MiniBtn tone="good" disabled={oneClickW !== "" || Number(myRewards.totalSol || 0) <= 0} onClick={() => oneClickWithdraw("CREATOR")}>
                 {oneClickW === "CREATOR" ? "Withdrawing…" : "Withdraw"}
               </MiniBtn>
             </div>
@@ -2519,9 +2551,7 @@ export default function App() {
                       <CoinLogo c={h.coin || { symbol: "?" }} size={38} />
                       <div>
                         <div style={{ fontWeight: 950, lineHeight: 1.1 }}>{h.coin?.symbol || "—"}</div>
-                        <div style={{ marginTop: 6, color: "var(--muted)", fontSize: 12 }}>
-                          Last: {h.lastAt ? fmtTime(h.lastAt) : "—"}
-                        </div>
+                        <div style={{ marginTop: 6, color: "var(--muted)", fontSize: 12 }}>Last: {h.lastAt ? fmtTime(h.lastAt) : "—"}</div>
                       </div>
                     </div>
 
@@ -2578,19 +2608,13 @@ export default function App() {
                         <CoinLogo c={coin} size={38} />
                         <div>
                           <div style={{ fontWeight: 950 }}>{coin.symbol || "TX"}</div>
-                          <div style={{ marginTop: 6, color: "var(--muted)", fontSize: 12 }}>
-                            {t.t ? fmtTime(t.t) : "—"}
-                          </div>
+                          <div style={{ marginTop: 6, color: "var(--muted)", fontSize: 12 }}>{t.t ? fmtTime(t.t) : "—"}</div>
                         </div>
                       </div>
 
                       <div style={{ textAlign: "right" }}>
-                        <Pill tone={side === "SELL" ? "danger" : side === "BUY" ? "good" : "warn"}>
-                          {side || "TX"}
-                        </Pill>
-                        <div style={{ marginTop: 8, fontWeight: 950 }}>
-                          {Number(t.sol || 0).toFixed(4)} SOL
-                        </div>
+                        <Pill tone={side === "SELL" ? "danger" : side === "BUY" ? "good" : "warn"}>{side || "TX"}</Pill>
+                        <div style={{ marginTop: 8, fontWeight: 950 }}>{Number(t.sol || 0).toFixed(4)} SOL</div>
                       </div>
                     </div>
                   );
@@ -2615,6 +2639,7 @@ export default function App() {
           <Card>
             <div style={{ fontWeight: 950, marginBottom: 8 }}>Theme</div>
             <div style={{ display: "grid", gap: 10 }}>
+              <ThemeOption theme="calm" current={theme} setTheme={setTheme} label="Calm (Default)" />
               <ThemeOption theme="neon" current={theme} setTheme={setTheme} label="Neon" />
               <ThemeOption theme="ocean" current={theme} setTheme={setTheme} label="Ocean" />
               <ThemeOption theme="rose" current={theme} setTheme={setTheme} label="Rose" />
@@ -2644,6 +2669,7 @@ export default function App() {
   return (
     <>
       <ThemeStyles />
+    
       {content}
       {ready && authenticated ? <BottomNav screen={screen} setScreen={setScreen} /> : null}
       <Toast msg={toast} />
@@ -2662,10 +2688,11 @@ export default function App() {
           const to = String(withdrawTo || "").trim();
           if (to.length < 20) return showToast("Paste valid address");
 
-          const res = await apiPostTry(
-            ["/api/withdraw", "/api/withdraw/manual", "/api/transfer", "/api/payout"],
-            { wallet: solAddr, to, kind: "MANUAL" }
-          );
+          const res = await apiPostTry(["/api/withdraw", "/api/withdraw/manual", "/api/transfer", "/api/payout"], {
+            wallet: solAddr,
+            to,
+            kind: "MANUAL",
+          });
 
           if (res?.ok) {
             showToast("Withdraw confirmed ✅");
@@ -2678,7 +2705,7 @@ export default function App() {
         }}
         confirmText={dwMode === "DEPOSIT" ? "Copy address" : "Confirm"}
       >
-        <Card>
+        <Card breathe={false}>
           <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center" }}>
             <div>
               <div style={{ color: "var(--muted)", fontSize: 12 }}>Network</div>
@@ -2714,12 +2741,7 @@ export default function App() {
             </>
           ) : (
             <>
-              <Input
-                label="Withdraw to (destination address)"
-                value={withdrawTo}
-                onChange={setWithdrawTo}
-                placeholder="Paste Solana address…"
-              />
+              <Input label="Withdraw to (destination address)" value={withdrawTo} onChange={setWithdrawTo} placeholder="Paste Solana address…" />
               <div style={{ marginTop: 6, color: "var(--muted)", fontSize: 12, lineHeight: 1.5 }}>
                 Manual withdraw: destination paste karo. (On-chain later)
               </div>
