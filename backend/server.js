@@ -263,6 +263,18 @@ app.post("/api/trade", async (req, res) => {
   res.json({ ok: true, coin });
 });
 
+app.post("/api/coin/buy", (req, res) => {
+  req.body.side = "buy";
+  req.url = "/api/trade";
+  app._router.handle(req, res);
+});
+
+app.post("/api/coin/sell", (req, res) => {
+  req.body.side = "sell";
+  req.url = "/api/trade";
+  app._router.handle(req, res);
+});
+
 /* -------------------- START -------------------- */
 app.listen(PORT, () => {
   console.log("🚀 Backend running on port", PORT);
