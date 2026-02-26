@@ -194,6 +194,10 @@ app.get("/", (req, res) =>
   res.json({ ok: true, dbMode: DB_MODE, rpc: SOLANA_RPC })
 );
 
+app.get("/health", (req, res) => {
+  res.status(200).json({ ok: true });
+});
+
 app.get("/api/coin/list", async (req, res) => {
   const store = await readDB();
   res.json({ ok: true, coins: store.coins });
