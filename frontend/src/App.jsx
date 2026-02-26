@@ -442,37 +442,75 @@ function GhostButton({ children, onClick, disabled }) {
   );
 }
 
-function MiniBtn({ children, onClick, disabled, tone = "normal", style }) {
-  const toneStyle =
-    tone === "warn"
-      ? { border: "1px solid rgba(255,207,106,.35)", color: "var(--warn)" }
-      : tone === "danger"
-      ? { border: "1px solid rgba(255,122,122,.35)", color: "var(--danger)" }
-      : tone === "good"
-      ? { border: "1px solid rgba(116,247,178,.35)", color: "var(--primary)" }
-      : {};
+function CoinRow({ c, onClick, right }) {
   return (
     <button
       onClick={onClick}
-      disabled={disabled}
       style={{
-        padding: "10px 12px",
-        borderRadius: 14,
-        border: "1px solid rgba(255,255,255,.18)",
-        background:
-          "linear-gradient(180deg, rgba(255,255,255,.10), rgba(0,0,0,.10))",
+        textAlign: "left",
+        padding: 14,
+        borderRadius: 20,
+        border: "1px solid rgba(255,255,255,.10)",
+        background: `
+          radial-gradient(280px 120px at 20% 0%, rgba(25,230,162,.12), transparent 60%),
+          linear-gradient(180deg, rgba(255,255,255,.05), rgba(0,0,0,.20)),
+          var(--card2)
+        `,
+        backdropFilter: "blur(10px)",
         color: "var(--text)",
-        cursor: disabled ? "not-allowed" : "pointer",
-        opacity: disabled ? 0.6 : 1,
-        fontWeight: 900,
-        ...toneStyle,
-        ...style,
+        cursor: "pointer",
+        width: "100%",
+        boxShadow: "0 18px 55px rgba(0,0,0,.35)",
+        transition: "all .18s ease",
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.transform = "translateY(-3px)";
+        e.currentTarget.style.boxShadow =
+          "0 26px 80px rgba(0,0,0,.55), 0 0 60px rgba(25,230,162,.12)";
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.transform = "translateY(0px)";
+        e.currentTarget.style.boxShadow =
+          "0 18px 55px rgba(0,0,0,.35)";
       }}
     >
-      {children}
+      <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
+        <CoinLogo c={c} />
+        <div style={{ flex: 1 }}>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              gap: 10,
+              alignItems: "center",
+            }}
+          >
+            <div style={{ fontWeight: 950, fontSize: 15 }}>
+              {c.symbol || "—"}
+            </div>
+            {right || <Pill>{c.status}</Pill>}
+          </div>
+
+          <div
+            style={{
+              marginTop: 6,
+              color: "var(--muted)",
+              fontSize: 12,
+            }}
+          >
+            MC: {fmtUsd(c.mc || 0)} • VOL:{" "}
+            {Number(c.volumeSol || 0).toFixed(2)} SOL
+          </div>
+        </div>
+      </div>
     </button>
   );
-}function Modal({
+}
+    
+      {children}
+    button>
+
+function Modal({
   open,
   title,
   children,
@@ -603,7 +641,7 @@ function NavBtn({ active, onClick, icon, text }) {
         height: "100%",
         background: "transparent",
         border: "none",
-        color: active ? "var(--primary)" : "var(--muted)",
+        color: active ? "#16C784" : "var(--muted)",
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
@@ -611,8 +649,24 @@ function NavBtn({ active, onClick, icon, text }) {
         gap: 4,
         cursor: "pointer",
         fontSize: 18,
+        position: "relative",
+        transition: "all .15s ease",
       }}
     >
+      {active && (
+        <div
+          style={{
+            position: "absolute",
+            top: 6,
+            width: 32,
+            height: 4,
+            borderRadius: 999,
+            background: "linear-gradient(90deg,#16C784,#7CFFB8)",
+            boxShadow: "0 0 20px rgba(22,199,132,.45)",
+          }}
+        />
+      )}
+
       <span style={{ fontWeight: 950 }}>{icon}</span>
       {text ? <span style={{ fontSize: 11 }}>{text}</span> : null}
     </button>
