@@ -247,8 +247,10 @@ app.post("/api/coin/create", async (req, res) => {
 });
 
 /* -------------------- TRADE -------------------- */
-app.post("/api/trade", async (req, res) => {
-  const { wallet, coinId, side, sol } = req.body;
+async function handleTrade(req, res, forcedSide) {
+  const { wallet, coinId, sol } = req.body;
+  const side = forcedSide || req.body.side;
+
   if (!wallet || !coinId || !side || !sol)
     return res.json({ ok: false });
 
@@ -256,13 +258,66 @@ app.post("/api/trade", async (req, res) => {
   const coin = store.coins.find((c) => c.id === coinId);
   if (!coin) return res.json({ ok: false });
 
+  const tokensPerSol = 1000;
+  const tokens = Math.floor(sol * tokensPerSol);
+
+  coin.holders = coin.holders || {};
+
+  if (side === "buy") {
+    coin.holders[wallet] =
+      (coin.holders[wallet] || 0) + tokens;
+  } else {
+    const have = coin.holders[wallet] || 0;
+    if (have <= 0) return res.json({ ok: false });
+    coin.holders[wallet] = Math.max(0, have - tokens);
+  }
+
+  store.profiles[wallet] = store.profiles[wallet] || {
+    wallet,
+    holdings: [],
+  };
+
+  const profile = store.profiles[wallet];
+  const existing = profile.holdings.find(
+    (h) => h.coinId === coinId
+  );
+
+  if (side === "buy") {
+    if (existing) existing.amount += tokens;
+    else
+      profile.holdings.push({
+        coinId,
+        symbol: coin.symbol,
+        amount: tokens,
+      });
+  } else {
+    if (existing)
+      existing.amount = Math.max(
+        0,
+        existing.amount - tokens
+      );
+  }
+
   coin.mc += side === "buy" ? sol * 100 : -sol * 90;
 
   writeDB(store);
 
-  res.json({ ok: true, coin });
-});
+  res.json({
+    ok: true,
+    coin,
+    profile,
+  });
+}
 
+app.post("/api/trade", (req, res) =>
+  handleTrade(req, res)
+);
+app.post("/api/coin/buy", (req, res) =>
+  handleTrade(req, res, "buy")
+);
+app.post("/api/coin/sell", (req, res) =>
+  handleTrade(req, res, "sell")
+);
 app.post("/api/coin/buy", (req, res) => {
   req.body.side = "buy";
   req.url = "/api/trade";
