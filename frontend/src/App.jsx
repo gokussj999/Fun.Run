@@ -999,7 +999,7 @@ function CoinMiniCard({ c, subtitle, tag, accent = "var(--primary)", onOpen }) {
 function PriceChart({ points, txMarkers, mode, onToggleMode }) {
   const W = 1000;
   const H = 380;
-  const PAD = 18;
+  const PAD = 22;
 
   const safePoints =
     Array.isArray(points) && points.length ? points : [0, 0, 0, 0, 0];
@@ -1008,17 +1008,18 @@ function PriceChart({ points, txMarkers, mode, onToggleMode }) {
   const max = Math.max(...safePoints);
   const span = Math.max(1, max - min);
 
-  const bg = mode === "dark" ? "#0B0F1D" : "#FFFFFF";
+  const bg = mode === "dark" ? "#070B12" : "#FFFFFF";
   const border = mode === "dark" ? "rgba(255,255,255,.10)" : "rgba(0,0,0,.10)";
-  const text = mode === "dark" ? "rgba(255,255,255,.75)" : "rgba(0,0,0,.65)";
+  const text = mode === "dark" ? "rgba(255,255,255,.80)" : "rgba(0,0,0,.65)";
 
-  const last = safePoints[safePoints.length - 1] ?? 0;
-  const prev = safePoints[safePoints.length - 2] ?? last;
+  const last = Number(safePoints[safePoints.length - 1] ?? 0);
+  const prev = Number(safePoints[safePoints.length - 2] ?? last);
   const isUp = last >= prev;
 
-  const stroke = "#16C784";
-  const glow = "rgba(22,199,132,.55)";
-  const areaTop = "rgba(22,199,132,.22)";
+  // Pump.fun green vibe (premium)
+  const stroke = isUp ? "#16C784" : "#FF4D4D";
+  const glow = isUp ? "rgba(22,199,132,.55)" : "rgba(255,77,77,.55)";
+  const areaTop = isUp ? "rgba(22,199,132,.20)" : "rgba(255,77,77,.16)";
 
   const xFor = (i) =>
     PAD + (i * (W - PAD * 2)) / Math.max(1, safePoints.length - 1);
@@ -1041,6 +1042,18 @@ function PriceChart({ points, txMarkers, mode, onToggleMode }) {
       H - PAD
     } Z`;
 
+  // subtle grid
+  const gridLines = 5;
+  const grid = Array.from({ length: gridLines }, (_, i) => {
+    const y = PAD + (i * (H - PAD * 2)) / (gridLines - 1);
+    return y;
+  });
+
+  // last point
+  const lx = xFor(safePoints.length - 1);
+  const ly = yFor(last);
+
+  // tx markers (same idea)
   const dots = Array.isArray(txMarkers) ? txMarkers.slice(0, 30) : [];
   const dotItems = dots.map((t, idx) => {
     const i = Math.max(0, safePoints.length - 1 - idx * 2);
@@ -1048,14 +1061,18 @@ function PriceChart({ points, txMarkers, mode, onToggleMode }) {
     const y = yFor(safePoints[i]);
     const side = String(t.side || "").toUpperCase();
     const fill = side === "SELL" ? "#FF4D4D" : "#16C784";
-    const shadow = side === "SELL" ? "rgba(255,77,77,.45)" : "rgba(22,199,132,.45)";
+    const shadow =
+      side === "SELL" ? "rgba(255,77,77,.45)" : "rgba(22,199,132,.45)";
     return { x, y, fill, shadow, id: t.id || `${idx}` };
   });
 
   const label = Number(last || 0) ? fmtUsd(last) : "—";
+  const pct =
+    prev && Number.isFinite(prev) && prev !== 0 ? ((last - prev) / prev) * 100 : 0;
 
   const gid = `areaFill_${mode}_${isUp ? "up" : "down"}`;
   const fid = `glow_${mode}_${isUp ? "up" : "down"}`;
+  const pid = `pulse_${mode}_${isUp ? "up" : "down"}`;
 
   return (
     <div
@@ -1064,8 +1081,13 @@ function PriceChart({ points, txMarkers, mode, onToggleMode }) {
         overflow: "hidden",
         border: `1px solid ${border}`,
         background: bg,
+        boxShadow:
+          mode === "dark"
+            ? "0 22px 70px rgba(0,0,0,.55)"
+            : "0 18px 55px rgba(0,0,0,.12)",
       }}
     >
+      {/* Header */}
       <div
         style={{
           padding: 10,
@@ -1074,13 +1096,37 @@ function PriceChart({ points, txMarkers, mode, onToggleMode }) {
           justifyContent: "space-between",
           gap: 10,
           borderBottom: `1px solid ${border}`,
+          background:
+            mode === "dark"
+              ? "linear-gradient(180deg, rgba(255,255,255,.06), rgba(0,0,0,.10))"
+              : "linear-gradient(180deg, rgba(0,0,0,.03), rgba(0,0,0,.00))",
         }}
       >
-        <div style={{ fontSize: 12, color: text, fontWeight: 900 }}>
-          Price:{" "}
-          <span style={{ color: mode === "dark" ? "#fff" : "#000" }}>
-            {label}
-          </span>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{ fontSize: 12, color: text, fontWeight: 950 }}>
+            Price:{" "}
+            <span style={{ color: mode === "dark" ? "#fff" : "#000" }}>
+              {label}
+            </span>
+          </div>
+
+          <div
+            style={{
+              padding: "6px 10px",
+              borderRadius: 999,
+              border: `1px solid ${
+                isUp ? "rgba(22,199,132,.30)" : "rgba(255,77,77,.30)"
+              }`,
+              background: isUp
+                ? "rgba(22,199,132,.10)"
+                : "rgba(255,77,77,.10)",
+              color: isUp ? "#16C784" : "#FF4D4D",
+              fontWeight: 950,
+              fontSize: 12,
+            }}
+          >
+            {isUp ? "▲" : "▼"} {Math.abs(pct).toFixed(2)}%
+          </div>
         </div>
 
         <button
@@ -1094,7 +1140,7 @@ function PriceChart({ points, txMarkers, mode, onToggleMode }) {
             color:
               mode === "dark" ? "rgba(255,255,255,.85)" : "rgba(0,0,0,.75)",
             cursor: "pointer",
-            fontWeight: 900,
+            fontWeight: 950,
             fontSize: 12,
           }}
           title="Toggle chart theme"
@@ -1103,6 +1149,7 @@ function PriceChart({ points, txMarkers, mode, onToggleMode }) {
         </button>
       </div>
 
+      {/* Chart */}
       <svg
         viewBox={`0 0 ${W} ${H}`}
         width="100%"
@@ -1116,42 +1163,85 @@ function PriceChart({ points, txMarkers, mode, onToggleMode }) {
           </linearGradient>
 
           <filter id={fid} x="-50%" y="-50%" width="200%" height="200%">
-            <feGaussianBlur stdDeviation="6" result="blur" />
+            <feGaussianBlur stdDeviation="7" result="blur" />
             <feMerge>
               <feMergeNode in="blur" />
               <feMergeNode in="SourceGraphic" />
             </feMerge>
           </filter>
+
+          {/* pulse */}
+          <radialGradient id={pid} cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stopColor={glow} />
+            <stop offset="100%" stopColor="rgba(0,0,0,0)" />
+          </radialGradient>
         </defs>
 
+        {/* grid */}
+        {grid.map((y, i) => (
+          <line
+            key={i}
+            x1={PAD}
+            x2={W - PAD}
+            y1={y}
+            y2={y}
+            stroke={mode === "dark" ? "rgba(255,255,255,.06)" : "rgba(0,0,0,.05)"}
+            strokeWidth="1"
+          />
+        ))}
+
+        {/* area */}
         <path d={area} fill={`url(#${gid})`} />
 
+        {/* glow line */}
         <path
           d={d}
           fill="none"
           stroke={glow}
-          strokeWidth="7"
+          strokeWidth="8"
           strokeLinejoin="round"
           strokeLinecap="round"
           filter={`url(#${fid})`}
           opacity="0.9"
         />
 
+        {/* main line */}
         <path
           d={d}
           fill="none"
           stroke={stroke}
-          strokeWidth="2.6"
+          strokeWidth="2.8"
           strokeLinejoin="round"
           strokeLinecap="round"
         />
 
+        {/* tx dots */}
         {dotItems.map((p) => (
           <g key={p.id}>
             <circle cx={p.x} cy={p.y} r="9" fill={p.shadow} opacity="0.55" />
             <circle cx={p.x} cy={p.y} r="6" fill={p.fill} opacity="0.95" />
           </g>
         ))}
+
+        {/* last point pulse */}
+        <g>
+          <circle cx={lx} cy={ly} r="22" fill={`url(#${pid})`} opacity="0.65">
+            <animate
+              attributeName="r"
+              values="18;24;18"
+              dur="1.6s"
+              repeatCount="indefinite"
+            />
+            <animate
+              attributeName="opacity"
+              values="0.55;0.75;0.55"
+              dur="1.6s"
+              repeatCount="indefinite"
+            />
+          </circle>
+          <circle cx={lx} cy={ly} r="7" fill={stroke} opacity="0.95" />
+          <circle cx={lx} cy={ly} r="4" fill={mode === "dark" ? "#0A0F14" : "#FFFFFF"} opacity="0.9" />
+        </g>
       </svg>
     </div>
   );
