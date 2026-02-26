@@ -146,8 +146,13 @@ function ScreenShell({ children, fullBleed = false, allowYScroll = false }) {
     <div
       style={{
         minHeight: "100vh",
-        background:
-          "radial-gradient(1200px 600px at 50% -10%, rgba(255,255,255,.08), transparent 60%), var(--bg)",
+        background: `
+          radial-gradient(1200px 700px at 50% -10%, rgba(255,255,255,.05), transparent 60%),
+          radial-gradient(900px 500px at 10% 10%, rgba(25,230,162,.18), transparent 60%),
+          radial-gradient(800px 450px at 90% 20%, rgba(106,215,255,.14), transparent 60%),
+          radial-gradient(900px 500px at 50% 110%, rgba(167,139,250,.12), transparent 55%),
+          var(--bg)
+        `,
         color: "var(--text)",
         fontFamily: "system-ui, -apple-system, Segoe UI, Roboto, Arial",
         paddingBottom: 86,
@@ -161,16 +166,46 @@ function ScreenShell({ children, fullBleed = false, allowYScroll = false }) {
           width: 520,
           maxWidth: "92vw",
           padding: fullBleed ? 12 : 18,
-          background:
-            "linear-gradient(180deg, rgba(255,255,255,.03), rgba(0,0,0,.08)), var(--card)",
-          border: "1px solid var(--border)",
-          borderRadius: "var(--r)",
-          boxShadow: "var(--shadow)",
+
+          /* PREMIUM GLASS CARD */
+          background: `
+            linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02)),
+            linear-gradient(180deg, rgba(0,0,0,.18), rgba(0,0,0,.35)),
+            var(--card)
+          `,
+          backdropFilter: "blur(18px)",
+          WebkitBackdropFilter: "blur(18px)",
+
+          border: "1px solid rgba(255,255,255,.10)",
+          borderRadius: "28px",
+
+          boxShadow: `
+            0 30px 80px rgba(0,0,0,.65),
+            0 0 60px rgba(25,230,162,.10)
+          `,
+
           maxHeight: allowYScroll ? "calc(100vh - 110px)" : undefined,
           overflowY: allowYScroll ? "auto" : "hidden",
+
+          position: "relative",
         }}
       >
-        {children}
+        {/* Subtle organic top glow */}
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            borderRadius: "28px",
+            pointerEvents: "none",
+            background: `
+              radial-gradient(400px 120px at 50% 0%, rgba(25,230,162,.15), transparent 70%)
+            `,
+          }}
+        />
+
+        <div style={{ position: "relative", zIndex: 1 }}>
+          {children}
+        </div>
       </div>
     </div>
   );
