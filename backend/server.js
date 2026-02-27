@@ -338,6 +338,8 @@ app.post("/api/coin/create", async (req, res) => {
 // unified trade (used by buy/sell routes)
 async function doTrade(req, res, side) {
   try {
+    const t0 = Date.now();
+console.log("TRADE start", { side, sol: req.body?.sol });
     const wallet = String(req.body?.wallet || "").trim();
     const coinId = String(req.body?.coinId || "").trim();
     const sol = safeNum(req.body?.sol, 0);
@@ -363,6 +365,7 @@ async function doTrade(req, res, side) {
 
       STORE_CACHE = store;
       scheduleSupabaseWrite();
+      console.log("TRADE done ms=", Date.now() - t0);
 
       return res.json({ ok: true, coin, tokens, fee });
     }
