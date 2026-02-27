@@ -1,174 +1,97 @@
+// backend/server.js (FULL FILE)
+
 import "dotenv/config";
 import express from "express";
 import cors from "cors";
-import path from "path";
-import crypto from "crypto";
 import helmet from "helmet";
-import rateLimit from "express-rate-limit";
 import compression from "compression";
+import rateLimit from "express-rate-limit";
 import morgan from "morgan";
-
 import { createClient } from "@supabase/supabase-js";
 import { Connection, PublicKey } from "@solana/web3.js";
 
-import { fileURLToPath } from "url";
-
 const app = express();
 
-// -------------------- TRUST PROXY (Railway/Render) --------------------
-if (String(process.env.TRUST_PROXY || "") === "1") {
-  app.set("trust proxy", 1);
-}
+// -------------------- ENV --------------------
+const PORT = Number(process.env.PORT || 8080);
+const TRUST_PROXY = String(process.env.TRUST_PROXY || "") === "1";
 
-// -------------------- MIDDLEWARE --------------------
-app.use(morgan("tiny"));
-app.use(helmet({ crossOriginResourcePolicy: false }));
-app.use(compression());
+const DB_MODE = String(process.env.DB_MODE || "supabase").toLowerCase(); // "supabase" | "file" (we keep supabase)
+const SUPABASE_URL = process.env.SUPABASE_URL || "";
+const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_KEY || "";
+const SUPABASE_TABLE = String(process.env.SUPABASE_TABLE || "pumpmini_store"); // your key-value store table
 
+const SOLANA_RPC = process.env.SOLANA_RPC || "https://api.devnet.solana.com";
+
+const CORS_ORIGINS = (process.env.CORS_ORIGINS || "http://localhost:5173")
+  .split(",")
+  .map((s) => s.trim())
+  .filter(Boolean);
+
+const FEE_PCT = Math.max(0, Math.min(10, Number(process.env.FEE_PCT || 1))); // 1% default
 const JSON_LIMIT = process.env.JSON_LIMIT || "15mb";
-app.use(express.json({ limit: JSON_LIMIT }));
-app.use(express.urlencoded({ extended: true, limit: JSON_LIMIT }));
 
+// -------------------- APP SETUP --------------------
+if (TRUST_PROXY) app.set("trust proxy", 1);
+
+app.use(helmet());
+app.use(compression());
+app.use(express.json({ limit: JSON_LIMIT }));
+app.use(
+  cors({
+    origin: (origin, cb) => {
+      if (!origin) return cb(null, true);
+      if (CORS_ORIGINS.includes(origin)) return cb(null, true);
+      return cb(new Error("CORS blocked: " + origin));
+    },
+    credentials: true,
+  })
+);
 app.use(
   rateLimit({
-    windowMs: 60 * 1000,
+    windowMs: 60_000,
     max: 240,
     standardHeaders: true,
     legacyHeaders: false,
   })
 );
+app.use(morgan("tiny"));
 
-// -------------------- CORS --------------------
-function parseOrigins(val) {
-  return String(val || "")
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
-}
-
-const CORS_ORIGINS = parseOrigins(
-  process.env.CORS_ORIGINS ||
-    [
-      "http://localhost:5173",
-      "http://127.0.0.1:5173",
-      "https://fun-run-lovat.vercel.app",
-    ].join(",")
-);
-
-const ALLOW_VERCEL_PREVIEWS =
-  String(process.env.ALLOW_VERCEL_PREVIEWS || "1") === "1";
-
-function isAllowedOrigin(origin) {
-  if (!origin) return true;
-  if (CORS_ORIGINS.includes("*")) return true;
-  if (CORS_ORIGINS.includes(origin)) return true;
-
-  if (ALLOW_VERCEL_PREVIEWS) {
-    try {
-      const u = new URL(origin);
-      if (u.hostname.endsWith(".vercel.app")) return true;
-    } catch {}
-  }
-  return false;
-}
-
-app.use(
-  cors({
-    origin: (origin, cb) => cb(null, isAllowedOrigin(origin)),
-    credentials: true,
-    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
-    maxAge: 86400,
-  })
-);
-
-app.options("*", cors());
-
-// -------------------- CONFIG --------------------
-const PORT = Number(process.env.PORT || 5000);
-
-const DB_MODE_RAW = String(process.env.DB_MODE || "supabase").toLowerCase();
-const DB_MODE = DB_MODE_RAW === "local" ? "file" : DB_MODE_RAW;
-
-const SUPABASE_URL = process.env.SUPABASE_URL || "";
-const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
-const SUPABASE_TABLE = process.env.SUPABASE_TABLE || "pumpmini_store";
-
-const SOLANA_RPC =
-  process.env.SOLANA_RPC ||
-  process.env.SOLANA_RPC_URL ||
-  "https://api.devnet.solana.com";
-
-const connection = new Connection(SOLANA_RPC, "processed");
-
-// Economics
-const STARTING_MC_USD = Number(process.env.STARTING_MC_USD || 6500);
-const TOTAL_SUPPLY_DEFAULT = Number(
-  process.env.TOTAL_SUPPLY_DEFAULT || 1_000_000_000
-);
-const CREATOR_PERCENT = Number(process.env.CREATOR_PERCENT || 2);
-
-// Fee
-const FEE_PCT = Number(process.env.FEE_PCT || 1);
-
-// Trade split
-const TRADE_DEV_PCT = Number(process.env.TRADE_DEV_PCT || 40);
-const TRADE_CREATOR_PCT = Number(process.env.TRADE_CREATOR_PCT || 40);
-const TRADE_REF_PCT = Number(process.env.TRADE_REF_PCT || 10);
-const TRADE_RESERVE_PCT = Number(process.env.TRADE_RESERVE_PCT || 10);
-
-// Create split
-const CREATE_DEV_PCT = Number(process.env.CREATE_DEV_PCT || 70);
-const CREATE_REF_PCT = Number(process.env.CREATE_REF_PCT || 20);
-const CREATE_RESERVE_PCT = Number(process.env.CREATE_RESERVE_PCT || 10);
-
-const DEV_WALLET = String(process.env.DEV_WALLET || "DEV_TREASURY").trim();
-const RESERVE_WALLET = String(process.env.RESERVE_WALLET || "RESERVE_TREASURY").trim();
-
-// -------------------- SUPABASE --------------------
+// -------------------- SUPABASE + SOLANA --------------------
 const supabase =
-  DB_MODE === "supabase" && SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY
-    ? createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+  SUPABASE_URL && SUPABASE_ANON_KEY
+    ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
         auth: { persistSession: false },
       })
     : null;
 
-// -------------------- UTIL --------------------
-function nowMs() {
-  return Date.now();
-}
-function uid() {
-  return crypto.randomUUID();
-}
-function safeNum(n, d = 0) {
-  const x = Number(n);
-  return Number.isFinite(x) ? x : d;
-}
-function clampPct(n) {
-  const x = safeNum(n, 0);
-  return Math.max(0, Math.min(100, x));
-}
-function pctToFrac(p) {
-  return clampPct(p) / 100;
-}
+const connection = new Connection(SOLANA_RPC, "confirmed");
+
+// -------------------- HELPERS --------------------
+const nowMS = () => Date.now();
+const safeNum = (v, d = 0) => {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : d;
+};
+const uid = () => Math.random().toString(36).slice(2) + nowMS().toString(36);
 
 function defaultStore() {
   return {
     coins: [],
-    profiles: {},
-    referrals: {},
-    treasury: { devSol: 0, reserveSol: 0, updatedAt: nowMs() },
-    logs: [],
+    profiles: {}, // wallet => { referral?, rewards? ... }
+    lastTx: [], // simple recent tx list
+    feePct: FEE_PCT,
+    createdAt: nowMS(),
+    updatedAt: nowMS(),
   };
 }
 
-function ensureCoin(c) {
-  const createdAt = safeNum(c?.createdAt, nowMs());
+function ensureCoin(c = {}) {
+  const createdAt = safeNum(c?.createdAt, nowMS());
   const status = c?.status || "DRAFT";
-  const mc = safeNum(c?.mc, status === "LIVE" ? STARTING_MC_USD : 0);
-  const ath = safeNum(c?.ath, mc || STARTING_MC_USD);
-  const chart =
-    Array.isArray(c?.chart) && c.chart.length ? c.chart : [mc, mc, mc, mc, mc];
+  const mc = safeNum(c?.mc, status === "LIVE" ? 0 : 0);
+  const ath = safeNum(c?.ath, mc || 0);
+  const chart = Array.isArray(c?.chart) && c.chart.length ? c.chart : [mc, mc, mc, mc, mc];
 
   return {
     id: c?.id || uid(),
@@ -184,149 +107,100 @@ function ensureCoin(c) {
     ath,
     chart,
     volumeSol: safeNum(c?.volumeSol, 0),
-    creatorRewardsSol: safeNum(c?.creatorRewardsSol, 0),
-    totalSupply: safeNum(c?.totalSupply, TOTAL_SUPPLY_DEFAULT),
-    holders: c?.holders && typeof c.holders === "object" ? c.holders : {},
+    totalSupply: safeNum(c?.totalSupply, 1_000_000_000),
+    holders: c?.holders && typeof c.holders === "object" ? c.holders : {}, // wallet => token balance
     lastTradeAt: safeNum(c?.lastTradeAt, 0),
   };
 }
 
-function ensureProfile(p, wallet) {
-  const w = String(wallet || p?.wallet || "").trim();
-  const base = p && typeof p === "object" ? p : {};
-  return {
-    wallet: w,
-    holdings: Array.isArray(base.holdings) ? base.holdings : [],
-    txs: Array.isArray(base.txs) ? base.txs : [],
-    rewards:
-      base.rewards && typeof base.rewards === "object"
-        ? base.rewards
-        : { totalSol: 0, byCoin: {} },
-    referralRewards:
-      base.referralRewards && typeof base.referralRewards === "object"
-        ? base.referralRewards
-        : { totalSol: 0, byWallet: {} },
-    referrer: base.referrer || "",
-    updatedAt: nowMs(),
-  };
+function pushLastTx(store, tx) {
+  store.lastTx = Array.isArray(store.lastTx) ? store.lastTx : [];
+  store.lastTx.unshift(tx);
+  store.lastTx = store.lastTx.slice(0, 200);
 }
 
-function logPush(store, item) {
-  store.logs = Array.isArray(store.logs) ? store.logs : [];
-  store.logs.unshift({ t: nowMs(), ...item });
-  store.logs = store.logs.slice(0, 300);
+// super simple pricing (demo): tokens per SOL based on mc-ish
+function buyTokens(coin, wallet, sol) {
+  const fee = sol * (FEE_PCT / 100);
+  const net = Math.max(0, sol - fee);
+
+  // demo rate: more volume => slightly worse rate (keeps stable)
+  const baseRate = 100_000; // tokens per SOL baseline
+  const rate = Math.max(10_000, baseRate - Math.floor(coin.volumeSol * 500));
+  const tokens = Math.floor(net * rate);
+
+  coin.volumeSol = safeNum(coin.volumeSol, 0) + sol;
+  coin.lastTradeAt = nowMS();
+  coin.mc = Math.max(coin.mc, coin.volumeSol * 1000); // demo mc
+  coin.ath = Math.max(coin.ath, coin.mc);
+  coin.chart = [...(coin.chart || [])].slice(-4).concat([coin.mc]);
+
+  coin.holders[wallet] = safeNum(coin.holders[wallet], 0) + tokens;
+
+  return { tokens, fee };
 }
 
-function normalizeStore(store) {
-  const merged = { ...defaultStore(), ...(store || {}) };
-  merged.coins = Array.isArray(merged.coins) ? merged.coins.map(ensureCoin) : [];
-  merged.profiles =
-    merged.profiles && typeof merged.profiles === "object" ? merged.profiles : {};
-  merged.referrals =
-    merged.referrals && typeof merged.referrals === "object" ? merged.referrals : {};
-  merged.treasury =
-    merged.treasury && typeof merged.treasury === "object"
-      ? merged.treasury
-      : defaultStore().treasury;
-  merged.logs = Array.isArray(merged.logs) ? merged.logs : [];
-  return merged;
-}
+function sellTokens(coin, wallet, sol) {
+  // in this demo API: client sends sol they want to sell equivalent (same as buy input)
+  const fee = sol * (FEE_PCT / 100);
+  const net = Math.max(0, sol - fee);
 
-function ensureTreasury(store) {
-  store.treasury = store.treasury && typeof store.treasury === "object" ? store.treasury : {};
-  store.treasury.devSol = safeNum(store.treasury.devSol, 0);
-  store.treasury.reserveSol = safeNum(store.treasury.reserveSol, 0);
-  store.treasury.updatedAt = nowMs();
-}
+  const baseRate = 100_000;
+  const rate = Math.max(10_000, baseRate - Math.floor(coin.volumeSol * 500));
+  const tokensToRemove = Math.floor(net * rate);
 
-function creditCreatorReward(store, coin, amountSol) {
-  const creator = String(coin?.creatorWallet || coin?.owner || "").trim();
-  if (!creator || amountSol <= 0) return;
+  const have = safeNum(coin.holders[wallet], 0);
+  if (have < tokensToRemove) {
+    return { ok: false, error: "Not enough tokens" };
+  }
 
-  const p = ensureProfile(store.profiles?.[creator], creator);
-  p.rewards.totalSol = safeNum(p.rewards?.totalSol, 0) + amountSol;
-  p.rewards.byCoin =
-    p.rewards.byCoin && typeof p.rewards.byCoin === "object" ? p.rewards.byCoin : {};
-  p.rewards.byCoin[coin.id] = safeNum(p.rewards.byCoin[coin.id], 0) + amountSol;
-  p.updatedAt = nowMs();
-  store.profiles[creator] = p;
+  coin.holders[wallet] = have - tokensToRemove;
+  coin.volumeSol = Math.max(0, safeNum(coin.volumeSol, 0) - sol);
+  coin.lastTradeAt = nowMS();
+  coin.mc = Math.max(0, coin.volumeSol * 1000);
+  coin.chart = [...(coin.chart || [])].slice(-4).concat([coin.mc]);
 
-  coin.creatorRewardsSol = safeNum(coin.creatorRewardsSol, 0) + amountSol;
-}
-
-function creditReferralReward(store, traderWallet, amountSol) {
-  const w = String(traderWallet || "").trim();
-  if (!w || amountSol <= 0) return;
-
-  const ref = String(store.referrals?.[w] || "").trim();
-  if (!ref || ref.length < 20) return;
-
-  const rp = ensureProfile(store.profiles?.[ref], ref);
-  rp.referralRewards.totalSol = safeNum(rp.referralRewards?.totalSol, 0) + amountSol;
-  rp.referralRewards.byWallet =
-    rp.referralRewards.byWallet && typeof rp.referralRewards.byWallet === "object"
-      ? rp.referralRewards.byWallet
-      : {};
-  rp.referralRewards.byWallet[w] = safeNum(rp.referralRewards.byWallet[w], 0) + amountSol;
-  rp.updatedAt = nowMs();
-  store.profiles[ref] = rp;
-}
-
-function takeFee(solAmount) {
-  const fee = solAmount * pctToFrac(FEE_PCT);
-  const net = Math.max(0, solAmount - fee);
-  return { feeSol: fee, netSol: net };
+  return { ok: true, tokens: tokensToRemove, fee };
 }
 
 function findCoin(store, coinId) {
-  const id = String(coinId || "").trim();
-  return (store.coins || []).find((x) => x.id === id) || null;
+  const arr = Array.isArray(store.coins) ? store.coins : [];
+  return arr.find((x) => String(x.id) === String(coinId)) || null;
 }
 
-// =================== FAST SUPABASE CACHE (SAFE + SPEED) ===================
+// -------------------- STORE CACHE + FAST WRITE (SUPABASE) --------------------
 let STORE_CACHE = null;
 let STORE_LOADING = null;
 
-let writeTimer = null;
-let writeInFlight = false;
-let writeQueued = false;
+let WRITE_TIMER = null;
+let WRITE_PENDING = false;
 
-async function readDB() {
+async function loadStoreOnce() {
   if (STORE_CACHE) return STORE_CACHE;
   if (STORE_LOADING) return STORE_LOADING;
 
   STORE_LOADING = (async () => {
     if (DB_MODE !== "supabase") {
-      STORE_CACHE = normalizeStore(defaultStore());
+      STORE_CACHE = defaultStore();
       return STORE_CACHE;
     }
-    if (!supabase) throw new Error("Supabase not configured");
+    if (!supabase) {
+      STORE_CACHE = defaultStore();
+      return STORE_CACHE;
+    }
 
-    const { data, error } = await supabase
-      .from(SUPABASE_TABLE)
-      .select("data")
-      .eq("id", "main")
-      .maybeSingle();
-
+    const { data, error } = await supabase.from(SUPABASE_TABLE).select("data").eq("id", "main").maybeSingle();
     if (error) throw new Error("Supabase read failed: " + error.message);
 
     if (!data?.data) {
-      const init = normalizeStore(defaultStore());
-      const { error: e2 } = await supabase
-        .from(SUPABASE_TABLE)
-        .upsert({ id: "main", data: init }, { onConflict: "id" });
+      const init = defaultStore();
+      const { error: e2 } = await supabase.from(SUPABASE_TABLE).upsert({ id: "main", data: init }, { onConflict: "id" });
       if (e2) throw new Error("Supabase init failed: " + e2.message);
       STORE_CACHE = init;
       return STORE_CACHE;
     }
 
-    STORE_CACHE = normalizeStore(data.data || defaultStore());
-    // ✅ keep DB small (speed fix)
-if (Array.isArray(STORE_CACHE.trades)) STORE_CACHE.trades = STORE_CACHE.trades.slice(-200);
-if (Array.isArray(STORE_CACHE.transactions)) STORE_CACHE.transactions = STORE_CACHE.transactions.slice(-200);
-if (Array.isArray(STORE_CACHE.lastTx)) STORE_CACHE.lastTx = STORE_CACHE.lastTx.slice(-200);
-if (Array.isArray(STORE_CACHE.logs)) STORE_CACHE.logs = STORE_CACHE.logs.slice(-200);
-if (Array.isArray(STORE_CACHE.coins)) STORE_CACHE.coins = STORE_CACHE.coins.slice(-500);
+    STORE_CACHE = data.data;
     return STORE_CACHE;
   })();
 
@@ -335,107 +209,66 @@ if (Array.isArray(STORE_CACHE.coins)) STORE_CACHE.coins = STORE_CACHE.coins.slic
   return s;
 }
 
-function scheduleDBWrite() {
-  if (DB_MODE !== "supabase") return;
-  if (writeTimer) return;
+function scheduleSupabaseWrite() {
+  if (DB_MODE !== "supabase" || !supabase) return;
+  WRITE_PENDING = true;
 
-  writeTimer = setTimeout(async () => {
-    writeTimer = null;
-
-    if (writeInFlight) {
-      writeQueued = true;
-      return;
-    }
+  if (WRITE_TIMER) return;
+  WRITE_TIMER = setTimeout(async () => {
+    WRITE_TIMER = null;
+    if (!WRITE_PENDING) return;
+    WRITE_PENDING = false;
 
     try {
-      await flushSupabaseNow();
+      const store = STORE_CACHE || defaultStore();
+      store.updatedAt = nowMS();
+
+      // keep store light always
+      if (Array.isArray(store.lastTx)) store.lastTx = store.lastTx.slice(0, 200);
+      if (Array.isArray(store.coins)) store.coins = store.coins.slice(0, 2000); // safety cap
+
+      const { error } = await supabase.from(SUPABASE_TABLE).upsert({ id: "main", data: store }, { onConflict: "id" });
+      if (error) console.log("Supabase write failed:", error.message);
     } catch (e) {
-      console.error("Supabase flush failed:", e?.message || e);
-      scheduleDBWrite(); // retry
+      console.log("Supabase write exception:", e?.message || e);
     }
-  }, 600);
+  }, 700); // debounce
 }
 
-async function flushSupabaseNow() {
-  if (DB_MODE !== "supabase") return;
-  if (!supabase) throw new Error("Supabase not configured");
-  if (!STORE_CACHE) return;
-
-  writeInFlight = true;
-  const snapshot = STORE_CACHE;
-
-  try {
-    const { error } = await supabase
-      .from(SUPABASE_TABLE)
-      .upsert(
-        { id: "main", data: snapshot, updated_at: new Date().toISOString() },
-        { onConflict: "id" }
-      );
-
-    if (error) throw new Error(error.message);
-  } finally {
-    writeInFlight = false;
-  }
-
-  if (writeQueued) {
-    writeQueued = false;
-    scheduleDBWrite();
-  }
-}
-
-async function writeDB(store) {
-  // ✅ non-blocking in supabase mode
-  if (DB_MODE === "supabase") {
-    STORE_CACHE = normalizeStore(store);
-    scheduleDBWrite();
-    return;
-  }
-  // fallback (not used)
-  STORE_CACHE = normalizeStore(store);
-}
-
-// -------------------- SOLANA HELPERS --------------------
-async function getSolBalance(wallet) {
-  try {
-    if (!wallet) return 0;
-    const pub = new PublicKey(wallet);
-    const lamports = await connection.getBalance(pub);
-    return lamports / 1_000_000_000;
-  } catch (err) {
-    console.log("Balance fetch failed, returning 0:", err.message);
-    return 0;
-  }
-}
+// flush on exit (best effort)
+process.on("SIGTERM", () => scheduleSupabaseWrite());
+process.on("SIGINT", () => scheduleSupabaseWrite());
 
 // -------------------- ROUTES --------------------
-app.get("/", (req, res) =>
-  res.json({ ok: true, name: "funrun-backend", ts: nowMs(), dbMode: DB_MODE })
+app.get("/health", (req, res) =>
+  res.json({
+    ok: true,
+    name: "funrun-backend",
+    ts: Date.now(),
+    dbMode: DB_MODE,
+  })
 );
 
-app.get("/health", (req, res) => {
-  res.status(200).json({ ok: true });
+// balance
+app.get("/api/balance/:wallet", async (req, res) => {
+  try {
+    const wallet = String(req.params.wallet || "").trim();
+    if (!wallet) return res.json({ ok: false, error: "wallet required" });
+
+    const pub = new PublicKey(wallet);
+    const lamports = await connection.getBalance(pub);
+    return res.json({ ok: true, sol: lamports / 1_000_000_000 });
+  } catch (e) {
+    return res.json({ ok: true, sol: 0 }); // don't break UI
+  }
 });
 
+// coin list (FAST from cache)
 app.get("/api/coin/list", async (req, res) => {
   try {
-    const { data, error } = await supabase
-      .from("coins")
-      .select("id,name,symbol,story,logo,creator_wallet,created_at")
-      .order("created_at", { ascending: false })
-      .limit(200);
-
-    if (error) throw new Error(error.message);
-
-    const coins = (data || []).map((c) => ({
-      id: c.id,
-      name: c.name,
-      symbol: c.symbol,
-      story: c.story,
-      logo: c.logo,
-      creatorWallet: c.creator_wallet,
-      createdAt: c.created_at,
-    }));
-
+    const store = await loadStoreOnce();
+    const coins = (store.coins || []).map(ensureCoin);
+    coins.sort((a, b) => safeNum(b.createdAt) - safeNum(a.createdAt));
     return res.json({ ok: true, coins });
   } catch (e) {
     console.log("coin/list error:", e?.message || e);
@@ -443,69 +276,7 @@ app.get("/api/coin/list", async (req, res) => {
   }
 });
 
-app.get("/api/profile/:wallet", async (req, res) => {
-  try {
-    const wallet = String(req.params.wallet || "").trim();
-    const store = await readDB();
-    const p = ensureProfile(store.profiles?.[wallet], wallet);
-
-    if (!p.referrer && store.referrals?.[wallet]) p.referrer = store.referrals[wallet];
-
-    store.profiles[wallet] = p;
-    writeDB(store); // non-blocking
-    res.json({ ok: true, profile: p });
-  } catch (e) {
-    console.error("profile error:", e);
-    res.status(500).json({ ok: false, error: String(e?.message || e) });
-  }
-});
-
-app.get("/api/balance/:wallet", async (req, res) => {
-  try {
-    const wallet = String(req.params.wallet || "").trim();
-    if (!wallet) return res.json({ ok: false, error: "wallet required" });
-    const sol = await getSolBalance(wallet);
-    res.json({ ok: true, sol });
-  } catch (e) {
-    res.status(500).json({ ok: false, error: String(e?.message || e) });
-  }
-});
-
-// -------------------- REFERRAL (immutable set) --------------------
-app.post("/api/referral/set", async (req, res) => {
-  try {
-    const wallet = String(req.body?.wallet || "").trim();
-    const referrer = String(req.body?.referrer || "").trim();
-
-    if (!wallet || wallet.length < 20) return res.json({ ok: false, error: "wallet required" });
-    if (!referrer || referrer.length < 20) return res.json({ ok: false, error: "referrer invalid" });
-    if (wallet === referrer) return res.json({ ok: false, error: "self referral not allowed" });
-
-    const store = await readDB();
-    store.referrals = store.referrals && typeof store.referrals === "object" ? store.referrals : {};
-
-    if (store.referrals[wallet]) {
-      return res.json({ ok: false, error: "immutable: referral already set" });
-    }
-
-    store.referrals[wallet] = referrer;
-
-    const p = ensureProfile(store.profiles?.[wallet], wallet);
-    p.referrer = referrer;
-    p.updatedAt = nowMs();
-    store.profiles[wallet] = p;
-
-    logPush(store, { type: "referral_set", wallet, referrer });
-    writeDB(store);
-
-    res.json({ ok: true });
-  } catch (e) {
-    console.error("referral/set error:", e);
-    res.status(500).json({ ok: false, error: String(e?.message || e) });
-  }
-});
-
-// -------------------- CREATE COIN --------------------
+// create coin (FAST: update cache + schedule write)
 app.post("/api/coin/create", async (req, res) => {
   try {
     const name = String(req.body?.name || "").trim();
@@ -519,34 +290,8 @@ app.post("/api/coin/create", async (req, res) => {
       return res.json({ ok: false, error: "name/symbol/creatorWallet required" });
     }
 
-    const store = await readDB();
-    ensureTreasury(store);
-
-    const status = initialSol >= 0.01 ? "LIVE" : "DRAFT";
-
-    let createFeeSol = 0;
-    if (status === "LIVE" && initialSol > 0) {
-      const f = takeFee(initialSol);
-      createFeeSol = f.feeSol;
-
-      const dev = createFeeSol * pctToFrac(CREATE_DEV_PCT);
-      const ref = createFeeSol * pctToFrac(CREATE_REF_PCT);
-      const reserve = createFeeSol * pctToFrac(CREATE_RESERVE_PCT);
-
-      store.treasury.devSol += dev;
-      store.treasury.reserveSol += reserve;
-
-      creditReferralReward(store, creatorWallet, ref);
-
-      logPush(store, {
-        type: "create_fee",
-        wallet: creatorWallet,
-        feeSol: createFeeSol,
-        split: { dev, ref, reserve },
-        devWallet: DEV_WALLET,
-        reserveWallet: RESERVE_WALLET,
-      });
-    }
+    const store = await loadStoreOnce();
+    store.coins = Array.isArray(store.coins) ? store.coins : [];
 
     const coin = ensureCoin({
       id: uid(),
@@ -556,233 +301,125 @@ app.post("/api/coin/create", async (req, res) => {
       logo,
       creatorWallet,
       owner: creatorWallet,
-      status,
-      createdAt: nowMs(),
-      mc: status === "LIVE" ? STARTING_MC_USD : 0,
-      ath: status === "LIVE" ? STARTING_MC_USD : 0,
-      chart:
-        status === "LIVE"
-          ? [STARTING_MC_USD, STARTING_MC_USD, STARTING_MC_USD, STARTING_MC_USD, STARTING_MC_USD]
-          : [0, 0, 0, 0, 0],
-      volumeSol: status === "LIVE" ? initialSol : 0,
-      totalSupply: TOTAL_SUPPLY_DEFAULT,
-      holders: {},
+      status: initialSol > 0 ? "LIVE" : "DRAFT",
+      createdAt: nowMS(),
+      volumeSol: initialSol > 0 ? initialSol : 0,
     });
 
-    // creator allocation
-    const creatorTokens = Math.floor((coin.totalSupply * CREATOR_PERCENT) / 100);
-    coin.holders[creatorWallet] = (coin.holders[creatorWallet] || 0) + creatorTokens;
+    // push into cache
+    store.coins.unshift(coin);
+    store.coins = store.coins.slice(0, 2000);
 
-    await supabase.from("coins").insert({
-  id: coin.id,
-  name: coin.name,
-  symbol: coin.symbol,
-  story: coin.story,
-  logo: coin.logo,
-  creator_wallet: coin.creatorWallet
-});
-
-    // profile update
-    const p = ensureProfile(store.profiles?.[creatorWallet], creatorWallet);
-    const existing = p.holdings.find((h) => h.coinId === coin.id);
-    if (existing) existing.amount = (existing.amount || 0) + creatorTokens;
-    else p.holdings.unshift({ coinId: coin.id, symbol: coin.symbol, amount: creatorTokens, lastAt: nowMs() });
-
-    p.txs.unshift({
-      id: uid(),
-      t: nowMs(),
+    pushLastTx(store, {
+      type: "CREATE",
       coinId: coin.id,
-      side: "CREATE",
-      sol: initialSol,
-      feeSol: createFeeSol,
+      wallet: creatorWallet,
+      sol: safeNum(initialSol, 0),
+      ts: nowMS(),
     });
-    store.profiles[creatorWallet] = p;
 
-    logPush(store, { type: "coin_create", coinId: coin.id, creatorWallet, status, initialSol });
-    writeDB(store); // non-blocking
+    STORE_CACHE = store;
+    scheduleSupabaseWrite();
 
-    res.json({ ok: true, coin });
+    return res.json({ ok: true, coin });
   } catch (e) {
-    console.error("coin/create error:", e);
-    res.status(500).json({ ok: false, error: String(e?.message || e) });
+    console.log("coin/create error:", e?.message || e);
+    return res.status(500).json({ ok: false, error: String(e?.message || e) });
   }
 });
 
-// -------------------- TRADE CORE --------------------
-async function handleTrade(req, res, forcedSide) {
+// unified trade (used by buy/sell routes)
+async function doTrade(req, res, side) {
   try {
     const wallet = String(req.body?.wallet || "").trim();
     const coinId = String(req.body?.coinId || "").trim();
-    const sideRaw = String(forcedSide || req.body?.side || "").trim().toLowerCase();
     const sol = safeNum(req.body?.sol, 0);
 
-    if (!wallet || !coinId || !sideRaw || sol <= 0) {
-      return res.json({ ok: false, error: "wallet/coinId/side/sol required" });
-    }
-    if (sideRaw !== "buy" && sideRaw !== "sell") {
-      return res.json({ ok: false, error: "side must be buy or sell" });
+    if (!wallet || !coinId || sol <= 0) {
+      return res.json({ ok: false, error: "wallet/coinId/sol required" });
     }
 
-    const store = await readDB();
-    ensureTreasury(store);
+    const store = await loadStoreOnce();
+    const coinRaw = findCoin(store, coinId);
+    if (!coinRaw) return res.json({ ok: false, error: "token not found" });
 
-    const coin = findCoin(store, coinId);
-    if (!coin) return res.json({ ok: false, error: "Coin not found" });
-    if (coin.status !== "LIVE") return res.json({ ok: false, error: "Coin not LIVE" });
+    const coin = ensureCoin(coinRaw);
 
-    const p = ensureProfile(store.profiles?.[wallet], wallet);
+    if (side === "buy") {
+      const { tokens, fee } = buyTokens(coin, wallet, sol);
 
-    const { feeSol } = takeFee(sol);
+      // write back into store
+      const idx = store.coins.findIndex((c) => String(c.id) === String(coinId));
+      if (idx >= 0) store.coins[idx] = coin;
 
-    const feeDev = feeSol * pctToFrac(TRADE_DEV_PCT);
-    const feeCreator = feeSol * pctToFrac(TRADE_CREATOR_PCT);
-    const feeRef = feeSol * pctToFrac(TRADE_REF_PCT);
-    const feeReserve = feeSol * pctToFrac(TRADE_RESERVE_PCT);
+      pushLastTx(store, { type: "BUY", coinId, wallet, sol, tokens, fee, ts: nowMS() });
 
-    store.treasury.devSol += feeDev;
-    store.treasury.reserveSol += feeReserve;
+      STORE_CACHE = store;
+      scheduleSupabaseWrite();
 
-    creditCreatorReward(store, coin, feeCreator);
-    creditReferralReward(store, wallet, feeRef);
-
-    // ✅ simple bonding-curve-ish token calc (same style as your previous file)
-    const mc = Math.max(coin.mc || STARTING_MC_USD, 1000);
-    const tokensPerSol = Math.max(1, Math.floor(coin.totalSupply / mc));
-    const tokens = Math.max(1, Math.floor(sol * tokensPerSol));
-
-    if (sideRaw === "buy") {
-      coin.holders[wallet] = (coin.holders[wallet] || 0) + tokens;
-
-      const h = p.holdings.find((x) => x.coinId === coinId);
-      if (h) {
-        h.amount = safeNum(h.amount, 0) + tokens;
-        h.lastAt = nowMs();
-      } else {
-        p.holdings.unshift({ coinId, symbol: coin.symbol, amount: tokens, lastAt: nowMs() });
-      }
-
-      coin.volumeSol = safeNum(coin.volumeSol, 0) + sol;
-
-      // chart + mc up
-      coin.mc = Math.round(Math.max(1000, coin.mc + sol * 120));
-      coin.ath = Math.max(coin.ath || coin.mc, coin.mc);
-      coin.chart = Array.isArray(coin.chart) ? coin.chart : [];
-      coin.chart.push(coin.mc);
-      coin.chart = coin.chart.slice(-60);
-
-      p.txs.unshift({ id: uid(), t: nowMs(), coinId, side: "BUY", sol, tokens, feeSol });
-
-      logPush(store, {
-        type: "trade",
-        side: "BUY",
-        wallet,
-        coinId,
-        sol,
-        tokens,
-        feeSol,
-        split: { dev: feeDev, creator: feeCreator, ref: feeRef, reserve: feeReserve },
-      });
-    } else {
-      const h = p.holdings.find((x) => x.coinId === coinId);
-      const have = safeNum(h?.amount, 0);
-      if (!h || have <= 0) return res.json({ ok: false, error: "No tokens to sell" });
-
-      const sellTokens = Math.min(have, tokens);
-      h.amount = have - sellTokens;
-      h.lastAt = nowMs();
-
-      coin.holders[wallet] = Math.max(0, safeNum(coin.holders[wallet], 0) - sellTokens);
-      coin.volumeSol = safeNum(coin.volumeSol, 0) + sol;
-
-      // chart + mc down
-      coin.mc = Math.round(Math.max(1000, coin.mc - sol * 110));
-      coin.chart = Array.isArray(coin.chart) ? coin.chart : [];
-      coin.chart.push(coin.mc);
-      coin.chart = coin.chart.slice(-60);
-
-      p.txs.unshift({ id: uid(), t: nowMs(), coinId, side: "SELL", sol, tokens: sellTokens, feeSol });
-
-      logPush(store, {
-        type: "trade",
-        side: "SELL",
-        wallet,
-        coinId,
-        sol,
-        tokens: sellTokens,
-        feeSol,
-        split: { dev: feeDev, creator: feeCreator, ref: feeRef, reserve: feeReserve },
-      });
+      return res.json({ ok: true, coin, tokens, fee });
     }
 
-    coin.lastTradeAt = nowMs();
-    p.updatedAt = nowMs();
-    store.profiles[wallet] = p;
+    if (side === "sell") {
+      const r = sellTokens(coin, wallet, sol);
+      if (!r.ok) return res.json({ ok: false, error: r.error });
 
-    writeDB(store); // non-blocking
+      const idx = store.coins.findIndex((c) => String(c.id) === String(coinId));
+      if (idx >= 0) store.coins[idx] = coin;
 
-    res.json({ ok: true, coin: ensureCoin(coin), profile: store.profiles[wallet] });
+      pushLastTx(store, { type: "SELL", coinId, wallet, sol, tokens: r.tokens, fee: r.fee, ts: nowMS() });
+
+      STORE_CACHE = store;
+      scheduleSupabaseWrite();
+
+      return res.json({ ok: true, coin, tokens: r.tokens, fee: r.fee });
+    }
+
+    return res.json({ ok: false, error: "invalid side" });
   } catch (e) {
-    console.error("trade error:", e);
-    res.status(500).json({ ok: false, error: String(e?.message || e) });
+    console.log("trade error:", e?.message || e);
+    return res.status(500).json({ ok: false, error: String(e?.message || e) });
   }
 }
 
-app.post("/api/coin/buy", (req, res) => handleTrade(req, res, "buy"));
-app.post("/api/coin/sell", (req, res) => handleTrade(req, res, "sell"));
-app.post("/api/trade", (req, res) => handleTrade(req, res, null));
+// buy/sell endpoints used by frontend
+app.post("/api/coin/buy", (req, res) => doTrade(req, res, "buy"));
+app.post("/api/coin/sell", (req, res) => doTrade(req, res, "sell"));
 
-// -------------------- WITHDRAW (demo accounting) --------------------
-async function handleWithdraw(req, res, mode) {
+// profile (FAST from cache)
+app.get("/api/profile/:wallet", async (req, res) => {
   try {
-    const wallet = String(req.body?.wallet || "").trim();
-    const to = String(req.body?.to || "").trim();
-    const kind = String(req.body?.kind || mode || "").trim().toUpperCase();
+    const wallet = String(req.params.wallet || "").trim();
+    const store = await loadStoreOnce();
 
-    if (!wallet) return res.json({ ok: false, error: "wallet required" });
-    if (!to) return res.json({ ok: false, error: "to required" });
+    // super light profile (keeps UI alive fast)
+    const profile = (store.profiles && store.profiles[wallet]) || {};
+    const myCreations = (store.coins || [])
+      .map(ensureCoin)
+      .filter((c) => (c.creatorWallet || c.owner) === wallet)
+      .slice(0, 50);
 
-    const store = await readDB();
-    const p = ensureProfile(store.profiles?.[wallet], wallet);
+    const lastTx = (store.lastTx || []).slice(0, 50);
 
-    let withdrawn = 0;
-
-    if (kind === "CREATOR") {
-      withdrawn = safeNum(p.rewards?.totalSol, 0);
-      p.rewards = { totalSol: 0, byCoin: {} };
-    } else if (kind === "REF") {
-      withdrawn = safeNum(p.referralRewards?.totalSol, 0);
-      p.referralRewards = { totalSol: 0, byWallet: {} };
-    } else {
-      withdrawn = 0;
-    }
-
-    p.txs.unshift({ id: uid(), t: nowMs(), coinId: "", side: "WITHDRAW", sol: withdrawn, to, kind });
-    p.updatedAt = nowMs();
-    store.profiles[wallet] = p;
-
-    logPush(store, { type: "withdraw", wallet, to, kind, sol: withdrawn });
-    writeDB(store);
-
-    res.json({ ok: true, to, kind, sol: withdrawn });
+    return res.json({
+      ok: true,
+      profile,
+      myCreations,
+      lastTx,
+      feePct: FEE_PCT,
+    });
   } catch (e) {
-    console.error("withdraw error:", e);
-    res.status(500).json({ ok: false, error: String(e?.message || e) });
+    console.log("profile error:", e?.message || e);
+    return res.status(500).json({ ok: false, error: String(e?.message || e) });
   }
-}
-
-app.post("/api/withdraw", (req, res) => handleWithdraw(req, res, "MANUAL"));
-app.post("/api/withdraw/manual", (req, res) => handleWithdraw(req, res, "MANUAL"));
-app.post("/api/withdraw/creator", (req, res) => handleWithdraw(req, res, "CREATOR"));
-app.post("/api/withdraw/referral", (req, res) => handleWithdraw(req, res, "REF"));
-app.post("/api/transfer", (req, res) => handleWithdraw(req, res, "MANUAL"));
-app.post("/api/payout", (req, res) => handleWithdraw(req, res, "MANUAL"));
+});
 
 // -------------------- START --------------------
-app.listen(PORT, "0.0.0.0", () => {
-  console.log(`✅ Backend running on port: ${PORT}`);
-  console.log(`✅ Solana RPC: ${SOLANA_RPC}`);
-  console.log(`✅ DB MODE: ${DB_MODE}`);
-  console.log(`✅ CORS_ORIGINS: ${CORS_ORIGINS.join(", ")}`);
-  console.log(`✅ JSON_LIMIT: ${JSON_LIMIT}`);
-  console.log(`✅ Fee: ${FEE_PCT}%`);
+app.listen(PORT, () => {
+  console.log("✅ Backend running on port:", PORT);
+  console.log("✅ Solana RPC:", SOLANA_RPC);
+  console.log("✅ DB MODE:", DB_MODE);
+  console.log("✅ CORS_ORIGINS:", CORS_ORIGINS.join(", "));
+  console.log("✅ JSON_LIMIT:", JSON_LIMIT);
+  console.log("✅ Fee:", FEE_PCT + "%");
 });
