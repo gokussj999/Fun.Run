@@ -418,13 +418,28 @@ app.get("/health", (req, res) => {
 
 app.get("/api/coin/list", async (req, res) => {
   try {
-    const store = await readDB();
-    const coins = (store.coins || []).map(ensureCoin);
-    coins.sort((a, b) => safeNum(b.createdAt) - safeNum(a.createdAt));
-    res.json({ ok: true, coins });
+    const { data, error } = await supabase
+      .from("coins")
+      .select("id,name,symbol,story,logo,creator_wallet,created_at")
+      .order("created_at", { ascending: false })
+      .limit(200);
+
+    if (error) throw new Error(error.message);
+
+    const coins = (data || []).map((c) => ({
+      id: c.id,
+      name: c.name,
+      symbol: c.symbol,
+      story: c.story,
+      logo: c.logo,
+      creatorWallet: c.creator_wallet,
+      createdAt: c.created_at,
+    }));
+
+    return res.json({ ok: true, coins });
   } catch (e) {
-    console.error("coin/list error:", e);
-    res.status(500).json({ ok: false, error: String(e?.message || e) });
+    console.log("coin/list error:", e?.message || e);
+    return res.status(500).json({ ok: false, error: String(e?.message || e) });
   }
 });
 

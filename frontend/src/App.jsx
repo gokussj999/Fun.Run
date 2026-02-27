@@ -2,17 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import { useExportWallet } from "@privy-io/react-auth/solana";
 const INTRO_MS = 2600; 
-useEffect(() => {
-  try {
-    const url = new URL(window.location.href);
-    const ref = (url.searchParams.get("ref") || "").trim();
-    if (ref) {
-      localStorage.setItem("ref", ref);
-      url.searchParams.delete("ref");
-      window.history.replaceState({}, "", url.toString());
-    }
-  } catch {}
-}, []);
+
 
 // ✅ apna logo yahan do (recommended):
 // Option A: public folder: /public/logo.png  -> "/logo.png"
