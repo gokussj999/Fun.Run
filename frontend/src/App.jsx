@@ -1314,10 +1314,11 @@ function CoinMiniCard({ c, subtitle, onOpen }) {
     </button>
   );
 }
+
 function PriceChart({ points, txMarkers, mode, onToggleMode }) {
   const W = 1000;
-  const H = 380;
-  const PAD = 22;
+  const H = typeof window !== "undefined" && window.innerWidth < 520 ? 240 : 380;
+  const PAD = typeof window !== "undefined" && window.innerWidth < 520 ? 16 : 22;
 
   const safePoints = Array.isArray(points) && points.length ? points : [0, 0, 0, 0, 0];
 
@@ -1592,6 +1593,18 @@ useEffect(() => {
   const t = setTimeout(() => setShowIntro(false), INTRO_MS);
   return () => clearTimeout(t);
 }, []);
+useEffect(() => {
+  try {
+    const url = new URL(window.location.href);
+    const ref = (url.searchParams.get("ref") || "").trim();
+    if (ref) {
+      localStorage.setItem("ref", ref);
+      url.searchParams.delete("ref");
+      window.history.replaceState({}, "", url.toString());
+    }
+  } catch {}
+}, []);
+const isMobile = typeof window !== "undefined" && window.innerWidth < 520;
 
   const [toast, setToast] = useState("");
   const [theme, setTheme] = useState(() => localStorage.getItem(LS_THEME) || "calm");
@@ -2282,7 +2295,7 @@ paddingBottom: 110,
         const c = selectedCoin;
         const isLiveNow = c.status === "LIVE";
         const txMarkers = myTxList.filter((t) => t.coinId === c.id).slice(0, 20);
-        const myHoldingForCoin = myHoldingsList.find((h) => h.coinId === c.id)?.amount || 0;
+        const myHoldingForCoin = c?.holders?.[solAddr] || 0;
 
         const totalSupply = Number(c.totalSupply || 0);
         const myPct = totalSupply > 0 ? (Number(myHoldingForCoin || 0) / totalSupply) * 100 : 0;
@@ -2331,7 +2344,21 @@ paddingBottom: 110,
 
             <div style={{ height: 12 }} />
 
-            <Card>
+            <Card
+  style={
+    isMobile
+      ? {
+          position: "fixed",
+          bottom: 0,
+          left: 0,
+          right: 0,
+          borderRadius: "20px 20px 0 0",
+          zIndex: 1000,
+          paddingBottom: 10,
+        }
+      : {}
+  }
+>
               <div style={{ fontWeight: 950, marginBottom: 8 }}>Trade</div>
               <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
                 <MiniBtn
@@ -2364,11 +2391,11 @@ paddingBottom: 110,
               open={tradeOpen}
               title={`${tradeSide === "BUY" ? "Buy" : "Sell"} ${c.symbol || ""}`}
               onClose={() => (tradeLoading ? null : setTradeOpen(false))}
-              onConfirm={async () => {
-                if (tradeLoading) return;
-                await doTrade(c, tradeSide, tradeSol);
-                setTradeOpen(false);
-              }}
+             onConfirm={async () => {
+  if (tradeLoading) return;
+  setTradeOpen(false);              // ✅ pehle close
+  await doTrade(c, tradeSide, tradeSol); // phir trade
+}}
               confirmText={tradeLoading ? "..." : tradeSide === "BUY" ? "Confirm Buy" : "Confirm Sell"}
               confirmTone={tradeSide === "BUY" ? "primary" : "danger"}
             >

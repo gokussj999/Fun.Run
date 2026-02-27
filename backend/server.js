@@ -56,7 +56,14 @@ app.use(
   })
 );
 app.use(morgan("tiny"));
-
+app.get("/", (req, res) => {
+  res.json({
+    ok: true,
+    name: "pumpmini-backend",
+    dbMode: process.env.DB_MODE || "unknown",
+    ts: Date.now(),
+  });
+});
 // -------------------- SUPABASE + SOLANA --------------------
 const supabase =
   SUPABASE_URL && SUPABASE_ANON_KEY
