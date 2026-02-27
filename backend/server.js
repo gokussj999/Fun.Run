@@ -558,7 +558,14 @@ app.post("/api/coin/create", async (req, res) => {
     const creatorTokens = Math.floor((coin.totalSupply * CREATOR_PERCENT) / 100);
     coin.holders[creatorWallet] = (coin.holders[creatorWallet] || 0) + creatorTokens;
 
-    store.coins.unshift(coin);
+    await supabase.from("coins").insert({
+  id: coin.id,
+  name: coin.name,
+  symbol: coin.symbol,
+  story: coin.story,
+  logo: coin.logo,
+  creator_wallet: coin.creatorWallet
+});
 
     // profile update
     const p = ensureProfile(store.profiles?.[creatorWallet], creatorWallet);
