@@ -1720,7 +1720,7 @@ const isMobile = typeof window !== "undefined" && window.innerWidth < 520;
     if (!authenticated || !solAddr) return;
     refreshBalance();
     loadProfile();
-    const t = setInterval(() => refreshBalance(), 20000);
+    
     return () => clearInterval(t);
   }, [authenticated, solAddr]);
 
