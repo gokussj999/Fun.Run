@@ -321,6 +321,12 @@ async function readDB() {
     }
 
     STORE_CACHE = normalizeStore(data.data || defaultStore());
+    // ✅ keep DB small (speed fix)
+if (Array.isArray(STORE_CACHE.trades)) STORE_CACHE.trades = STORE_CACHE.trades.slice(-200);
+if (Array.isArray(STORE_CACHE.transactions)) STORE_CACHE.transactions = STORE_CACHE.transactions.slice(-200);
+if (Array.isArray(STORE_CACHE.lastTx)) STORE_CACHE.lastTx = STORE_CACHE.lastTx.slice(-200);
+if (Array.isArray(STORE_CACHE.logs)) STORE_CACHE.logs = STORE_CACHE.logs.slice(-200);
+if (Array.isArray(STORE_CACHE.coins)) STORE_CACHE.coins = STORE_CACHE.coins.slice(-500);
     return STORE_CACHE;
   })();
 
