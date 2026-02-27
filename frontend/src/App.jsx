@@ -175,9 +175,33 @@ function ThemeStyles() {
       .noScrollbar{ scrollbar-width: none; -ms-overflow-style: none; }
       .noScrollbar::-webkit-scrollbar{ display:none; }
 
-      .miniScroll{ overflow-y:auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; -ms-overflow-style: none; }
-      .miniScroll::-webkit-scrollbar{ display:none; }
+      .miniScroll {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  -ms-overflow-style: none;   /* IE & Edge */
+  scrollbar-width: none;      /* Firefox */
+}
 
+.miniScroll::-webkit-scrollbar {
+  width: 0px;
+  height: 0px;
+}
+  /* 🔥 Hide whole page scrollbar */
+
+html::-webkit-scrollbar,
+body::-webkit-scrollbar {
+  width: 0px;
+  height: 0px;
+}
+  #root::-webkit-scrollbar {
+  width: 0px;
+  height: 0px;
+}
+
+html, body {
+  scrollbar-width: none;     /* Firefox */
+  -ms-overflow-style: none;  /* IE & Edge */
+}
       .hScroll{ overflow-x:auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; -ms-overflow-style: none; }
       .hScroll::-webkit-scrollbar{ display:none; }
 
@@ -399,8 +423,10 @@ function ScreenShell({ children, fullBleed = false, allowYScroll = false }) {
         color: "var(--text)",
         fontFamily: "system-ui, -apple-system, Segoe UI, Roboto, Arial",
         paddingBottom: 86,
-        display: "grid",
-        placeItems: "center",
+        display: "flex",
+flexDirection: "column",
+alignItems: "center",
+    
         position: "relative",
         zIndex: 1,
       }}
@@ -424,8 +450,8 @@ function ScreenShell({ children, fullBleed = false, allowYScroll = false }) {
             0 34px 110px rgba(0,0,0,.70),
             0 0 70px rgba(25,230,162,.08)
           `,
-          maxHeight: allowYScroll ? "calc(100vh - 110px)" : undefined,
-          overflowY: allowYScroll ? "auto" : "hidden",
+          maxHeight: "calc(100vh - 110px)",
+          overflowY: "hidden",
           position: "relative",
         }}
       >
@@ -1046,40 +1072,42 @@ function BottomNav({ screen, setScreen }) {
   return (
     <div
       style={{
-        position: "fixed",
-        left: 0,
-        right: 0,
-        bottom: 0,
-        height: 70,
-        background: "rgba(9,12,14,.78)",
-        borderTop: "1px solid var(--border)",
-        display: "flex",
-        alignItems: "center",
-        zIndex: 9999,
-        backdropFilter: "blur(14px)",
-      }}
+  position: "fixed",
+  left: 0,
+  right: 0,
+  bottom: 0,
+  height: 60,
+  background: "rgba(8,14,16,0.85)",
+  borderTop: "1px solid rgba(0,255,170,0.08)",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-around",
+  zIndex: 9999,
+  backdropFilter: "blur(18px)",
+}}
     >
       <NavBtn active={screen === "HOME"} onClick={() => setScreen("HOME")} icon="🏠" text="Home" />
       <NavBtn active={screen === "SEARCH"} onClick={() => setScreen("SEARCH")} icon="⌕" text="Search" />
-      <div style={{ flex: 1, display: "flex", justifyContent: "center", marginTop: -28 }}>
-        <button
-          onClick={() => setScreen("CREATE")}
-          style={{
-            width: 64,
-            height: 64,
-            borderRadius: 24,
-            border: "1px solid rgba(255,255,255,.12)",
-            background: "linear-gradient(135deg, rgba(255,255,255,.20), rgba(0,0,0,.10))",
-            boxShadow: "0 22px 60px rgba(0,0,0,.65), 0 0 50px rgba(25,230,162,.10)",
-            color: "var(--text)",
-            fontSize: 22,
-            cursor: "pointer",
-          }}
-          title="Create"
-        >
-          ✦
-        </button>
-      </div>
+      <div style={{ flex: 1, display: "flex", justifyContent: "center", marginTop: 12 }}>
+  <button
+    onClick={() => setScreen("CREATE")}
+    style={{
+      width: 50,
+      height: 50,
+      borderRadius: 16,
+      border: "1px solid rgba(0,255,170,.25)",
+      background: "linear-gradient(135deg, #0f2f2a, #0b1f1c)",
+      boxShadow: "0 8px 20px rgba(0,255,170,.18)",
+      color: "#9effd6",
+      fontSize: 16,
+      cursor: "pointer",
+      transition: "all .2s ease",
+    }}
+    title="Create"
+  >
+    ✦
+  </button>
+</div>
       <NavBtn active={screen === "LATEST"} onClick={() => setScreen("LATEST")} icon="◷" text="Latest" />
       <NavBtn active={screen === "PROFILE"} onClick={() => setScreen("PROFILE")} icon="👤" text="Profile" />
     </div>
@@ -1226,52 +1254,66 @@ function pctFromChart(chart) {
   return ((b - a) / a) * 100;
 }
 
-function CoinMiniCard({ c, subtitle, tag, accent = "var(--primary)", onOpen }) {
-  const p = pctFromChart(c.chart);
-  const pos = p >= 0;
+function CoinMiniCard({ c, subtitle, onOpen }) {
   return (
     <button
       onClick={onOpen}
       style={{
-        width: 250,
-        minWidth: 250,
+        width: "100%",
         textAlign: "left",
         padding: 12,
-        borderRadius: 18,
+        borderRadius: 16,
         border: "1px solid var(--border)",
-        background: "linear-gradient(180deg, rgba(255,255,255,.03), rgba(0,0,0,.16)), var(--card2)",
+        background: "var(--card2)",
         color: "var(--text)",
         cursor: "pointer",
-        position: "relative",
-        overflow: "hidden",
       }}
     >
-      <div
-        style={{
-          position: "absolute",
-          inset: 0,
-          background: `radial-gradient(220px 120px at 30% 10%, ${accent}20, transparent 60%)`,
-        }}
-      />
-      <div style={{ position: "relative" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <CoinLogo c={c} size={42} />
-          <div style={{ flex: 1 }}>
-            <div style={{ fontWeight: 950, lineHeight: 1.15 }}>{c.symbol || "—"}</div>
-            <div style={{ marginTop: 4, color: "var(--muted)", fontSize: 12 }}>{subtitle}</div>
+      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <CoinLogo c={c} size={44} />
+
+        {/* LEFT: name + small sub line */}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div
+            style={{
+              fontWeight: 900,
+              lineHeight: 1.1,
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+            }}
+          >
+            {c?.name || c?.symbol || "—"}
+          </div>
+
+          <div
+            style={{
+              marginTop: 4,
+              color: "var(--muted)",
+              fontSize: 12,
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+            }}
+          >
+            {subtitle || ""}
           </div>
         </div>
 
-        <div style={{ marginTop: 10, display: "flex", gap: 10, flexWrap: "wrap" }}>
-          <Pill tone={pos ? "good" : "danger"}>{pos ? "↑" : "↓"} {Math.abs(p).toFixed(1)}%</Pill>
-          <Pill>MC: {fmtUsd(c.mc || 0)}</Pill>
-          <Pill>VOL: {Number(c.volumeSol || 0).toFixed(2)} SOL</Pill>
-          {tag ? <Pill tone="warn">{tag}</Pill> : null}
+        {/* RIGHT: simple number only (example: MC) */}
+        <div style={{ textAlign: "right" }}>
+          <div style={{ fontWeight: 900 }}>
+            {fmtUsd(c?.mc || 0)}
+          </div>
+          <div style={{ marginTop: 4, fontSize: 12, color: "var(--muted)" }}>
+            MC
+          </div>
         </div>
       </div>
     </button>
   );
-}function PriceChart({ points, txMarkers, mode, onToggleMode }) {
+}
+function PriceChart({ points, txMarkers, mode, onToggleMode }) {
   const W = 1000;
   const H = 380;
   const PAD = 22;
@@ -1556,6 +1598,7 @@ useEffect(() => {
   const [selectedCoinId, setSelectedCoinId] = useState(null);
   const [homePage, setHomePage] = useState(0);
 
+
   const [balance, setBalance] = useState("—");
   const [loadingBal, setLoadingBal] = useState(false);
 
@@ -1563,6 +1606,7 @@ useEffect(() => {
   const [loadingCoins, setLoadingCoins] = useState(false);
 
   const [searchQ, setSearchQ] = useState("");
+  const [searchMode, setSearchMode] = useState("SEARCH");
 
   const [tokenName, setTokenName] = useState("");
   const [symbol, setSymbol] = useState("");
@@ -1931,63 +1975,45 @@ useEffect(() => {
               <MiniBtn onClick={() => solAddr && copyText(solAddr)} disabled={!solAddr}>
                 Copy Address
               </MiniBtn>
-              <MiniBtn onClick={loadCoins} disabled={loadingCoins}>
-                {loadingCoins ? "…" : "Refresh Coins"}
-              </MiniBtn>
-              <MiniBtn onClick={loadProfile} disabled={loadingProfile}>
-                {loadingProfile ? "…" : "Refresh Profile"}
-              </MiniBtn>
+              {false && (
+  <>
+    <MiniBtn onClick={loadCoins} disabled={loadingCoins}>
+      {loadingCoins ? "…" : "Refresh Coins"}
+    </MiniBtn>
+
+    <MiniBtn onClick={loadProfile} disabled={loadingProfile}>
+      {loadingProfile ? "…" : "Refresh Profile"}
+    </MiniBtn>
+  </>
+)}
             </div>
           </Card>
 
           <div style={{ height: 12 }} />
 
-          <Card>
-            <SectionHeader title="Top movers" right={<Pill tone="good">LIVE</Pill>} />
-            <div className="hScroll" style={{ display: "flex", gap: 10, paddingBottom: 4 }}>
-              {movers.slice(0, 10).map((c, i) => (
-                <CoinMiniCard
-                  key={c.id}
-                  c={c}
-                  subtitle={`Mover • ${fmtUsd(c.mc || 0)}`}
-                  tag={`#${i + 1}`}
-                  accent={i % 2 === 0 ? "var(--primary)" : "var(--accent2)"}
-                  onOpen={() => {
-                    setSelectedCoinId(c.id);
-                    setScreen("COIN");
-                  }}
-                />
-              ))}
-            </div>
-          </Card>
+        
+
+          <div style={{ height: 12 }} />
+
+          
 
           <div style={{ height: 12 }} />
 
           <Card>
-            <SectionHeader title="Moon shooter" right={<Pill tone="warn">+15% 🚀</Pill>} />
-            <div className="hScroll" style={{ display: "flex", gap: 10, paddingBottom: 4 }}>
-              {moonshots.slice(0, 10).map((c) => (
-                <CoinMiniCard
-                  key={c.id}
-                  c={c}
-                  subtitle={`Moon • ${fmtUsd(c.mc || 0)}`}
-                  tag="MOON"
-                  accent="var(--warn)"
-                  onOpen={() => {
-                    setSelectedCoinId(c.id);
-                    setScreen("COIN");
-                  }}
-                />
-              ))}
-            </div>
-          </Card>
-
-          <div style={{ height: 12 }} />
-
-          <Card>
-            <SectionHeader title="Top volume" right={<Pill tone="warn">Hot</Pill>} />
-            <div className="hScroll" style={{ display: "flex", gap: 10, paddingBottom: 4 }}>
-              {topVolume.slice(0, 10).map((c) => (
+            <SectionHeader title="Top 100 Coins" right={<Pill tone="good">LIVE</Pill>} />
+            <div
+  className="miniScroll"
+  style={{
+    display: "flex",
+    flexDirection: "column",
+    gap: 10,
+    maxHeight: "calc(100vh - 220px)",
+    overflowY: "auto",
+    overflowX: "hidden",
+    paddingRight: 6,
+  }}
+>
+              {coins.slice(0, 100).map((c) => (
                 <CoinMiniCard
                   key={c.id}
                   c={c}
@@ -2031,37 +2057,131 @@ useEffect(() => {
     }
 
     if (screen === "SEARCH") {
-      content = (
-        <ScreenShell>
-          <Title sub={null}>Search</Title>
+  const getPct24h = (c) => {
+    const v =
+      c?.pct24h ??
+      c?.change24h ??
+      c?.pump24h ??
+      c?.priceChange24h ??
+      0;
+    return Number(v) || 0;
+  };
 
-          <Input
-            label="Search for a coin"
-            value={searchQ}
-            onChange={setSearchQ}
-            placeholder="type name or symbol…"
-            rightIcon={<span style={{ fontWeight: 950 }}>⌕</span>}
-          />
+  const filtered = (coins || []).filter((c) => {
+    const q = String(searchQ || "").trim().toLowerCase();
+    if (!q) return true;
+    return (
+      String(c.name || "").toLowerCase().includes(q) ||
+      String(c.symbol || "").toLowerCase().includes(q)
+    );
+  });
 
-          <Card>
-            <SectionHeader title={searchQ.trim() ? `Results (${searchResults.length})` : "Top volume"} right={<Pill tone="good">Live</Pill>} />
-            <div className="miniScroll" style={{ maxHeight: 420, paddingRight: 6, display: "grid", gap: 10 }}>
-              {(searchQ.trim() ? searchResults : topVolume.slice(0, 20)).map((c) => (
-                <CoinRow
-                  key={c.id}
-                  c={c}
-                  onClick={() => {
-                    setSelectedCoinId(c.id);
-                    setScreen("COIN");
-                  }}
-                />
-              ))}
-              {searchQ.trim() && searchResults.length === 0 ? <div style={{ color: "var(--muted)", fontSize: 12 }}>No results</div> : null}
-            </div>
-          </Card>
-        </ScreenShell>
-      );
-    }
+  const topVol20 = (coins || [])
+    .slice()
+    .sort((a, b) => Number(b.volumeSol || 0) - Number(a.volumeSol || 0))
+    .slice(0, 20);
+
+  const topMoves20 = (coins || [])
+    .slice()
+    .map((c) => ({ c, pct: getPct24h(c) }))
+    .filter((x) => x.pct >= 10)
+    .sort((a, b) => b.pct - a.pct)
+    .slice(0, 20);
+
+  content = (
+    <ScreenShell>
+      <Title sub={null}>Search</Title>
+
+      <Input
+        label="Search for a coin"
+        value={searchQ}
+        onChange={setSearchQ}
+        placeholder="type name or symbol…"
+        rightIcon={<span style={{ fontWeight: 950 }}>⌕</span>}
+      />
+
+      {/* 🔘 MODE BUTTONS */}
+      <div style={{ display: "flex", gap: 10, marginTop: 12 }}>
+        <MiniBtn
+          onClick={() => setSearchMode("TOPVOL")}
+          style={{
+            flex: 1,
+            opacity: searchMode === "TOPVOL" ? 1 : 0.7,
+          }}
+        >
+          Top Volume
+        </MiniBtn>
+
+        <MiniBtn
+          onClick={() => setSearchMode("TOPMOVES")}
+          style={{
+            flex: 1,
+            opacity: searchMode === "TOPMOVES" ? 1 : 0.7,
+          }}
+        >
+          Top Moves 24h
+        </MiniBtn>
+      </div>
+
+      <div
+  className="miniScroll"
+  style={{
+    marginTop: 16,
+    display: "flex",
+    flexDirection: "column",
+    gap: 10,
+    maxHeight: "calc(100vh - 260px)",
+    overflowY: "auto",
+    overflowX: "hidden",
+    paddingRight: 6,
+    paddingBottom: 90,
+  }}
+>
+  {searchMode === "SEARCH" &&
+    filtered.map((c) => (
+      <CoinMiniCard
+        key={c.id}
+        c={c}
+        onOpen={() => {
+          setSelectedCoinId(c.id);
+          setScreen("COIN");
+        }}
+      />
+    ))}
+
+  {searchMode === "TOPVOL" &&
+    topVol20.map((c) => (
+      <CoinMiniCard
+        key={c.id}
+        c={c}
+        subtitle={`Volume • ${Number(c.volumeSol || 0).toFixed(2)} SOL`}
+        tag="VOL"
+        accent="var(--primary)"
+        onOpen={() => {
+          setSelectedCoinId(c.id);
+          setScreen("COIN");
+        }}
+      />
+    ))}
+
+  {searchMode === "TOPMOVES" &&
+    topMoves20.map(({ c, pct }) => (
+      <CoinMiniCard
+        key={c.id}
+        c={c}
+        subtitle={`24h Move • +${pct.toFixed(2)}%`}
+        tag="PUMP"
+        accent="var(--primary)"
+        onOpen={() => {
+          setSelectedCoinId(c.id);
+          setScreen("COIN");
+        }}
+      />
+    ))}
+</div>
+    </ScreenShell>
+  );
+}
 
     if (screen === "LATEST") {
       content = (
@@ -2069,67 +2189,82 @@ useEffect(() => {
           <Title sub={null} right={<MiniBtn onClick={loadCoins} disabled={loadingCoins}>{loadingCoins ? "…" : "Refresh"}</MiniBtn>}>
             Latest
           </Title>
+        <div style={{ margin: "10px 0 14px" }}>
+  <input
+    value={searchQ}
+    onChange={(e) => setSearchQ(e.target.value)}
+    placeholder="Search name / symbol..."
+    style={{
+      width: "100%",
+      padding: "10px 12px",
+      borderRadius: 14,
+      border: "1px solid rgba(255,255,255,.10)",
+      background: "rgba(0,0,0,.18)",
+      color: "var(--text)",
+      outline: "none",
+    }}
+  />
+</div>
 
-          <Card>
-            <SectionHeader title="Top movers" right={<Pill tone="good">Live</Pill>} />
-            <div className="hScroll" style={{ display: "flex", gap: 10, paddingBottom: 4 }}>
-              {movers.slice(0, 10).map((c, i) => (
-                <CoinMiniCard
-                  key={c.id}
-                  c={c}
-                  subtitle="Top mover"
-                  tag={`#${i + 1}`}
-                  accent={i % 2 === 0 ? "var(--primary)" : "var(--accent2)"}
-                  onOpen={() => {
-                    setSelectedCoinId(c.id);
-                    setScreen("COIN");
-                  }}
-                />
-              ))}
-            </div>
-          </Card>
+          {/* 🔥 Latest 20 Coins List */}
+{(() => {
+  const latestCoins = (coins || [])
+    .slice()
+    .sort(
+      (a, b) =>
+        Number(b.createdAt || b.ts || b.time || 0) -
+        Number(a.createdAt || a.ts || a.time || 0)
+    )
+    .slice(0, 20);
+
+  const latestFiltered = latestCoins.filter((c) => {
+    const q = String(searchQ || "").trim().toLowerCase();
+    if (!q) return true;
+    return (
+      String(c.name || "").toLowerCase().includes(q) ||
+      String(c.symbol || "").toLowerCase().includes(q)
+    );
+  });
+
+  return (
+    <div
+      style={{
+        marginTop: 14,
+        display: "flex",
+        flexDirection: "column",
+        gap: 10,
+maxHeight: "calc(100vh - 260px)",
+overflowY: "scroll",
+scrollbarWidth: "none",
+msOverflowStyle: "none",
+paddingBottom: 110,
+      }}
+    >
+      {latestFiltered.length === 0 ? (
+        <div style={{ opacity: 0.7 }}>No coins found.</div>
+      ) : (
+        latestFiltered.map((c) => (
+          <CoinMiniCard
+            key={c.id}
+            c={c}
+            onOpen={() => {
+              setSelectedCoinId(c.id);
+              setScreen("COIN");
+            }}
+          />
+        ))
+      )}
+    </div>
+  );
+})()}
 
           <div style={{ height: 12 }} />
 
-          <Card>
-            <SectionHeader title="Moon shooter" right={<Pill tone="warn">+15% 🚀</Pill>} />
-            <div className="hScroll" style={{ display: "flex", gap: 10, paddingBottom: 4 }}>
-              {moonshots.slice(0, 10).map((c) => (
-                <CoinMiniCard
-                  key={c.id}
-                  c={c}
-                  subtitle="Moon"
-                  tag="MOON"
-                  accent="var(--warn)"
-                  onOpen={() => {
-                    setSelectedCoinId(c.id);
-                    setScreen("COIN");
-                  }}
-                />
-              ))}
-            </div>
-          </Card>
+         
 
           <div style={{ height: 12 }} />
 
-          <Card>
-            <SectionHeader title="Top volume" right={<Pill tone="warn">SOL</Pill>} />
-            <div className="hScroll" style={{ display: "flex", gap: 10, paddingBottom: 4 }}>
-              {topVolume.slice(0, 10).map((c) => (
-                <CoinMiniCard
-                  key={c.id}
-                  c={c}
-                  subtitle={`Volume • ${Number(c.volumeSol || 0).toFixed(2)} SOL`}
-                  tag="VOL"
-                  accent="var(--primary)"
-                  onOpen={() => {
-                    setSelectedCoinId(c.id);
-                    setScreen("COIN");
-                  }}
-                />
-              ))}
-            </div>
-          </Card>
+        
         </ScreenShell>
       );
     }
@@ -2356,186 +2491,262 @@ useEffect(() => {
       );
     }
 
-    if (screen === "PROFILE") {
-      const holdingsEnriched = myHoldingsList
-        .map((h) => {
-          const coin = coinsSorted.find((c) => c.id === h.coinId);
-          const supply = Number(coin?.totalSupply || 0);
-          const amt = Number(h.amount || 0);
-          const pct = supply > 0 ? (amt / supply) * 100 : 0;
-          return { ...h, coin, supply, amt, pct };
-        })
-        .filter((x) => x.amt > 0.0000001);
+  if (screen === "PROFILE") {
+  const holdingsEnriched = myHoldingsList
+    .map((h) => {
+      const coin = coinsSorted.find((c) => c.id === h.coinId);
+      const supply = Number(coin?.totalSupply || 0);
+      const amt = Number(h.amount || 0);
+      const pct = supply > 0 ? (amt / supply) * 100 : 0;
+      return { ...h, coin, supply, amt, pct };
+    })
+    .filter((x) => x.amt > 0.0000001);
 
-      const txEnriched = myTxList.slice(0, 40).map((t) => {
-        const coin = coinsSorted.find((c) => c.id === t.coinId);
-        return { ...t, coin };
-      });
+  const txEnriched = myTxList.slice(0, 40).map((t) => {
+    const coin = coinsSorted.find((c) => c.id === t.coinId);
+    return { ...t, coin };
+  });
 
-      content = (
-        <ScreenShell allowYScroll={true}>
-          <Title sub={null} right={<MiniBtn onClick={() => setScreen("SETTINGS")}>⚙ Settings</MiniBtn>}>
-            Profile
-          </Title>
+  content = (
+    <ScreenShell>
+      <Title sub={null} right={<MiniBtn onClick={() => setScreen("SETTINGS")}>⚙ Settings</MiniBtn>}>
+        Profile
+      </Title>
 
-          <Card>
-            <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center" }}>
-              <div>
-                <div style={{ color: "var(--muted)", fontSize: 12 }}>Address</div>
-                <div style={{ fontWeight: 950 }}>{shortWallet(solAddr)}</div>
+      {/* ✅ PROFILE SCROLL WRAPPER (fix) */}
+      <div
+        className="miniScroll"
+        style={{
+          marginTop: 14,
+          display: "flex",
+          flexDirection: "column",
+          gap: 12,
+          maxHeight: "calc(100vh - 150px)",
+          overflowY: "auto",
+          overflowX: "hidden",
+          paddingRight: 6,
+          paddingBottom: 120,
+          WebkitOverflowScrolling: "touch",
+        }}
+      >
+        <Card>
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center" }}>
+            <div>
+              <div style={{ color: "var(--muted)", fontSize: 12 }}>Address</div>
+              <div style={{ fontWeight: 950 }}>{shortWallet(solAddr)}</div>
+            </div>
+            <MiniBtn disabled={!solAddr} onClick={() => solAddr && copyText(solAddr)}>
+              Copy
+            </MiniBtn>
+          </div>
+
+          <div style={{ height: 10 }} />
+
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+            <div>
+              <div style={{ color: "var(--muted)", fontSize: 12 }}>Balance</div>
+              <div style={{ fontWeight: 950 }}>{balance} SOL</div>
+            </div>
+            <div style={{ display: "flex", gap: 10 }}>
+              <MiniBtn tone="good" disabled={!solAddr} onClick={openDeposit}>Deposit</MiniBtn>
+              <MiniBtn tone="warn" disabled={!solAddr} onClick={openWithdraw}>Withdraw</MiniBtn>
+            </div>
+          </div>
+
+          <div style={{ height: 12 }} />
+
+          <div style={{ padding: 12, borderRadius: 16, border: "1px solid var(--border)", background: "rgba(255,255,255,.03)" }}>
+            <div style={{ fontWeight: 950, marginBottom: 10 }}>Networks</div>
+
+            <div style={{ display: "grid", gap: 10 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <NetLogo chain="solana" />
+                  <div style={{ fontWeight: 900 }}>Solana</div>
+                </div>
+                <Pill tone="good">Active</Pill>
               </div>
-              <MiniBtn disabled={!solAddr} onClick={() => solAddr && copyText(solAddr)}>
+
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, opacity: 0.9 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <NetLogo chain="bnb" />
+                  <div style={{ fontWeight: 900 }}>BNB</div>
+                </div>
+                <Pill>Coming soon</Pill>
+              </div>
+
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, opacity: 0.9 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <NetLogo chain="polygon" />
+                  <div style={{ fontWeight: 900 }}>Polygon</div>
+                </div>
+                <Pill>Coming soon</Pill>
+              </div>
+            </div>
+          </div>
+
+          <div style={{ height: 12 }} />
+
+          <div style={{ padding: 12, borderRadius: 16, border: "1px solid var(--border)", background: "rgba(255,255,255,.03)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center" }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 950 }}>Referral</div>
+                <div style={{ marginTop: 6, fontSize: 12, color: "var(--muted)" }}>
+                  {myReferralLink ? `${myReferralLink.slice(0, 24)}…` : "Wallet loading…"}
+                </div>
+                <div style={{ marginTop: 8, display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  <Pill tone="warn">Referral commission: 20%</Pill>
+                  {refStatus ? (
+                    <Pill>
+                      {refStatus === "set" ? "Referral applied ✅" : refStatus === "already" ? "Referral locked" : "Referral invalid"}
+                    </Pill>
+                  ) : null}
+                </div>
+              </div>
+              <MiniBtn disabled={!myReferralLink} onClick={() => myReferralLink && copyText(myReferralLink)}>
                 Copy
               </MiniBtn>
             </div>
+          </div>
+        </Card>
 
-            <div style={{ height: 10 }} />
+        <Card>
+          <SectionHeader title="Referral Reward" right={<Pill tone="warn">20%</Pill>} />
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+            <div style={{ fontWeight: 950 }}>{Number(myReferralRewardsSol || 0).toFixed(6)} SOL</div>
+            <MiniBtn tone="good" disabled={oneClickW !== "" || Number(myReferralRewardsSol || 0) <= 0} onClick={() => oneClickWithdraw("REF")}>
+              {oneClickW === "REF" ? "Withdrawing…" : "Withdraw"}
+            </MiniBtn>
+          </div>
+        </Card>
 
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
-              <div>
-                <div style={{ color: "var(--muted)", fontSize: 12 }}>Balance</div>
-                <div style={{ fontWeight: 950 }}>{balance} SOL</div>
-              </div>
-              <div style={{ display: "flex", gap: 10 }}>
-                <MiniBtn tone="good" disabled={!solAddr} onClick={openDeposit}>Deposit</MiniBtn>
-                <MiniBtn tone="warn" disabled={!solAddr} onClick={openWithdraw}>Withdraw</MiniBtn>
-              </div>
-            </div>
+        <Card>
+          <SectionHeader title="Creator Reward" right={<Pill>Coins: {Object.keys(myRewards.byCoin || {}).length}</Pill>} />
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+            <div style={{ fontWeight: 950 }}>{Number(myRewards.totalSol || 0).toFixed(6)} SOL</div>
+            <MiniBtn tone="good" disabled={oneClickW !== "" || Number(myRewards.totalSol || 0) <= 0} onClick={() => oneClickWithdraw("CREATOR")}>
+              {oneClickW === "CREATOR" ? "Withdrawing…" : "Withdraw"}
+            </MiniBtn>
+          </div>
+        </Card>
 
-            <div style={{ height: 12 }} />
-
-            <div style={{ padding: 12, borderRadius: 16, border: "1px solid var(--border)", background: "rgba(255,255,255,.03)" }}>
-              <div style={{ fontWeight: 950, marginBottom: 10 }}>Networks</div>
-
-              <div style={{ display: "grid", gap: 10 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    <NetLogo chain="solana" />
-                    <div style={{ fontWeight: 900 }}>Solana</div>
-                  </div>
-                  <Pill tone="good">Active</Pill>
-                </div>
-
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, opacity: 0.9 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    <NetLogo chain="bnb" />
-                    <div style={{ fontWeight: 900 }}>BNB</div>
-                  </div>
-                  <Pill>Coming soon</Pill>
-                </div>
-
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, opacity: 0.9 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    <NetLogo chain="polygon" />
-                    <div style={{ fontWeight: 900 }}>Polygon</div>
-                  </div>
-                  <Pill>Coming soon</Pill>
-                </div>
-              </div>
-            </div>
-
-            <div style={{ height: 12 }} />
-
-            <div style={{ padding: 12, borderRadius: 16, border: "1px solid var(--border)", background: "rgba(255,255,255,.03)" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center" }}>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 950 }}>Referral</div>
-                  <div style={{ marginTop: 6, fontSize: 12, color: "var(--muted)" }}>
-                    {myReferralLink ? `${myReferralLink.slice(0, 24)}…` : "Wallet loading…"}
-                  </div>
-                  <div style={{ marginTop: 8, display: "flex", gap: 8, flexWrap: "wrap" }}>
-                    <Pill tone="warn">Referral commission: 20%</Pill>
-                    {refStatus ? (
-                      <Pill>
-                        {refStatus === "set" ? "Referral applied ✅" : refStatus === "already" ? "Referral locked" : "Referral invalid"}
-                      </Pill>
-                    ) : null}
-                  </div>
-                </div>
-                <MiniBtn disabled={!myReferralLink} onClick={() => myReferralLink && copyText(myReferralLink)}>
-                  Copy
-                </MiniBtn>
-              </div>
-            </div>
-          </Card>
-
-          <div style={{ height: 12 }} />
-
-          <Card>
-            <SectionHeader title="Referral Reward" right={<Pill tone="warn">20%</Pill>} />
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
-              <div style={{ fontWeight: 950 }}>{Number(myReferralRewardsSol || 0).toFixed(6)} SOL</div>
-              <MiniBtn tone="good" disabled={oneClickW !== "" || Number(myReferralRewardsSol || 0) <= 0} onClick={() => oneClickWithdraw("REF")}>
-                {oneClickW === "REF" ? "Withdrawing…" : "Withdraw"}
-              </MiniBtn>
-            </div>
-          </Card>
-
-          <div style={{ height: 12 }} />
-
-          <Card>
-            <SectionHeader title="Creator Reward" right={<Pill>Coins: {Object.keys(myRewards.byCoin || {}).length}</Pill>} />
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
-              <div style={{ fontWeight: 950 }}>{Number(myRewards.totalSol || 0).toFixed(6)} SOL</div>
-              <MiniBtn tone="good" disabled={oneClickW !== "" || Number(myRewards.totalSol || 0) <= 0} onClick={() => oneClickWithdraw("CREATOR")}>
-                {oneClickW === "CREATOR" ? "Withdrawing…" : "Withdraw"}
-              </MiniBtn>
-            </div>
-          </Card>
-
-          <div style={{ height: 12 }} />
-
-          <Card>
-            <SectionHeader title="My Creations" right={<Pill>{myCreations.length}</Pill>} />
-            <div className="hScroll" style={{ display: "flex", gap: 10, paddingBottom: 6 }}>
-              {myCreations.length === 0 ? (
-                <div style={{ color: "var(--muted)", fontSize: 12 }}>No coins yet.</div>
-              ) : (
-                myCreations.map((c) => (
-                  <button
-                    key={c.id}
-                    onClick={() => {
-                      setSelectedCoinId(c.id);
-                      setScreen("COIN");
-                    }}
-                    style={{
-                      minWidth: 240,
-                      width: 240,
-                      padding: 12,
-                      borderRadius: 18,
-                      border: "1px solid var(--border)",
-                      background: "linear-gradient(180deg, rgba(255,255,255,.03), rgba(0,0,0,.14)), var(--card2)",
-                      color: "var(--text)",
-                      cursor: "pointer",
-                      textAlign: "left",
-                    }}
-                  >
-                    <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-                      <CoinLogo c={c} size={44} />
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontWeight: 950 }}>{c.symbol || "—"}</div>
-                        <div style={{ marginTop: 4, color: "var(--muted)", fontSize: 12 }}>
-                          {fmtUsd(c.mc || 0)} • {Number(c.volumeSol || 0).toFixed(2)} SOL
-                        </div>
+        <Card>
+          <SectionHeader title="My Creations" right={<Pill>{myCreations.length}</Pill>} />
+          <div className="hScroll" style={{ display: "flex", gap: 10, paddingBottom: 6 }}>
+            {myCreations.length === 0 ? (
+              <div style={{ color: "var(--muted)", fontSize: 12 }}>No coins yet.</div>
+            ) : (
+              myCreations.map((c) => (
+                <button
+                  key={c.id}
+                  onClick={() => {
+                    setSelectedCoinId(c.id);
+                    setScreen("COIN");
+                  }}
+                  style={{
+                    minWidth: 240,
+                    width: 240,
+                    padding: 12,
+                    borderRadius: 18,
+                    border: "1px solid var(--border)",
+                    background: "linear-gradient(180deg, rgba(255,255,255,.03), rgba(0,0,0,.14)), var(--card2)",
+                    color: "var(--text)",
+                    cursor: "pointer",
+                    textAlign: "left",
+                  }}
+                >
+                  <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                    <CoinLogo c={c} size={44} />
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: 950 }}>{c.symbol || "—"}</div>
+                      <div style={{ marginTop: 4, color: "var(--muted)", fontSize: 12 }}>
+                        {fmtUsd(c.mc || 0)} • {Number(c.volumeSol || 0).toFixed(2)} SOL
                       </div>
                     </div>
-                  </button>
-                ))
-              )}
-            </div>
-          </Card>
+                  </div>
+                </button>
+              ))
+            )}
+          </div>
+        </Card>
 
-          <div style={{ height: 12 }} />
+        <Card>
+          <SectionHeader title="My Holdings" right={<Pill>{holdingsEnriched.length}</Pill>} />
+          {/* ✅ removed inner scroll so whole profile scrolls */}
+          <div style={{ display: "grid", gap: 10 }}>
+            {holdingsEnriched.length === 0 ? (
+              <div style={{ color: "var(--muted)", fontSize: 12 }}>No holdings yet.</div>
+            ) : (
+              holdingsEnriched.map((h) => (
+                <div
+                  key={h.coinId}
+                  style={{
+                    padding: 12,
+                    borderRadius: 18,
+                    border: "1px solid var(--border)",
+                    background: "linear-gradient(180deg, rgba(255,255,255,.03), rgba(0,0,0,.14)), var(--card2)",
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: 10,
+                    alignItems: "center",
+                  }}
+                >
+                  <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                    <CoinLogo c={h.coin || { symbol: "?" }} size={38} />
+                    <div>
+                      <div style={{ fontWeight: 950, lineHeight: 1.1 }}>{h.coin?.symbol || "—"}</div>
+                      <div style={{ marginTop: 6, color: "var(--muted)", fontSize: 12 }}>Last: {h.lastAt ? fmtTime(h.lastAt) : "—"}</div>
+                    </div>
+                  </div>
 
-          <Card>
-            <SectionHeader title="My Holdings" right={<Pill>{holdingsEnriched.length}</Pill>} />
-            <div className="miniScroll" style={{ maxHeight: 320, paddingRight: 6, display: "grid", gap: 10 }}>
-              {holdingsEnriched.length === 0 ? (
-                <div style={{ color: "var(--muted)", fontSize: 12 }}>No holdings yet.</div>
-              ) : (
-                holdingsEnriched.map((h) => (
+                  <div style={{ textAlign: "right" }}>
+                    <div style={{ fontWeight: 950 }}>{Number(h.amt || 0).toFixed(2)}</div>
+                    <div style={{ marginTop: 6, color: "var(--muted)", fontSize: 12 }}>
+                      {h.supply > 0 ? `${h.pct.toFixed(2)}% of supply` : "supply —"}
+                    </div>
+                    <div style={{ marginTop: 8 }}>
+                      <MiniBtn
+                        onClick={() => {
+                          setSelectedCoinId(h.coinId);
+                          setScreen("COIN");
+                        }}
+                        tone="warn"
+                        style={{ padding: "8px 10px", borderRadius: 12 }}
+                      >
+                        Open
+                      </MiniBtn>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </Card>
+
+        <Card>
+          <SectionHeader title="Last Transactions" right={<Pill>{txEnriched.length}</Pill>} />
+          {/* ✅ removed inner scroll so whole profile scrolls */}
+          <div
+  className="miniScroll"
+  style={{
+    maxHeight: 320,
+    overflowY: "auto",
+    overflowX: "hidden",
+    paddingRight: 6,
+    display: "grid",
+    gap: 10,
+    paddingBottom: 10,
+  }}
+>
+            {txEnriched.length === 0 ? (
+              <div style={{ color: "var(--muted)", fontSize: 12 }}>No transactions yet.</div>
+            ) : (
+              txEnriched.map((t) => {
+                const side = String(t.side || "").toUpperCase();
+                const coin = t.coin || { symbol: "?" };
+                return (
                   <div
-                    key={h.coinId}
+                    key={t.id || `${t.coinId}-${t.t}`}
                     style={{
                       padding: 12,
                       borderRadius: 18,
@@ -2548,86 +2759,29 @@ useEffect(() => {
                     }}
                   >
                     <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-                      <CoinLogo c={h.coin || { symbol: "?" }} size={38} />
+                      <CoinLogo c={coin} size={38} />
                       <div>
-                        <div style={{ fontWeight: 950, lineHeight: 1.1 }}>{h.coin?.symbol || "—"}</div>
-                        <div style={{ marginTop: 6, color: "var(--muted)", fontSize: 12 }}>Last: {h.lastAt ? fmtTime(h.lastAt) : "—"}</div>
+                        <div style={{ fontWeight: 950 }}>{coin.symbol || "TX"}</div>
+                        <div style={{ marginTop: 6, color: "var(--muted)", fontSize: 12 }}>{t.t ? fmtTime(t.t) : "—"}</div>
                       </div>
                     </div>
 
                     <div style={{ textAlign: "right" }}>
-                      <div style={{ fontWeight: 950 }}>{Number(h.amt || 0).toFixed(2)}</div>
-                      <div style={{ marginTop: 6, color: "var(--muted)", fontSize: 12 }}>
-                        {h.supply > 0 ? `${h.pct.toFixed(2)}% of supply` : "supply —"}
-                      </div>
-                      <div style={{ marginTop: 8 }}>
-                        <MiniBtn
-                          onClick={() => {
-                            setSelectedCoinId(h.coinId);
-                            setScreen("COIN");
-                          }}
-                          tone="warn"
-                          style={{ padding: "8px 10px", borderRadius: 12 }}
-                        >
-                          Open
-                        </MiniBtn>
-                      </div>
+                      <Pill tone={side === "SELL" ? "danger" : side === "BUY" ? "good" : "warn"}>{side || "TX"}</Pill>
+                      <div style={{ marginTop: 8, fontWeight: 950 }}>{Number(t.sol || 0).toFixed(4)} SOL</div>
                     </div>
                   </div>
-                ))
-              )}
-            </div>
-          </Card>
+                );
+              })
+            )}
+          </div>
+        </Card>
 
-          <div style={{ height: 12 }} />
-
-          <Card>
-            <SectionHeader title="Last Transactions" right={<Pill>{txEnriched.length}</Pill>} />
-            <div className="miniScroll" style={{ maxHeight: 320, paddingRight: 6, display: "grid", gap: 10 }}>
-              {txEnriched.length === 0 ? (
-                <div style={{ color: "var(--muted)", fontSize: 12 }}>No transactions yet.</div>
-              ) : (
-                txEnriched.map((t) => {
-                  const side = String(t.side || "").toUpperCase();
-                  const coin = t.coin || { symbol: "?" };
-                  return (
-                    <div
-                      key={t.id || `${t.coinId}-${t.t}`}
-                      style={{
-                        padding: 12,
-                        borderRadius: 18,
-                        border: "1px solid var(--border)",
-                        background: "linear-gradient(180deg, rgba(255,255,255,.03), rgba(0,0,0,.14)), var(--card2)",
-                        display: "flex",
-                        justifyContent: "space-between",
-                        gap: 10,
-                        alignItems: "center",
-                      }}
-                    >
-                      <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-                        <CoinLogo c={coin} size={38} />
-                        <div>
-                          <div style={{ fontWeight: 950 }}>{coin.symbol || "TX"}</div>
-                          <div style={{ marginTop: 6, color: "var(--muted)", fontSize: 12 }}>{t.t ? fmtTime(t.t) : "—"}</div>
-                        </div>
-                      </div>
-
-                      <div style={{ textAlign: "right" }}>
-                        <Pill tone={side === "SELL" ? "danger" : side === "BUY" ? "good" : "warn"}>{side || "TX"}</Pill>
-                        <div style={{ marginTop: 8, fontWeight: 950 }}>{Number(t.sol || 0).toFixed(4)} SOL</div>
-                      </div>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-          </Card>
-
-          <div style={{ height: 12 }} />
-          <GhostButton onClick={logout}>Logout</GhostButton>
-        </ScreenShell>
-      );
-    }
+        <GhostButton onClick={logout}>Logout</GhostButton>
+      </div>
+    </ScreenShell>
+  );
+}
 
     if (screen === "SETTINGS") {
       content = (
