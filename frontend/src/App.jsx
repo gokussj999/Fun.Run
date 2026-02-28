@@ -1,8 +1,10 @@
+
+
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import { useExportWallet } from "@privy-io/react-auth/solana";
-const INTRO_MS = 2600; 
 
+const INTRO_MS = 2600;
 
 // ✅ apna logo yahan do (recommended):
 // Option A: public folder: /public/logo.png  -> "/logo.png"
@@ -10,12 +12,14 @@ const INTRO_MS = 2600;
 // Option C: data:image/png;base64,...
 const APP_LOGO_URL = "/logo.png";
 
+// ✅ Backend base (Railway)
 const API_BASE = "https://zooming-solace-production-c360.up.railway.app";
 
 const MAX_LOGO_BYTES = 5 * 1024 * 1024;
 const STARTING_MC_USD = 6500;
 const LS_THEME = "theme"; // "calm" | "neon" | "ocean" | "rose" | "royal" | "lightgreen"
 
+// -------------------- THEME + GLOBAL CSS --------------------
 function ThemeStyles() {
   return (
     <style>{`
@@ -177,32 +181,31 @@ function ThemeStyles() {
       .noScrollbar::-webkit-scrollbar{ display:none; }
 
       .miniScroll {
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-  -ms-overflow-style: none;   /* IE & Edge */
-  scrollbar-width: none;      /* Firefox */
-}
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+      }
+      .miniScroll::-webkit-scrollbar {
+        width: 0px;
+        height: 0px;
+      }
 
-.miniScroll::-webkit-scrollbar {
-  width: 0px;
-  height: 0px;
-}
-  /* 🔥 Hide whole page scrollbar */
+      /* 🔥 Hide whole page scrollbar */
+      html::-webkit-scrollbar,
+      body::-webkit-scrollbar {
+        width: 0px;
+        height: 0px;
+      }
+      #root::-webkit-scrollbar {
+        width: 0px;
+        height: 0px;
+      }
+      html, body {
+        scrollbar-width: none;
+        -ms-overflow-style: none;
+      }
 
-html::-webkit-scrollbar,
-body::-webkit-scrollbar {
-  width: 0px;
-  height: 0px;
-}
-  #root::-webkit-scrollbar {
-  width: 0px;
-  height: 0px;
-}
-
-html, body {
-  scrollbar-width: none;     /* Firefox */
-  -ms-overflow-style: none;  /* IE & Edge */
-}
       .hScroll{ overflow-x:auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; -ms-overflow-style: none; }
       .hScroll::-webkit-scrollbar{ display:none; }
 
@@ -416,6 +419,7 @@ html, body {
   );
 }
 
+
 function ScreenShell({ children, fullBleed = false, allowYScroll = false }) {
   return (
     <div
@@ -425,9 +429,8 @@ function ScreenShell({ children, fullBleed = false, allowYScroll = false }) {
         fontFamily: "system-ui, -apple-system, Segoe UI, Roboto, Arial",
         paddingBottom: 86,
         display: "flex",
-flexDirection: "column",
-alignItems: "center",
-    
+        flexDirection: "column",
+        alignItems: "center",
         position: "relative",
         zIndex: 1,
       }}
@@ -473,7 +476,9 @@ alignItems: "center",
       </div>
     </div>
   );
-}function Title({ children, sub, right }) {
+}
+
+function Title({ children, sub, right }) {
   return (
     <div
       style={{
@@ -498,6 +503,7 @@ alignItems: "center",
     </div>
   );
 }
+
 function SplashIntro({ logoUrl }) {
   return (
     <div className="introOverlay">
@@ -856,7 +862,11 @@ function SectionHeader({ title, right }) {
       {right}
     </div>
   );
-}function CoinLogo({ c, size = 46 }) {
+}
+
+
+
+function CoinLogo({ c, size = 46 }) {
   const src = c?.logo || "";
   const has = !!src;
   return (
@@ -879,52 +889,6 @@ function SectionHeader({ title, right }) {
         <span style={{ color: "var(--muted)", fontSize: 12 }}>{(c?.symbol || "•").slice(0, 2)}</span>
       )}
     </div>
-  );
-}
-
-function CoinRow({ c, onClick, right }) {
-  return (
-    <button
-      onClick={onClick}
-      style={{
-        textAlign: "left",
-        padding: 14,
-        borderRadius: 20,
-        border: "1px solid rgba(255,255,255,.10)",
-        background: `
-          radial-gradient(280px 120px at 20% 0%, rgba(25,230,162,.10), transparent 60%),
-          linear-gradient(180deg, rgba(255,255,255,.05), rgba(0,0,0,.20)),
-          var(--card2)
-        `,
-        backdropFilter: "blur(10px)",
-        color: "var(--text)",
-        cursor: "pointer",
-        width: "100%",
-        boxShadow: "0 18px 55px rgba(0,0,0,.35)",
-        transition: "all .18s var(--ease)",
-      }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.transform = "translateY(-3px)";
-        e.currentTarget.style.boxShadow = "0 26px 80px rgba(0,0,0,.55), 0 0 60px rgba(25,230,162,.10)";
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.transform = "translateY(0px)";
-        e.currentTarget.style.boxShadow = "0 18px 55px rgba(0,0,0,.35)";
-      }}
-    >
-      <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
-        <CoinLogo c={c} />
-        <div style={{ flex: 1 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center" }}>
-            <div style={{ fontWeight: 950, fontSize: 15 }}>{c.symbol || "—"}</div>
-            {right || <Pill>{c.status}</Pill>}
-          </div>
-          <div style={{ marginTop: 6, color: "var(--muted)", fontSize: 12 }}>
-            MC: {fmtUsd(c.mc || 0)} • VOL: {Number(c.volumeSol || 0).toFixed(2)} SOL
-          </div>
-        </div>
-      </div>
-    </button>
   );
 }
 
@@ -1073,42 +1037,42 @@ function BottomNav({ screen, setScreen }) {
   return (
     <div
       style={{
-  position: "fixed",
-  left: 0,
-  right: 0,
-  bottom: 0,
-  height: 60,
-  background: "rgba(8,14,16,0.85)",
-  borderTop: "1px solid rgba(0,255,170,0.08)",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "space-around",
-  zIndex: 9999,
-  backdropFilter: "blur(18px)",
-}}
+        position: "fixed",
+        left: 0,
+        right: 0,
+        bottom: 0,
+        height: 60,
+        background: "rgba(8,14,16,0.85)",
+        borderTop: "1px solid rgba(0,255,170,0.08)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-around",
+        zIndex: 9999,
+        backdropFilter: "blur(18px)",
+      }}
     >
       <NavBtn active={screen === "HOME"} onClick={() => setScreen("HOME")} icon="🏠" text="Home" />
       <NavBtn active={screen === "SEARCH"} onClick={() => setScreen("SEARCH")} icon="⌕" text="Search" />
       <div style={{ flex: 1, display: "flex", justifyContent: "center", marginTop: 12 }}>
-  <button
-    onClick={() => setScreen("CREATE")}
-    style={{
-      width: 50,
-      height: 50,
-      borderRadius: 16,
-      border: "1px solid rgba(0,255,170,.25)",
-      background: "linear-gradient(135deg, #0f2f2a, #0b1f1c)",
-      boxShadow: "0 8px 20px rgba(0,255,170,.18)",
-      color: "#9effd6",
-      fontSize: 16,
-      cursor: "pointer",
-      transition: "all .2s ease",
-    }}
-    title="Create"
-  >
-    ✦
-  </button>
-</div>
+        <button
+          onClick={() => setScreen("CREATE")}
+          style={{
+            width: 50,
+            height: 50,
+            borderRadius: 16,
+            border: "1px solid rgba(0,255,170,.25)",
+            background: "linear-gradient(135deg, #0f2f2a, #0b1f1c)",
+            boxShadow: "0 8px 20px rgba(0,255,170,.18)",
+            color: "#9effd6",
+            fontSize: 16,
+            cursor: "pointer",
+            transition: "all .2s ease",
+          }}
+          title="Create"
+        >
+          ✦
+        </button>
+      </div>
       <NavBtn active={screen === "LATEST"} onClick={() => setScreen("LATEST")} icon="◷" text="Latest" />
       <NavBtn active={screen === "PROFILE"} onClick={() => setScreen("PROFILE")} icon="👤" text="Profile" />
     </div>
@@ -1165,18 +1129,46 @@ function Pager({ pages, pageIndex, setPageIndex }) {
   );
 }
 
+// -------------------- API HELPERS (with timeout) --------------------
 async function apiGet(path) {
-  const r = await fetch(`${API_BASE}${path}`);
-  return r.json();
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 12000);
+  try {
+    const r = await fetch(`${API_BASE}${path}`, { signal: controller.signal });
+    const j = await r.json().catch(() => ({}));
+    return j;
+  } catch (e) {
+    if (e?.name === "AbortError") return { ok: false, error: "Request timeout (12s)" };
+    return { ok: false, error: e?.message || "Network error" };
+  } finally {
+    clearTimeout(timer);
+  }
 }
+
 async function apiPost(path, body) {
-  const r = await fetch(`${API_BASE}${path}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  return r.json();
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 12000); // 12s
+
+  try {
+    const r = await fetch(`${API_BASE}${path}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+
+    const data = await r.json().catch(() => ({}));
+    return data;
+  } catch (e) {
+    if (e?.name === "AbortError") {
+      return { ok: false, error: "Request timeout (12s). Backend/RPC slow." };
+    }
+    return { ok: false, error: e?.message || "Network error" };
+  } finally {
+    clearTimeout(timer);
+  }
 }
+
 async function apiPostTry(paths, body) {
   let last = null;
   for (const p of paths) {
@@ -1191,6 +1183,8 @@ async function apiPostTry(paths, body) {
   return last || { ok: false, error: "No endpoint responded" };
 }
 
+
+
 function isValidSymbol(s) {
   const v = (s || "").trim();
   if (v.length < 2 || v.length > 10) return false;
@@ -1204,6 +1198,7 @@ function isValidStory(s) {
   const v = (s || "").trim();
   return v.length >= 20 && v.length <= 300;
 }
+
 function ensureCoinShape(c) {
   const live = c?.status === "LIVE";
   const baseMC = live ? Number(c?.mc || STARTING_MC_USD) : 0;
@@ -1226,6 +1221,7 @@ function ensureCoinShape(c) {
     totalSupply: Number(c?.totalSupply || 0),
   };
 }
+
 function fmtTime(t) {
   const d = new Date(t);
   return d.toLocaleString();
@@ -1273,7 +1269,6 @@ function CoinMiniCard({ c, subtitle, onOpen }) {
       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
         <CoinLogo c={c} size={44} />
 
-        {/* LEFT: name + small sub line */}
         <div style={{ flex: 1, minWidth: 0 }}>
           <div
             style={{
@@ -1301,14 +1296,9 @@ function CoinMiniCard({ c, subtitle, onOpen }) {
           </div>
         </div>
 
-        {/* RIGHT: simple number only (example: MC) */}
         <div style={{ textAlign: "right" }}>
-          <div style={{ fontWeight: 900 }}>
-            {fmtUsd(c?.mc || 0)}
-          </div>
-          <div style={{ marginTop: 4, fontSize: 12, color: "var(--muted)" }}>
-            MC
-          </div>
+          <div style={{ fontWeight: 900 }}>{fmtUsd(c?.mc || 0)}</div>
+          <div style={{ marginTop: 4, fontSize: 12, color: "var(--muted)" }}>MC</div>
         </div>
       </div>
     </button>
@@ -1583,35 +1573,41 @@ function NetLogo({ chain }) {
       />
     </svg>
   );
-}export default function App() {
+}
+
+
+
+export default function App() {
   const { login, authenticated, user, ready, logout, connectOrCreateWallet } = usePrivy();
   const { exportWallet } = useExportWallet();
 
   const [showIntro, setShowIntro] = useState(true);
 
-useEffect(() => {
-  const t = setTimeout(() => setShowIntro(false), INTRO_MS);
-  return () => clearTimeout(t);
-}, []);
-useEffect(() => {
-  try {
-    const url = new URL(window.location.href);
-    const ref = (url.searchParams.get("ref") || "").trim();
-    if (ref) {
-      localStorage.setItem("ref", ref);
-      url.searchParams.delete("ref");
-      window.history.replaceState({}, "", url.toString());
-    }
-  } catch {}
-}, []);
-const isMobile = typeof window !== "undefined" && window.innerWidth < 520;
+  useEffect(() => {
+    const t = setTimeout(() => setShowIntro(false), INTRO_MS);
+    return () => clearTimeout(t);
+  }, []);
+
+  // ✅ capture ?ref= in URL (store once)
+  useEffect(() => {
+    try {
+      const url = new URL(window.location.href);
+      const ref = (url.searchParams.get("ref") || "").trim();
+      if (ref) {
+        localStorage.setItem("ref", ref);
+        url.searchParams.delete("ref");
+        window.history.replaceState({}, "", url.toString());
+      }
+    } catch {}
+  }, []);
+
+  const isMobile = typeof window !== "undefined" && window.innerWidth < 520;
 
   const [toast, setToast] = useState("");
   const [theme, setTheme] = useState(() => localStorage.getItem(LS_THEME) || "calm");
   const [screen, setScreen] = useState("HOME");
   const [selectedCoinId, setSelectedCoinId] = useState(null);
   const [homePage, setHomePage] = useState(0);
-
 
   const [balance, setBalance] = useState("—");
   const [loadingBal, setLoadingBal] = useState(false);
@@ -1655,10 +1651,8 @@ const isMobile = typeof window !== "undefined" && window.innerWidth < 520;
     localStorage.setItem(LS_THEME, theme);
   }, [theme]);
 
-  const solAddr = useMemo(() => {
-    const w = user?.linkedAccounts?.find((a) => a.type === "wallet" && a.chainType === "solana");
-    return w?.address || null;
-  }, [user]);
+  const solAddr =
+    user?.linkedAccounts?.find((a) => a.type === "wallet" && a.chainType === "solana")?.address || "";
 
   async function copyText(text) {
     try {
@@ -1716,12 +1710,17 @@ const isMobile = typeof window !== "undefined" && window.innerWidth < 520;
     setLoadingProfile(false);
   }
 
+  // ✅ FIXED: no undefined "t"
   useEffect(() => {
     if (!authenticated || !solAddr) return;
-    refreshBalance();
+
     loadProfile();
-    
-    return () => clearInterval(t);
+
+    const t = setTimeout(() => {
+      refreshBalance();
+    }, 600);
+
+    return () => clearTimeout(t);
   }, [authenticated, solAddr]);
 
   useEffect(() => {
@@ -1731,7 +1730,7 @@ const isMobile = typeof window !== "undefined" && window.innerWidth < 520;
   useEffect(() => {
     if (!authenticated) return;
     if (!(screen === "HOME" || screen === "LATEST")) return;
-    const t = setInterval(() => loadCoins(), 8000);
+    const t = setInterval(() => loadCoins(), 20000);
     return () => clearInterval(t);
   }, [screen, authenticated]);
 
@@ -1755,29 +1754,61 @@ const isMobile = typeof window !== "undefined" && window.innerWidth < 520;
     return scored.slice(0, 12).map((x) => x.c);
   }, [coinsSorted]);
 
-  const topVolume = useMemo(() => {
-    const live = coinsSorted.filter((c) => c.status === "LIVE");
-    const arr = [...live].sort((a, b) => Number(b.volumeSol || 0) - Number(a.volumeSol || 0));
-    return arr.slice(0, 12);
-  }, [coinsSorted]);
+  const myReferralLink = useMemo(() => {
+    if (!solAddr) return "";
+    return `${safeOrigin()}/?ref=${solAddr}`;
+  }, [solAddr]);
 
-  const moonshots = useMemo(() => {
-    const live = coinsSorted.filter((c) => c.status === "LIVE");
-    const arr = live
-      .map((c) => ({ c, p: pctFromChart(c.chart) }))
-      .filter((x) => x.p >= 15)
-      .sort((a, b) => b.p - a.p)
-      .slice(0, 12)
-      .map((x) => x.c);
-    return arr.length ? arr : movers.slice(0, 12);
-  }, [coinsSorted, movers]);
+  const referralFromStore = useMemo(() => {
+    try {
+      return String(localStorage.getItem("ref") || "").trim();
+    } catch {
+      return "";
+    }
+  }, []);
 
-  const searchResults = useMemo(() => {
-    if (!searchQ.trim()) return [];
-    return coinsSorted
-      .filter((c) => `${c.name} ${c.symbol}`.toLowerCase().includes(searchQ.toLowerCase()))
-      .slice(0, 25);
-  }, [searchQ, coinsSorted]);
+  const [refStatus, setRefStatus] = useState("");
+
+  async function trySetReferral() {
+    if (!solAddr) return;
+    if (!referralFromStore) return;
+    if (referralFromStore === solAddr) return;
+
+    try {
+      const res = await apiPost("/api/referral/set", { wallet: solAddr, referrer: referralFromStore });
+      if (res?.ok) setRefStatus("set");
+      else if (String(res?.error || "").toLowerCase().includes("immutable")) setRefStatus("already");
+      else setRefStatus("invalid");
+    } catch {}
+  }
+
+  useEffect(() => {
+    if (!authenticated || !solAddr) return;
+    trySetReferral();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authenticated, solAddr]);
+
+  const myHoldingsList = useMemo(() => {
+    const arr = Array.isArray(profile?.holdings) ? profile.holdings : [];
+    return [...arr].sort((a, b) => (b.lastAt || 0) - (a.lastAt || 0));
+  }, [profile]);
+
+  const myTxList = useMemo(() => {
+    const arr = Array.isArray(profile?.txs) ? profile.txs : [];
+    return [...arr].sort((a, b) => (b.t || 0) - (a.t || 0));
+  }, [profile]);
+
+  const myRewards = useMemo(() => profile?.rewards || { totalSol: 0, byCoin: {} }, [profile]);
+
+  const myReferralRewardsSol = useMemo(() => {
+    const d = Number(profile?.referralRewards?.totalSol || 0);
+    return Number.isFinite(d) && d > 0 ? d : 0;
+  }, [profile]);
+
+  const myCreations = useMemo(() => {
+    if (!solAddr) return [];
+    return coinsSorted.filter((c) => String(c.creatorWallet || c.owner || "") === String(solAddr));
+  }, [coinsSorted, solAddr]);
 
   const symbolUpper = (symbol || "").toUpperCase().replace(/\s+/g, "");
 
@@ -1830,62 +1861,7 @@ const isMobile = typeof window !== "undefined" && window.innerWidth < 520;
     }
   }
 
-  const referralFromUrl = useMemo(() => {
-    try {
-      const u = new URL(window.location.href);
-      const ref = u.searchParams.get("ref");
-      return ref ? String(ref).trim() : "";
-    } catch {
-      return "";
-    }
-  }, []);
-
-  const myReferralLink = useMemo(() => {
-    if (!solAddr) return "";
-    return `${safeOrigin()}/?ref=${solAddr}`;
-  }, [solAddr]);
-
-  const [refStatus, setRefStatus] = useState("");
-  async function trySetReferral() {
-    if (!solAddr) return;
-    if (!referralFromUrl) return;
-    if (referralFromUrl === solAddr) return;
-
-    try {
-      const res = await apiPost("/api/referral/set", { wallet: solAddr, referrer: referralFromUrl });
-      if (res?.ok) setRefStatus("set");
-      else if (String(res?.error || "").toLowerCase().includes("immutable")) setRefStatus("already");
-      else setRefStatus("invalid");
-    } catch {}
-  }
-
-  useEffect(() => {
-    if (!authenticated || !solAddr) return;
-    trySetReferral();
-  }, [authenticated, solAddr]);
-
-  const myHoldingsList = useMemo(() => {
-    const arr = Array.isArray(profile?.holdings) ? profile.holdings : [];
-    return [...arr].sort((a, b) => (b.lastAt || 0) - (a.lastAt || 0));
-  }, [profile]);
-
-  const myTxList = useMemo(() => {
-    const arr = Array.isArray(profile?.txs) ? profile.txs : [];
-    return [...arr].sort((a, b) => (b.t || 0) - (a.t || 0));
-  }, [profile]);
-
-  const myRewards = useMemo(() => profile?.rewards || { totalSol: 0, byCoin: {} }, [profile]);
-
-  const myReferralRewardsSol = useMemo(() => {
-    const d = Number(profile?.referralRewards?.totalSol || 0);
-    return Number.isFinite(d) && d > 0 ? d : 0;
-  }, [profile]);
-
-  const myCreations = useMemo(() => {
-    if (!solAddr) return [];
-    return coinsSorted.filter((c) => String(c.creatorWallet || c.owner || "") === String(solAddr));
-  }, [coinsSorted, solAddr]);
-
+  // ✅ FIXED doTrade (clean / no duplicate / no stuck loading)
   async function doTrade(coin, side, solAmount) {
     const s = Number(solAmount);
     if (!solAddr) return showToast("Wallet not ready");
@@ -1896,7 +1872,11 @@ const isMobile = typeof window !== "undefined" && window.innerWidth < 520;
 
     setTradeLoading(true);
     try {
-      const res = await apiPost(endpoint, { wallet: solAddr, coinId: coin.id, sol: s });
+      const res = await apiPost(endpoint, {
+        wallet: solAddr,
+        coinId: coin.id,
+        sol: s,
+      });
 
       if (!res?.ok) {
         showToast(res?.error || "Trade failed");
@@ -1909,11 +1889,13 @@ const isMobile = typeof window !== "undefined" && window.innerWidth < 520;
       }
 
       await loadProfile();
+      await refreshBalance();
       showToast(`${SIDE} ${s} ✅`);
-    } catch {
-      showToast("Trade failed");
+    } catch (e) {
+      showToast(e?.message || "Network error");
+    } finally {
+      setTradeLoading(false);
     }
-    setTradeLoading(false);
   }
 
   async function oneClickWithdraw(kind) {
@@ -1948,6 +1930,7 @@ const isMobile = typeof window !== "undefined" && window.innerWidth < 520;
     setDwOpen(true);
   }
 
+  // -------------------- UI CONTENT --------------------
   let content = null;
 
   if (!ready) {
@@ -1980,7 +1963,7 @@ const isMobile = typeof window !== "undefined" && window.innerWidth < 520;
               </div>
               <div style={{ textAlign: "right" }}>
                 <div style={{ color: "var(--muted)", fontSize: 12 }}>Balance</div>
-                <div style={{ fontWeight: 950 }}>{balance} SOL</div>
+                <div style={{ fontWeight: 950 }}>{loadingBal ? "…" : `${balance} SOL`}</div>
               </div>
             </div>
 
@@ -1989,51 +1972,33 @@ const isMobile = typeof window !== "undefined" && window.innerWidth < 520;
               <MiniBtn onClick={() => solAddr && copyText(solAddr)} disabled={!solAddr}>
                 Copy Address
               </MiniBtn>
-              {false && (
-  <>
-    <MiniBtn onClick={loadCoins} disabled={loadingCoins}>
-      {loadingCoins ? "…" : "Refresh Coins"}
-    </MiniBtn>
-
-    <MiniBtn onClick={loadProfile} disabled={loadingProfile}>
-      {loadingProfile ? "…" : "Refresh Profile"}
-    </MiniBtn>
-  </>
-)}
+              <MiniBtn onClick={openDeposit} disabled={!solAddr} tone="good">
+                Deposit
+              </MiniBtn>
             </div>
           </Card>
-
-          <div style={{ height: 12 }} />
-
-        
-
-          <div style={{ height: 12 }} />
-
-          
 
           <div style={{ height: 12 }} />
 
           <Card>
             <SectionHeader title="Top 100 Coins" right={<Pill tone="good">LIVE</Pill>} />
             <div
-  className="miniScroll"
-  style={{
-    display: "flex",
-    flexDirection: "column",
-    gap: 10,
-    maxHeight: "calc(100vh - 220px)",
-    overflowY: "auto",
-    overflowX: "hidden",
-    paddingRight: 6,
-  }}
->
-              {coins.slice(0, 100).map((c) => (
+              className="miniScroll"
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: 10,
+                maxHeight: "calc(100vh - 220px)",
+                overflowY: "auto",
+                overflowX: "hidden",
+                paddingRight: 6,
+              }}
+            >
+              {(coins || []).slice(0, 100).map((c) => (
                 <CoinMiniCard
                   key={c.id}
                   c={c}
                   subtitle={`Volume • ${Number(c.volumeSol || 0).toFixed(2)} SOL`}
-                  tag="VOL"
-                  accent="var(--primary)"
                   onOpen={() => {
                     setSelectedCoinId(c.id);
                     setScreen("COIN");
@@ -2060,6 +2025,48 @@ const isMobile = typeof window !== "undefined" && window.innerWidth < 520;
               <MiniBtn onClick={() => setScreen("SETTINGS")}>⚙ Settings</MiniBtn>
             </div>
           </Card>
+
+          <div style={{ height: 12 }} />
+
+          <Card>
+            <SectionHeader title="Movers" right={<Pill>{movers.length}</Pill>} />
+            <div className="hScroll" style={{ display: "flex", gap: 10, paddingBottom: 6 }}>
+              {movers.length === 0 ? (
+                <div style={{ color: "var(--muted)", fontSize: 12 }}>No live movers yet.</div>
+              ) : (
+                movers.map((c) => (
+                  <button
+                    key={c.id}
+                    onClick={() => {
+                      setSelectedCoinId(c.id);
+                      setScreen("COIN");
+                    }}
+                    style={{
+                      minWidth: 240,
+                      width: 240,
+                      padding: 12,
+                      borderRadius: 18,
+                      border: "1px solid var(--border)",
+                      background: "linear-gradient(180deg, rgba(255,255,255,.03), rgba(0,0,0,.14)), var(--card2)",
+                      color: "var(--text)",
+                      cursor: "pointer",
+                      textAlign: "left",
+                    }}
+                  >
+                    <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                      <CoinLogo c={c} size={44} />
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontWeight: 950 }}>{c.symbol || "—"}</div>
+                        <div style={{ marginTop: 4, color: "var(--muted)", fontSize: 12 }}>
+                          {fmtUsd(c.mc || 0)} • {Number(c.volumeSol || 0).toFixed(2)} SOL
+                        </div>
+                      </div>
+                    </div>
+                  </button>
+                ))
+              )}
+            </div>
+          </Card>
         </div>
       );
 
@@ -2071,131 +2078,113 @@ const isMobile = typeof window !== "undefined" && window.innerWidth < 520;
     }
 
     if (screen === "SEARCH") {
-  const getPct24h = (c) => {
-    const v =
-      c?.pct24h ??
-      c?.change24h ??
-      c?.pump24h ??
-      c?.priceChange24h ??
-      0;
-    return Number(v) || 0;
-  };
+      const getPct24h = (c) => {
+        const prev = Number(c?.price24hAgo ?? c?.prevPrice ?? 0);
+        const cur = Number(c?.price ?? 0);
+        if (!prev || prev <= 0) return 0;
+        return ((cur - prev) / prev) * 100;
+      };
 
-  const filtered = (coins || []).filter((c) => {
-    const q = String(searchQ || "").trim().toLowerCase();
-    if (!q) return true;
-    return (
-      String(c.name || "").toLowerCase().includes(q) ||
-      String(c.symbol || "").toLowerCase().includes(q)
-    );
-  });
+      const filtered = (coins || []).filter((c) => {
+        const q = String(searchQ || "").trim().toLowerCase();
+        if (!q) return true;
+        return String(c.name || "").toLowerCase().includes(q) || String(c.symbol || "").toLowerCase().includes(q);
+      });
 
-  const topVol20 = (coins || [])
-    .slice()
-    .sort((a, b) => Number(b.volumeSol || 0) - Number(a.volumeSol || 0))
-    .slice(0, 20);
+      const topVol20 = (coins || [])
+        .slice()
+        .sort((a, b) => Number(b.volumeSol || 0) - Number(a.volumeSol || 0))
+        .slice(0, 20);
 
-  const topMoves20 = (coins || [])
-    .slice()
-    .map((c) => ({ c, pct: getPct24h(c) }))
-    .filter((x) => x.pct >= 10)
-    .sort((a, b) => b.pct - a.pct)
-    .slice(0, 20);
+      const topMoves20 = (coins || [])
+        .slice()
+        .map((c) => ({ c, pct: getPct24h(c) }))
+        .filter((x) => x.pct >= 10)
+        .sort((a, b) => b.pct - a.pct)
+        .slice(0, 20);
 
-  content = (
-    <ScreenShell>
-      <Title sub={null}>Search</Title>
+      content = (
+        <ScreenShell>
+          <Title sub={null}>Search</Title>
 
-      <Input
-        label="Search for a coin"
-        value={searchQ}
-        onChange={setSearchQ}
-        placeholder="type name or symbol…"
-        rightIcon={<span style={{ fontWeight: 950 }}>⌕</span>}
-      />
+          <Input
+            label="Search for a coin"
+            value={searchQ}
+            onChange={(v) => {
+              setSearchQ(v);
+              if (searchMode !== "SEARCH") setSearchMode("SEARCH");
+            }}
+            placeholder="type name or symbol…"
+            rightIcon={<span style={{ fontWeight: 950 }}>⌕</span>}
+          />
 
-      {/* 🔘 MODE BUTTONS */}
-      <div style={{ display: "flex", gap: 10, marginTop: 12 }}>
-        <MiniBtn
-          onClick={() => setSearchMode("TOPVOL")}
-          style={{
-            flex: 1,
-            opacity: searchMode === "TOPVOL" ? 1 : 0.7,
-          }}
-        >
-          Top Volume
-        </MiniBtn>
+          <div style={{ display: "flex", gap: 10, marginTop: 12 }}>
+            <MiniBtn onClick={() => setSearchMode("SEARCH")} style={{ flex: 1, opacity: searchMode === "SEARCH" ? 1 : 0.7 }}>
+              Search
+            </MiniBtn>
+            <MiniBtn onClick={() => setSearchMode("TOPVOL")} style={{ flex: 1, opacity: searchMode === "TOPVOL" ? 1 : 0.7 }}>
+              Top Volume
+            </MiniBtn>
+            <MiniBtn onClick={() => setSearchMode("TOPMOVES")} style={{ flex: 1, opacity: searchMode === "TOPMOVES" ? 1 : 0.7 }}>
+              Top Moves 24h
+            </MiniBtn>
+          </div>
 
-        <MiniBtn
-          onClick={() => setSearchMode("TOPMOVES")}
-          style={{
-            flex: 1,
-            opacity: searchMode === "TOPMOVES" ? 1 : 0.7,
-          }}
-        >
-          Top Moves 24h
-        </MiniBtn>
-      </div>
+          <div
+            className="miniScroll"
+            style={{
+              marginTop: 16,
+              display: "flex",
+              flexDirection: "column",
+              gap: 10,
+              maxHeight: "calc(100vh - 260px)",
+              overflowY: "auto",
+              overflowX: "hidden",
+              paddingRight: 6,
+              paddingBottom: 90,
+            }}
+          >
+            {searchMode === "SEARCH" &&
+              filtered.map((c) => (
+                <CoinMiniCard
+                  key={c.id}
+                  c={c}
+                  onOpen={() => {
+                    setSelectedCoinId(c.id);
+                    setScreen("COIN");
+                  }}
+                />
+              ))}
 
-      <div
-  className="miniScroll"
-  style={{
-    marginTop: 16,
-    display: "flex",
-    flexDirection: "column",
-    gap: 10,
-    maxHeight: "calc(100vh - 260px)",
-    overflowY: "auto",
-    overflowX: "hidden",
-    paddingRight: 6,
-    paddingBottom: 90,
-  }}
->
-  {searchMode === "SEARCH" &&
-    filtered.map((c) => (
-      <CoinMiniCard
-        key={c.id}
-        c={c}
-        onOpen={() => {
-          setSelectedCoinId(c.id);
-          setScreen("COIN");
-        }}
-      />
-    ))}
+            {searchMode === "TOPVOL" &&
+              topVol20.map((c) => (
+                <CoinMiniCard
+                  key={c.id}
+                  c={c}
+                  subtitle={`Volume • ${Number(c.volumeSol || 0).toFixed(2)} SOL`}
+                  onOpen={() => {
+                    setSelectedCoinId(c.id);
+                    setScreen("COIN");
+                  }}
+                />
+              ))}
 
-  {searchMode === "TOPVOL" &&
-    topVol20.map((c) => (
-      <CoinMiniCard
-        key={c.id}
-        c={c}
-        subtitle={`Volume • ${Number(c.volumeSol || 0).toFixed(2)} SOL`}
-        tag="VOL"
-        accent="var(--primary)"
-        onOpen={() => {
-          setSelectedCoinId(c.id);
-          setScreen("COIN");
-        }}
-      />
-    ))}
-
-  {searchMode === "TOPMOVES" &&
-    topMoves20.map(({ c, pct }) => (
-      <CoinMiniCard
-        key={c.id}
-        c={c}
-        subtitle={`24h Move • +${pct.toFixed(2)}%`}
-        tag="PUMP"
-        accent="var(--primary)"
-        onOpen={() => {
-          setSelectedCoinId(c.id);
-          setScreen("COIN");
-        }}
-      />
-    ))}
-</div>
-    </ScreenShell>
-  );
-}
+            {searchMode === "TOPMOVES" &&
+              topMoves20.map(({ c, pct }) => (
+                <CoinMiniCard
+                  key={c.id}
+                  c={c}
+                  subtitle={`24h Move • +${pct.toFixed(2)}%`}
+                  onOpen={() => {
+                    setSelectedCoinId(c.id);
+                    setScreen("COIN");
+                  }}
+                />
+              ))}
+          </div>
+        </ScreenShell>
+      );
+    }
 
     if (screen === "LATEST") {
       content = (
@@ -2203,82 +2192,66 @@ const isMobile = typeof window !== "undefined" && window.innerWidth < 520;
           <Title sub={null} right={<MiniBtn onClick={loadCoins} disabled={loadingCoins}>{loadingCoins ? "…" : "Refresh"}</MiniBtn>}>
             Latest
           </Title>
-        <div style={{ margin: "10px 0 14px" }}>
-  <input
-    value={searchQ}
-    onChange={(e) => setSearchQ(e.target.value)}
-    placeholder="Search name / symbol..."
-    style={{
-      width: "100%",
-      padding: "10px 12px",
-      borderRadius: 14,
-      border: "1px solid rgba(255,255,255,.10)",
-      background: "rgba(0,0,0,.18)",
-      color: "var(--text)",
-      outline: "none",
-    }}
-  />
-</div>
 
-          {/* 🔥 Latest 20 Coins List */}
-{(() => {
-  const latestCoins = (coins || [])
-    .slice()
-    .sort(
-      (a, b) =>
-        Number(b.createdAt || b.ts || b.time || 0) -
-        Number(a.createdAt || a.ts || a.time || 0)
-    )
-    .slice(0, 20);
+          <div style={{ margin: "10px 0 14px" }}>
+            <input
+              value={searchQ}
+              onChange={(e) => setSearchQ(e.target.value)}
+              placeholder="Search name / symbol..."
+              style={{
+                width: "100%",
+                padding: "10px 12px",
+                borderRadius: 14,
+                border: "1px solid rgba(255,255,255,.10)",
+                background: "rgba(0,0,0,.18)",
+                color: "var(--text)",
+                outline: "none",
+              }}
+            />
+          </div>
 
-  const latestFiltered = latestCoins.filter((c) => {
-    const q = String(searchQ || "").trim().toLowerCase();
-    if (!q) return true;
-    return (
-      String(c.name || "").toLowerCase().includes(q) ||
-      String(c.symbol || "").toLowerCase().includes(q)
-    );
-  });
+          {(() => {
+            const latestCoins = (coins || [])
+              .slice()
+              .sort((a, b) => Number(b.createdAt || b.ts || b.time || 0) - Number(a.createdAt || a.ts || a.time || 0))
+              .slice(0, 20);
 
-  return (
-    <div
-      style={{
-        marginTop: 14,
-        display: "flex",
-        flexDirection: "column",
-        gap: 10,
-maxHeight: "calc(100vh - 260px)",
-overflowY: "scroll",
-scrollbarWidth: "none",
-msOverflowStyle: "none",
-paddingBottom: 110,
-      }}
-    >
-      {latestFiltered.length === 0 ? (
-        <div style={{ opacity: 0.7 }}>No coins found.</div>
-      ) : (
-        latestFiltered.map((c) => (
-          <CoinMiniCard
-            key={c.id}
-            c={c}
-            onOpen={() => {
-              setSelectedCoinId(c.id);
-              setScreen("COIN");
-            }}
-          />
-        ))
-      )}
-    </div>
-  );
-})()}
+            const latestFiltered = latestCoins.filter((c) => {
+              const q = String(searchQ || "").trim().toLowerCase();
+              if (!q) return true;
+              return String(c.name || "").toLowerCase().includes(q) || String(c.symbol || "").toLowerCase().includes(q);
+            });
 
-          <div style={{ height: 12 }} />
-
-         
-
-          <div style={{ height: 12 }} />
-
-        
+            return (
+              <div
+                className="miniScroll"
+                style={{
+                  marginTop: 14,
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 10,
+                  maxHeight: "calc(100vh - 260px)",
+                  overflowY: "auto",
+                  paddingBottom: 110,
+                }}
+              >
+                {latestFiltered.length === 0 ? (
+                  <div style={{ opacity: 0.7 }}>No coins found.</div>
+                ) : (
+                  latestFiltered.map((c) => (
+                    <CoinMiniCard
+                      key={c.id}
+                      c={c}
+                      onOpen={() => {
+                        setSelectedCoinId(c.id);
+                        setScreen("COIN");
+                      }}
+                    />
+                  ))
+                )}
+              </div>
+            );
+          })()}
         </ScreenShell>
       );
     }
@@ -2345,20 +2318,20 @@ paddingBottom: 110,
             <div style={{ height: 12 }} />
 
             <Card
-  style={
-    isMobile
-      ? {
-          position: "fixed",
-          bottom: 0,
-          left: 0,
-          right: 0,
-          borderRadius: "20px 20px 0 0",
-          zIndex: 1000,
-          paddingBottom: 10,
-        }
-      : {}
-  }
->
+              style={
+                isMobile
+                  ? {
+                      position: "fixed",
+                      bottom: 0,
+                      left: 0,
+                      right: 0,
+                      borderRadius: "20px 20px 0 0",
+                      zIndex: 1000,
+                      paddingBottom: 10,
+                    }
+                  : {}
+              }
+            >
               <div style={{ fontWeight: 950, marginBottom: 8 }}>Trade</div>
               <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
                 <MiniBtn
@@ -2391,11 +2364,11 @@ paddingBottom: 110,
               open={tradeOpen}
               title={`${tradeSide === "BUY" ? "Buy" : "Sell"} ${c.symbol || ""}`}
               onClose={() => (tradeLoading ? null : setTradeOpen(false))}
-             onConfirm={async () => {
-  if (tradeLoading) return;
-  setTradeOpen(false);              // ✅ pehle close
-  await doTrade(c, tradeSide, tradeSol); // phir trade
-}}
+              onConfirm={async () => {
+                if (tradeLoading) return;
+                setTradeOpen(false);
+                await doTrade(c, tradeSide, tradeSol);
+              }}
               confirmText={tradeLoading ? "..." : tradeSide === "BUY" ? "Confirm Buy" : "Confirm Sell"}
               confirmTone={tradeSide === "BUY" ? "primary" : "danger"}
             >
@@ -2519,297 +2492,296 @@ paddingBottom: 110,
       );
     }
 
-  if (screen === "PROFILE") {
-  const holdingsEnriched = myHoldingsList
-    .map((h) => {
-      const coin = coinsSorted.find((c) => c.id === h.coinId);
-      const supply = Number(coin?.totalSupply || 0);
-      const amt = Number(h.amount || 0);
-      const pct = supply > 0 ? (amt / supply) * 100 : 0;
-      return { ...h, coin, supply, amt, pct };
-    })
-    .filter((x) => x.amt > 0.0000001);
+    if (screen === "PROFILE") {
+      const holdingsEnriched = myHoldingsList
+        .map((h) => {
+          const coin = coinsSorted.find((c) => c.id === h.coinId);
+          const supply = Number(coin?.totalSupply || 0);
+          const amt = Number(h.amount || 0);
+          const pct = supply > 0 ? (amt / supply) * 100 : 0;
+          return { ...h, coin, supply, amt, pct };
+        })
+        .filter((x) => x.amt > 0.0000001);
 
-  const txEnriched = myTxList.slice(0, 40).map((t) => {
-    const coin = coinsSorted.find((c) => c.id === t.coinId);
-    return { ...t, coin };
-  });
+      const txEnriched = myTxList.slice(0, 40).map((t) => {
+        const coin = coinsSorted.find((c) => c.id === t.coinId);
+        return { ...t, coin };
+      });
 
-  content = (
-    <ScreenShell>
-      <Title sub={null} right={<MiniBtn onClick={() => setScreen("SETTINGS")}>⚙ Settings</MiniBtn>}>
-        Profile
-      </Title>
+      content = (
+        <ScreenShell>
+          <Title sub={null} right={<MiniBtn onClick={() => setScreen("SETTINGS")}>⚙ Settings</MiniBtn>}>
+            Profile
+          </Title>
 
-      {/* ✅ PROFILE SCROLL WRAPPER (fix) */}
-      <div
-        className="miniScroll"
-        style={{
-          marginTop: 14,
-          display: "flex",
-          flexDirection: "column",
-          gap: 12,
-          maxHeight: "calc(100vh - 150px)",
-          overflowY: "auto",
-          overflowX: "hidden",
-          paddingRight: 6,
-          paddingBottom: 120,
-          WebkitOverflowScrolling: "touch",
-        }}
-      >
-        <Card>
-          <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center" }}>
-            <div>
-              <div style={{ color: "var(--muted)", fontSize: 12 }}>Address</div>
-              <div style={{ fontWeight: 950 }}>{shortWallet(solAddr)}</div>
-            </div>
-            <MiniBtn disabled={!solAddr} onClick={() => solAddr && copyText(solAddr)}>
-              Copy
-            </MiniBtn>
-          </div>
-
-          <div style={{ height: 10 }} />
-
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
-            <div>
-              <div style={{ color: "var(--muted)", fontSize: 12 }}>Balance</div>
-              <div style={{ fontWeight: 950 }}>{balance} SOL</div>
-            </div>
-            <div style={{ display: "flex", gap: 10 }}>
-              <MiniBtn tone="good" disabled={!solAddr} onClick={openDeposit}>Deposit</MiniBtn>
-              <MiniBtn tone="warn" disabled={!solAddr} onClick={openWithdraw}>Withdraw</MiniBtn>
-            </div>
-          </div>
-
-          <div style={{ height: 12 }} />
-
-          <div style={{ padding: 12, borderRadius: 16, border: "1px solid var(--border)", background: "rgba(255,255,255,.03)" }}>
-            <div style={{ fontWeight: 950, marginBottom: 10 }}>Networks</div>
-
-            <div style={{ display: "grid", gap: 10 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <NetLogo chain="solana" />
-                  <div style={{ fontWeight: 900 }}>Solana</div>
-                </div>
-                <Pill tone="good">Active</Pill>
-              </div>
-
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, opacity: 0.9 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <NetLogo chain="bnb" />
-                  <div style={{ fontWeight: 900 }}>BNB</div>
-                </div>
-                <Pill>Coming soon</Pill>
-              </div>
-
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, opacity: 0.9 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <NetLogo chain="polygon" />
-                  <div style={{ fontWeight: 900 }}>Polygon</div>
-                </div>
-                <Pill>Coming soon</Pill>
-              </div>
-            </div>
-          </div>
-
-          <div style={{ height: 12 }} />
-
-          <div style={{ padding: 12, borderRadius: 16, border: "1px solid var(--border)", background: "rgba(255,255,255,.03)" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center" }}>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: 950 }}>Referral</div>
-                <div style={{ marginTop: 6, fontSize: 12, color: "var(--muted)" }}>
-                  {myReferralLink ? `${myReferralLink.slice(0, 24)}…` : "Wallet loading…"}
-                </div>
-                <div style={{ marginTop: 8, display: "flex", gap: 8, flexWrap: "wrap" }}>
-                  <Pill tone="warn">Referral commission: 20%</Pill>
-                  {refStatus ? (
-                    <Pill>
-                      {refStatus === "set" ? "Referral applied ✅" : refStatus === "already" ? "Referral locked" : "Referral invalid"}
-                    </Pill>
-                  ) : null}
-                </div>
-              </div>
-              <MiniBtn disabled={!myReferralLink} onClick={() => myReferralLink && copyText(myReferralLink)}>
-                Copy
-              </MiniBtn>
-            </div>
-          </div>
-        </Card>
-
-        <Card>
-          <SectionHeader title="Referral Reward" right={<Pill tone="warn">20%</Pill>} />
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
-            <div style={{ fontWeight: 950 }}>{Number(myReferralRewardsSol || 0).toFixed(6)} SOL</div>
-            <MiniBtn tone="good" disabled={oneClickW !== "" || Number(myReferralRewardsSol || 0) <= 0} onClick={() => oneClickWithdraw("REF")}>
-              {oneClickW === "REF" ? "Withdrawing…" : "Withdraw"}
-            </MiniBtn>
-          </div>
-        </Card>
-
-        <Card>
-          <SectionHeader title="Creator Reward" right={<Pill>Coins: {Object.keys(myRewards.byCoin || {}).length}</Pill>} />
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
-            <div style={{ fontWeight: 950 }}>{Number(myRewards.totalSol || 0).toFixed(6)} SOL</div>
-            <MiniBtn tone="good" disabled={oneClickW !== "" || Number(myRewards.totalSol || 0) <= 0} onClick={() => oneClickWithdraw("CREATOR")}>
-              {oneClickW === "CREATOR" ? "Withdrawing…" : "Withdraw"}
-            </MiniBtn>
-          </div>
-        </Card>
-
-        <Card>
-          <SectionHeader title="My Creations" right={<Pill>{myCreations.length}</Pill>} />
-          <div className="hScroll" style={{ display: "flex", gap: 10, paddingBottom: 6 }}>
-            {myCreations.length === 0 ? (
-              <div style={{ color: "var(--muted)", fontSize: 12 }}>No coins yet.</div>
-            ) : (
-              myCreations.map((c) => (
-                <button
-                  key={c.id}
-                  onClick={() => {
-                    setSelectedCoinId(c.id);
-                    setScreen("COIN");
-                  }}
-                  style={{
-                    minWidth: 240,
-                    width: 240,
-                    padding: 12,
-                    borderRadius: 18,
-                    border: "1px solid var(--border)",
-                    background: "linear-gradient(180deg, rgba(255,255,255,.03), rgba(0,0,0,.14)), var(--card2)",
-                    color: "var(--text)",
-                    cursor: "pointer",
-                    textAlign: "left",
-                  }}
-                >
-                  <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-                    <CoinLogo c={c} size={44} />
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontWeight: 950 }}>{c.symbol || "—"}</div>
-                      <div style={{ marginTop: 4, color: "var(--muted)", fontSize: 12 }}>
-                        {fmtUsd(c.mc || 0)} • {Number(c.volumeSol || 0).toFixed(2)} SOL
-                      </div>
-                    </div>
-                  </div>
-                </button>
-              ))
-            )}
-          </div>
-        </Card>
-
-        <Card>
-          <SectionHeader title="My Holdings" right={<Pill>{holdingsEnriched.length}</Pill>} />
-          {/* ✅ removed inner scroll so whole profile scrolls */}
-          <div style={{ display: "grid", gap: 10 }}>
-            {holdingsEnriched.length === 0 ? (
-              <div style={{ color: "var(--muted)", fontSize: 12 }}>No holdings yet.</div>
-            ) : (
-              holdingsEnriched.map((h) => (
-                <div
-                  key={h.coinId}
-                  style={{
-                    padding: 12,
-                    borderRadius: 18,
-                    border: "1px solid var(--border)",
-                    background: "linear-gradient(180deg, rgba(255,255,255,.03), rgba(0,0,0,.14)), var(--card2)",
-                    display: "flex",
-                    justifyContent: "space-between",
-                    gap: 10,
-                    alignItems: "center",
-                  }}
-                >
-                  <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-                    <CoinLogo c={h.coin || { symbol: "?" }} size={38} />
-                    <div>
-                      <div style={{ fontWeight: 950, lineHeight: 1.1 }}>{h.coin?.symbol || "—"}</div>
-                      <div style={{ marginTop: 6, color: "var(--muted)", fontSize: 12 }}>Last: {h.lastAt ? fmtTime(h.lastAt) : "—"}</div>
-                    </div>
-                  </div>
-
-                  <div style={{ textAlign: "right" }}>
-                    <div style={{ fontWeight: 950 }}>{Number(h.amt || 0).toFixed(2)}</div>
-                    <div style={{ marginTop: 6, color: "var(--muted)", fontSize: 12 }}>
-                      {h.supply > 0 ? `${h.pct.toFixed(2)}% of supply` : "supply —"}
-                    </div>
-                    <div style={{ marginTop: 8 }}>
-                      <MiniBtn
-                        onClick={() => {
-                          setSelectedCoinId(h.coinId);
-                          setScreen("COIN");
-                        }}
-                        tone="warn"
-                        style={{ padding: "8px 10px", borderRadius: 12 }}
-                      >
-                        Open
-                      </MiniBtn>
-                    </div>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        </Card>
-
-        <Card>
-          <SectionHeader title="Last Transactions" right={<Pill>{txEnriched.length}</Pill>} />
-          {/* ✅ removed inner scroll so whole profile scrolls */}
           <div
-  className="miniScroll"
-  style={{
-    maxHeight: 320,
-    overflowY: "auto",
-    overflowX: "hidden",
-    paddingRight: 6,
-    display: "grid",
-    gap: 10,
-    paddingBottom: 10,
-  }}
->
-            {txEnriched.length === 0 ? (
-              <div style={{ color: "var(--muted)", fontSize: 12 }}>No transactions yet.</div>
-            ) : (
-              txEnriched.map((t) => {
-                const side = String(t.side || "").toUpperCase();
-                const coin = t.coin || { symbol: "?" };
-                return (
-                  <div
-                    key={t.id || `${t.coinId}-${t.t}`}
-                    style={{
-                      padding: 12,
-                      borderRadius: 18,
-                      border: "1px solid var(--border)",
-                      background: "linear-gradient(180deg, rgba(255,255,255,.03), rgba(0,0,0,.14)), var(--card2)",
-                      display: "flex",
-                      justifyContent: "space-between",
-                      gap: 10,
-                      alignItems: "center",
-                    }}
-                  >
-                    <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-                      <CoinLogo c={coin} size={38} />
-                      <div>
-                        <div style={{ fontWeight: 950 }}>{coin.symbol || "TX"}</div>
-                        <div style={{ marginTop: 6, color: "var(--muted)", fontSize: 12 }}>{t.t ? fmtTime(t.t) : "—"}</div>
-                      </div>
-                    </div>
+            className="miniScroll"
+            style={{
+              marginTop: 14,
+              display: "flex",
+              flexDirection: "column",
+              gap: 12,
+              maxHeight: "calc(100vh - 150px)",
+              overflowY: "auto",
+              overflowX: "hidden",
+              paddingRight: 6,
+              paddingBottom: 120,
+              WebkitOverflowScrolling: "touch",
+            }}
+          >
+            <Card>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center" }}>
+                <div>
+                  <div style={{ color: "var(--muted)", fontSize: 12 }}>Address</div>
+                  <div style={{ fontWeight: 950 }}>{shortWallet(solAddr)}</div>
+                </div>
+                <MiniBtn disabled={!solAddr} onClick={() => solAddr && copyText(solAddr)}>
+                  Copy
+                </MiniBtn>
+              </div>
 
-                    <div style={{ textAlign: "right" }}>
-                      <Pill tone={side === "SELL" ? "danger" : side === "BUY" ? "good" : "warn"}>{side || "TX"}</Pill>
-                      <div style={{ marginTop: 8, fontWeight: 950 }}>{Number(t.sol || 0).toFixed(4)} SOL</div>
+              <div style={{ height: 10 }} />
+
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+                <div>
+                  <div style={{ color: "var(--muted)", fontSize: 12 }}>Balance</div>
+                  <div style={{ fontWeight: 950 }}>{balance} SOL</div>
+                </div>
+                <div style={{ display: "flex", gap: 10 }}>
+                  <MiniBtn tone="good" disabled={!solAddr} onClick={openDeposit}>Deposit</MiniBtn>
+                  <MiniBtn tone="warn" disabled={!solAddr} onClick={openWithdraw}>Withdraw</MiniBtn>
+                </div>
+              </div>
+
+              <div style={{ height: 12 }} />
+
+              <div style={{ padding: 12, borderRadius: 16, border: "1px solid var(--border)", background: "rgba(255,255,255,.03)" }}>
+                <div style={{ fontWeight: 950, marginBottom: 10 }}>Networks</div>
+
+                <div style={{ display: "grid", gap: 10 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      <NetLogo chain="solana" />
+                      <div style={{ fontWeight: 900 }}>Solana</div>
+                    </div>
+                    <Pill tone="good">Active</Pill>
+                  </div>
+
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, opacity: 0.9 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      <NetLogo chain="bnb" />
+                      <div style={{ fontWeight: 900 }}>BNB</div>
+                    </div>
+                    <Pill>Coming soon</Pill>
+                  </div>
+
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, opacity: 0.9 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      <NetLogo chain="polygon" />
+                      <div style={{ fontWeight: 900 }}>Polygon</div>
+                    </div>
+                    <Pill>Coming soon</Pill>
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ height: 12 }} />
+
+              <div style={{ padding: 12, borderRadius: 16, border: "1px solid var(--border)", background: "rgba(255,255,255,.03)" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center" }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 950 }}>Referral</div>
+                    <div style={{ marginTop: 6, fontSize: 12, color: "var(--muted)" }}>
+                      {myReferralLink ? `${myReferralLink.slice(0, 24)}…` : "Wallet loading…"}
+                    </div>
+                    <div style={{ marginTop: 8, display: "flex", gap: 8, flexWrap: "wrap" }}>
+                      <Pill tone="warn">Referral commission: 20%</Pill>
+                      {refStatus ? (
+                        <Pill>
+                          {refStatus === "set" ? "Referral applied ✅" : refStatus === "already" ? "Referral locked" : "Referral invalid"}
+                        </Pill>
+                      ) : null}
                     </div>
                   </div>
-                );
-              })
-            )}
-          </div>
-        </Card>
+                  <MiniBtn disabled={!myReferralLink} onClick={() => myReferralLink && copyText(myReferralLink)}>
+                    Copy
+                  </MiniBtn>
+                </div>
+              </div>
+            </Card>
 
-        <GhostButton onClick={logout}>Logout</GhostButton>
-      </div>
-    </ScreenShell>
-  );
-}
+            <Card>
+              <SectionHeader title="Referral Reward" right={<Pill tone="warn">20%</Pill>} />
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+                <div style={{ fontWeight: 950 }}>{Number(myReferralRewardsSol || 0).toFixed(6)} SOL</div>
+                <MiniBtn tone="good" disabled={oneClickW !== "" || Number(myReferralRewardsSol || 0) <= 0} onClick={() => oneClickWithdraw("REF")}>
+                  {oneClickW === "REF" ? "Withdrawing…" : "Withdraw"}
+                </MiniBtn>
+              </div>
+            </Card>
+
+            <Card>
+              <SectionHeader title="Creator Reward" right={<Pill>Coins: {Object.keys(myRewards.byCoin || {}).length}</Pill>} />
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+                <div style={{ fontWeight: 950 }}>{Number(myRewards.totalSol || 0).toFixed(6)} SOL</div>
+                <MiniBtn tone="good" disabled={oneClickW !== "" || Number(myRewards.totalSol || 0) <= 0} onClick={() => oneClickWithdraw("CREATOR")}>
+                  {oneClickW === "CREATOR" ? "Withdrawing…" : "Withdraw"}
+                </MiniBtn>
+              </div>
+            </Card>
+
+            <Card>
+              <SectionHeader title="My Creations" right={<Pill>{myCreations.length}</Pill>} />
+              <div className="hScroll" style={{ display: "flex", gap: 10, paddingBottom: 6 }}>
+                {myCreations.length === 0 ? (
+                  <div style={{ color: "var(--muted)", fontSize: 12 }}>No coins yet.</div>
+                ) : (
+                  myCreations.map((c) => (
+                    <button
+                      key={c.id}
+                      onClick={() => {
+                        setSelectedCoinId(c.id);
+                        setScreen("COIN");
+                      }}
+                      style={{
+                        minWidth: 240,
+                        width: 240,
+                        padding: 12,
+                        borderRadius: 18,
+                        border: "1px solid var(--border)",
+                        background: "linear-gradient(180deg, rgba(255,255,255,.03), rgba(0,0,0,.14)), var(--card2)",
+                        color: "var(--text)",
+                        cursor: "pointer",
+                        textAlign: "left",
+                      }}
+                    >
+                      <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                        <CoinLogo c={c} size={44} />
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontWeight: 950 }}>{c.symbol || "—"}</div>
+                          <div style={{ marginTop: 4, color: "var(--muted)", fontSize: 12 }}>
+                            {fmtUsd(c.mc || 0)} • {Number(c.volumeSol || 0).toFixed(2)} SOL
+                          </div>
+                        </div>
+                      </div>
+                    </button>
+                  ))
+                )}
+              </div>
+            </Card>
+
+            <Card>
+              <SectionHeader title="My Holdings" right={<Pill>{holdingsEnriched.length}</Pill>} />
+              <div style={{ display: "grid", gap: 10 }}>
+                {holdingsEnriched.length === 0 ? (
+                  <div style={{ color: "var(--muted)", fontSize: 12 }}>No holdings yet.</div>
+                ) : (
+                  holdingsEnriched.map((h) => (
+                    <div
+                      key={h.coinId}
+                      style={{
+                        padding: 12,
+                        borderRadius: 18,
+                        border: "1px solid var(--border)",
+                        background: "linear-gradient(180deg, rgba(255,255,255,.03), rgba(0,0,0,.14)), var(--card2)",
+                        display: "flex",
+                        justifyContent: "space-between",
+                        gap: 10,
+                        alignItems: "center",
+                      }}
+                    >
+                      <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                        <CoinLogo c={h.coin || { symbol: "?" }} size={38} />
+                        <div>
+                          <div style={{ fontWeight: 950, lineHeight: 1.1 }}>{h.coin?.symbol || "—"}</div>
+                          <div style={{ marginTop: 6, color: "var(--muted)", fontSize: 12 }}>
+                            Last: {h.lastAt ? fmtTime(h.lastAt) : "—"}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div style={{ textAlign: "right" }}>
+                        <div style={{ fontWeight: 950 }}>{Number(h.amt || 0).toFixed(2)}</div>
+                        <div style={{ marginTop: 6, color: "var(--muted)", fontSize: 12 }}>
+                          {h.supply > 0 ? `${h.pct.toFixed(2)}% of supply` : "supply —"}
+                        </div>
+                        <div style={{ marginTop: 8 }}>
+                          <MiniBtn
+                            onClick={() => {
+                              setSelectedCoinId(h.coinId);
+                              setScreen("COIN");
+                            }}
+                            tone="warn"
+                            style={{ padding: "8px 10px", borderRadius: 12 }}
+                          >
+                            Open
+                          </MiniBtn>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </Card>
+
+            <Card>
+              <SectionHeader title="Last Transactions" right={<Pill>{txEnriched.length}</Pill>} />
+              <div
+                className="miniScroll"
+                style={{
+                  maxHeight: 320,
+                  overflowY: "auto",
+                  overflowX: "hidden",
+                  paddingRight: 6,
+                  display: "grid",
+                  gap: 10,
+                  paddingBottom: 10,
+                }}
+              >
+                {txEnriched.length === 0 ? (
+                  <div style={{ color: "var(--muted)", fontSize: 12 }}>No transactions yet.</div>
+                ) : (
+                  txEnriched.map((t) => {
+                    const side = String(t.side || "").toUpperCase();
+                    const coin = t.coin || { symbol: "?" };
+                    return (
+                      <div
+                        key={t.id || `${t.coinId}-${t.t}`}
+                        style={{
+                          padding: 12,
+                          borderRadius: 18,
+                          border: "1px solid var(--border)",
+                          background: "linear-gradient(180deg, rgba(255,255,255,.03), rgba(0,0,0,.14)), var(--card2)",
+                          display: "flex",
+                          justifyContent: "space-between",
+                          gap: 10,
+                          alignItems: "center",
+                        }}
+                      >
+                        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                          <CoinLogo c={coin} size={38} />
+                          <div>
+                            <div style={{ fontWeight: 950 }}>{coin.symbol || "TX"}</div>
+                            <div style={{ marginTop: 6, color: "var(--muted)", fontSize: 12 }}>{t.t ? fmtTime(t.t) : "—"}</div>
+                          </div>
+                        </div>
+
+                        <div style={{ textAlign: "right" }}>
+                          <Pill tone={side === "SELL" ? "danger" : side === "BUY" ? "good" : "warn"}>{side || "TX"}</Pill>
+                          <div style={{ marginTop: 8, fontWeight: 950 }}>{Number(t.sol || 0).toFixed(4)} SOL</div>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </Card>
+
+            <GhostButton onClick={logout}>Logout</GhostButton>
+          </div>
+        </ScreenShell>
+      );
+    }
 
     if (screen === "SETTINGS") {
       content = (
@@ -2851,7 +2823,9 @@ paddingBottom: 110,
   return (
     <>
       <ThemeStyles />
-    
+
+      {showIntro ? <SplashIntro logoUrl={APP_LOGO_URL} /> : null}
+
       {content}
       {ready && authenticated ? <BottomNav screen={screen} setScreen={setScreen} /> : null}
       <Toast msg={toast} />
@@ -2923,9 +2897,14 @@ paddingBottom: 110,
             </>
           ) : (
             <>
-              <Input label="Withdraw to (destination address)" value={withdrawTo} onChange={setWithdrawTo} placeholder="Paste Solana address…" />
+              <Input
+                label="Withdraw to (destination address)"
+                value={withdrawTo}
+                onChange={setWithdrawTo}
+                placeholder="Paste Solana address…"
+              />
               <div style={{ marginTop: 6, color: "var(--muted)", fontSize: 12, lineHeight: 1.5 }}>
-                Manual withdraw: destination paste karo. (On-chain later)
+                Manual withdraw: destination paste karo.
               </div>
             </>
           )}
@@ -2934,3 +2913,4 @@ paddingBottom: 110,
     </>
   );
 }
+
