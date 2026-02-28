@@ -294,10 +294,8 @@ function scheduleWrite() {
     }
   }, 700);
 }
-
-process.on("SIGTERM", () => scheduleSupabaseWrite());
-process.on("SIGINT", () => scheduleSupabaseWrite());
-
+process.on("SIGTERM", () => scheduleWrite());
+process.on("SIGINT", () => scheduleWrite());
 // -------------------- AMM CORE --------------------
 function applyFee(solAmount) {
   const fee = solAmount * (FEE_PCT / 100);
