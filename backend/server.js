@@ -521,7 +521,7 @@ app.post("/api/coin/create", async (req, res) => {
     });
 
     STORE_CACHE = store;
-    scheduleSupabaseWrite();
+    scheduleWrite();
 
     return res.json({ ok: true, coin });
   } catch (e) {
