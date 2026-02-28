@@ -1,5 +1,4 @@
-
-
+// =========================== App.jsx (FULL FILE) — PART 1 / 5 ===========================
 
 import IntroSplash from "./IntroSplash";
 import React, { useEffect, useMemo, useRef, useState } from "react";
@@ -55,6 +54,22 @@ function ThemeStyles() {
         --ease: cubic-bezier(.22,1,.36,1);
       }
 
+      /* ===== YOUR PROFILE "no-anim" block stays (as you added) ===== */
+      [data-noanim="1"],
+      [data-noanim="1"] * ,
+      [data-noanim="1"] *::before,
+      [data-noanim="1"] *::after {
+        animation: none !important;
+        transition: none !important;
+      }
+      [data-noanim="1"] * { transform: none !important; }
+      [data-noanim="1"] {
+        scroll-behavior: auto !important;
+        overscroll-behavior: contain !important;
+        -webkit-overflow-scrolling: auto !important;
+      }
+
+      /* ===== THEME ===== */
       [data-theme="calm"]{
         --bg:#070B0E; --card:#0D1416; --card2:#0B1716;
         --primary:#19E6A2; --primary2:#8FFFD0;
@@ -142,7 +157,8 @@ function ThemeStyles() {
           radial-gradient(520px 280px at 20% 20%, rgba(25,230,162,.16), transparent 70%),
           radial-gradient(560px 320px at 85% 35%, rgba(106,215,255,.12), transparent 70%),
           radial-gradient(620px 360px at 45% 90%, rgba(167,139,250,.10), transparent 70%);
-        animation: floatGlow 18s var(--ease) infinite;
+        /* ✅ STOP GLOBAL WOBBLE */
+        animation: none !important;
       }
       body::after{
         background:
@@ -155,11 +171,13 @@ function ThemeStyles() {
             rgba(0,0,0,0) 2px,
             rgba(0,0,0,0) 4px
           );
-        animation: floatGlow2 26s var(--ease) infinite;
+        /* ✅ STOP GLOBAL WOBBLE */
+        animation: none !important;
         opacity:.35;
         mix-blend-mode: overlay;
       }
 
+      /* Keep keyframes (harmless) but no longer used by body */
       @keyframes floatGlow{
         0%{ transform: translate3d(0,0,0) scale(1); }
         50%{ transform: translate3d(14px,-12px,0) scale(1.02); }
@@ -171,13 +189,17 @@ function ThemeStyles() {
         100%{ transform: translate3d(0,0,0) scale(1); }
       }
 
-      @media (prefers-reduced-motion: reduce){
-        *{ animation: none !important; transition: none !important; scroll-behavior: auto !important; }
-        body::before, body::after{ animation:none !important; }
-      }
-
-      .fadeIn{ animation: fadeIn .22s var(--ease); }
+      /* ✅ FULL APP: Remove motion (but IntroSplash is separate file; we are not touching it) */
+      .fadeIn{ animation: none !important; }
       @keyframes fadeIn{ from{opacity:.0; transform: translateY(8px);} to{opacity:1; transform: translateY(0);} }
+
+      /* ✅ stop card breathing */
+      .breathe{ animation: none !important; }
+      @keyframes breatheCard{
+        0%{ transform: translateZ(0) scale(1); }
+        50%{ transform: translateZ(0) scale(1.012); }
+        100%{ transform: translateZ(0) scale(1); }
+      }
 
       .noScrollbar{ scrollbar-width: none; -ms-overflow-style: none; }
       .noScrollbar::-webkit-scrollbar{ display:none; }
@@ -214,11 +236,12 @@ function ThemeStyles() {
       .snapX{ scroll-snap-type: x mandatory; }
       .snapItem{ scroll-snap-align: start; }
 
+      /* ✅ remove button hover motion */
       button{
-        transition: transform .18s var(--ease), filter .18s var(--ease), box-shadow .18s var(--ease), opacity .18s var(--ease);
+        transition: none !important;
       }
-      button:hover{ filter: brightness(1.02); }
-      button:active{ transform: translateY(1px) scale(.99); }
+      button:hover{ filter: none !important; }
+      button:active{ transform: none !important; }
 
       :focus-visible{
         outline: 2px solid rgba(25,230,162,.55);
@@ -227,15 +250,6 @@ function ThemeStyles() {
       }
 
       ::selection{ background: rgba(25,230,162,.22); }
-
-      @keyframes breatheCard{
-        0%{ transform: translateZ(0) scale(1); }
-        50%{ transform: translateZ(0) scale(1.012); }
-        100%{ transform: translateZ(0) scale(1); }
-      }
-      .breathe{
-        animation: breatheCard 7s var(--ease) infinite;
-      }
 
       /* ===== Intro / Factory Splash ===== */
       @keyframes logoSpin { to { transform: rotate(360deg); } }
@@ -421,7 +435,6 @@ function ThemeStyles() {
   );
 }
 
-
 function ScreenShell({ children, fullBleed = false, allowYScroll = false }) {
   return (
     <div
@@ -504,7 +517,7 @@ function Title({ children, sub, right }) {
       {right}
     </div>
   );
-}
+}// =========================== App.jsx (FULL FILE) — PART 2 / 5 ===========================
 
 function SplashIntro({ logoUrl }) {
   const coins = Array.from({ length: 10 }).map((_, i) => {
@@ -542,9 +555,7 @@ function SplashIntro({ logoUrl }) {
             Change your life.
           </h1>
 
-          <p className="introSub">
-            Creator-first • Reward-driven • Smooth & Fast
-          </p>
+          <p className="introSub">Creator-first • Reward-driven • Smooth & Fast</p>
 
           <div className="introBadges">
             <span className="badge">Referral 20%</span>
@@ -576,18 +587,12 @@ function SplashIntro({ logoUrl }) {
                   </div>
                   <div className="headerText">
                     <div className="h1">Cooking memes…</div>
-                    <div className="h2">
-                      chains running • coins printing • launchpad warming up
-                    </div>
+                    <div className="h2">chains running • coins printing • launchpad warming up</div>
                   </div>
                 </div>
 
                 <div className="progress">
-                  <div className="bar">
-                    {Array.from({ length: 10 }).map((_, idx) => (
-                      <span key={idx} />
-                    ))}
-                  </div>
+                  <div className="bar">{Array.from({ length: 10 }).map((_, idx) => <span key={idx} />)}</div>
                 </div>
 
                 {/* Coins inside screen (rush OUT) */}
@@ -606,14 +611,12 @@ function SplashIntro({ logoUrl }) {
                         ["--z"]: `${c.z}px`,
                       }}
                     >
-                      {c.icon}
+                      <span className="coinDot" />
                     </div>
                   ))}
                 </div>
 
-                <div className="footerLine">
-                  Creator-first • Reward-driven • Smooth & Fast
-                </div>
+                <div className="footerLine">Creator-first • Reward-driven • Smooth & Fast</div>
 
                 <div className="footerBtns">
                   <div className="pill">Referral 20%</div>
@@ -867,7 +870,7 @@ function Card({ children, style, breathe = true }) {
           0 20px 70px rgba(0,0,0,.55),
           0 0 40px rgba(25,230,162,.05)
         `,
-        transition: "all .25s var(--ease)",
+        transition: "none", // ✅ stop motion
         ...style,
       }}
     >
@@ -956,19 +959,9 @@ function MiniBtn({ children, onClick, disabled, tone = "muted", style }) {
         fontWeight: 950,
         fontSize: 12,
         letterSpacing: 0.15,
-        transition: "all .22s var(--ease)",
+        transition: "none", // ✅ stop motion
         boxShadow: "0 14px 45px rgba(0,0,0,.35)",
         ...style,
-      }}
-      onMouseEnter={(e) => {
-        if (disabled) return;
-        e.currentTarget.style.transform = "translateY(-2px)";
-        e.currentTarget.style.boxShadow = "0 18px 60px rgba(0,0,0,.45)";
-      }}
-      onMouseLeave={(e) => {
-        if (disabled) return;
-        e.currentTarget.style.transform = "translateY(0px)";
-        e.currentTarget.style.boxShadow = "0 14px 45px rgba(0,0,0,.35)";
       }}
     >
       {children}
@@ -1008,7 +1001,7 @@ function Input({ label, value, onChange, placeholder, type = "text", maxLength, 
             color: "var(--text)",
             outline: "none",
             boxShadow: "inset 0 0 0 1px rgba(0,0,0,.10)",
-            transition: "all .22s var(--ease)",
+            transition: "none", // ✅ stop motion
           }}
         />
         {rightIcon ? (
@@ -1031,7 +1024,7 @@ function Input({ label, value, onChange, placeholder, type = "text", maxLength, 
       {error ? <div style={{ marginTop: 7, color: "var(--danger)", fontSize: 12 }}>{error}</div> : null}
     </div>
   );
-}
+}// =========================== App.jsx (FULL FILE) — PART 3 / 5 ===========================
 
 function Textarea({ label, value, onChange, placeholder, maxLength, error }) {
   return (
@@ -1065,7 +1058,7 @@ function Textarea({ label, value, onChange, placeholder, maxLength, error }) {
           outline: "none",
           resize: "none",
           boxShadow: "inset 0 0 0 1px rgba(0,0,0,.10)",
-          transition: "all .22s var(--ease)",
+          transition: "none", // ✅ stop motion
         }}
       />
 
@@ -1089,16 +1082,8 @@ function PrimaryButton({ children, onClick, disabled, style }) {
         fontWeight: 950,
         cursor: disabled ? "not-allowed" : "pointer",
         boxShadow: disabled ? "none" : "0 18px 60px rgba(25,230,162,.25)",
-        transition: "all .25s var(--ease)",
+        transition: "none", // ✅ stop motion
         ...style,
-      }}
-      onMouseEnter={(e) => {
-        if (disabled) return;
-        e.currentTarget.style.transform = "translateY(-3px) scale(1.02)";
-      }}
-      onMouseLeave={(e) => {
-        if (disabled) return;
-        e.currentTarget.style.transform = "translateY(0px) scale(1)";
       }}
     >
       {children}
@@ -1121,18 +1106,8 @@ function GhostButton({ children, onClick, disabled, style }) {
         cursor: disabled ? "not-allowed" : "pointer",
         opacity: disabled ? 0.5 : 1,
         fontWeight: 900,
-        transition: "all .25s var(--ease)",
+        transition: "none", // ✅ stop motion
         ...style,
-      }}
-      onMouseEnter={(e) => {
-        if (disabled) return;
-        e.currentTarget.style.transform = "translateY(-2px)";
-        e.currentTarget.style.boxShadow = "0 12px 40px rgba(25,230,162,.12)";
-      }}
-      onMouseLeave={(e) => {
-        if (disabled) return;
-        e.currentTarget.style.transform = "translateY(0px)";
-        e.currentTarget.style.boxShadow = "none";
       }}
     >
       {children}
@@ -1156,8 +1131,6 @@ function SectionHeader({ title, right }) {
     </div>
   );
 }
-
-
 
 function CoinLogo({ c, size = 46 }) {
   const src = c?.logo || "";
@@ -1304,7 +1277,7 @@ function NavBtn({ active, onClick, icon, text }) {
         cursor: "pointer",
         fontSize: 18,
         position: "relative",
-        transition: "all .15s var(--ease)",
+        transition: "none", // ✅ stop motion
       }}
     >
       {active && (
@@ -1359,7 +1332,7 @@ function BottomNav({ screen, setScreen }) {
             color: "#9effd6",
             fontSize: 16,
             cursor: "pointer",
-            transition: "all .2s ease",
+            transition: "none", // ✅ stop motion
           }}
           title="Create"
         >
@@ -1379,7 +1352,8 @@ function Pager({ pages, pageIndex, setPageIndex }) {
     const el = ref.current;
     if (!el) return;
     const w = el.clientWidth;
-    el.scrollTo({ left: w * pageIndex, behavior: "smooth" });
+    // ✅ stop smooth scroll motion
+    el.scrollTo({ left: w * pageIndex, behavior: "auto" });
   }, [pageIndex]);
 
   function onScroll() {
@@ -1412,7 +1386,7 @@ function Pager({ pages, pageIndex, setPageIndex }) {
               border: "none",
               background: i === pageIndex ? "var(--primary)" : "rgba(255,255,255,.14)",
               cursor: "pointer",
-              transition: "all .15s var(--ease)",
+              transition: "none", // ✅ stop motion
             }}
             title={`Page ${i + 1}`}
           />
@@ -1450,7 +1424,40 @@ async function apiGet(path) {
     clearTimeout(timer);
   }
 }
+async function fileToCompressedDataUrl(file, maxSize = 512, quality = 0.75) {
+  const { img, url } = await new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => resolve({ img, url });
+    img.onerror = reject;
+    img.src = url;
+  });
 
+  const w = img.naturalWidth || img.width;
+  const h = img.naturalHeight || img.height;
+
+  const scale = Math.min(1, maxSize / Math.max(w, h));
+  const tw = Math.max(1, Math.round(w * scale));
+  const th = Math.max(1, Math.round(h * scale));
+
+  const canvas = document.createElement("canvas");
+  canvas.width = tw;
+  canvas.height = th;
+  const ctx = canvas.getContext("2d");
+  ctx.drawImage(img, 0, 0, tw, th);
+
+  URL.revokeObjectURL(url);
+
+  let out = canvas.toDataURL("image/webp", quality);
+  if (!out || out.length < 20) out = canvas.toDataURL("image/jpeg", quality);
+
+  if (out.length > 250000) {
+    out = canvas.toDataURL("image/webp", 0.6);
+    if (!out || out.length < 20) out = canvas.toDataURL("image/jpeg", 0.6);
+  }
+
+  return out;
+}
 async function apiPost(path, body) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 12000); // 12s
@@ -1487,9 +1494,7 @@ async function apiPostTry(paths, body) {
     }
   }
   return last || { ok: false, error: "No endpoint responded" };
-}
-
-
+}// =========================== App.jsx (FULL FILE) — PART 4 / 5 ===========================
 
 function isValidSymbol(s) {
   const v = (s || "").trim();
@@ -1791,18 +1796,18 @@ function PriceChart({ points, txMarkers, mode, onToggleMode }) {
           </g>
         ))}
 
+        {/* ✅ STOP PULSE ANIMATION (static last point) */}
         <g>
-          <circle cx={lx} cy={ly} r="22" fill={`url(#${pid})`} opacity="0.65">
-            <animate attributeName="r" values="18;24;18" dur="1.6s" repeatCount="indefinite" />
-            <animate attributeName="opacity" values="0.55;0.75;0.55" dur="1.6s" repeatCount="indefinite" />
-          </circle>
+          <circle cx={lx} cy={ly} r="22" fill={`url(#${pid})`} opacity="0.65" />
           <circle cx={lx} cy={ly} r="7" fill={stroke} opacity="0.95" />
           <circle cx={lx} cy={ly} r="4" fill={mode === "dark" ? "#0A0F14" : "#FFFFFF"} opacity="0.9" />
         </g>
       </svg>
     </div>
   );
-}
+}// =========================== App.jsx (FULL FILE) — PART 5 / 5 ===========================
+// ✅ Paste this PART 5 by REPLACING your current PART 5 completely.
+// ✅ This PART 5 is COMPLETE (no “rest of screens paste later” wali kami nahi hogi).
 
 function ThemeOption({ theme, current, setTheme, label }) {
   const active = current === theme;
@@ -1881,32 +1886,30 @@ function NetLogo({ chain }) {
   );
 }
 
-
-
 export default function App() {
   const { login, authenticated, user, ready, logout, connectOrCreateWallet } = usePrivy();
   const { exportWallet } = useExportWallet();
 
- const [showIntro, setShowIntro] = useState(() => {
-  try {
-    return sessionStorage.getItem("introSeen") !== "1";
-  } catch {
-    return true;
-  }
-});
-
-useEffect(() => {
-  if (!showIntro) return;
-
-  const t = setTimeout(() => {
+  const [showIntro, setShowIntro] = useState(() => {
     try {
-      sessionStorage.setItem("introSeen", "1");
-    } catch {}
-    setShowIntro(false);
-  }, 5000);
+      return sessionStorage.getItem("introSeen") !== "1";
+    } catch {
+      return true;
+    }
+  });
 
-  return () => clearTimeout(t);
-}, [showIntro]);
+  useEffect(() => {
+    if (!showIntro) return;
+
+    const t = setTimeout(() => {
+      try {
+        sessionStorage.setItem("introSeen", "1");
+      } catch {}
+      setShowIntro(false);
+    }, 5000);
+
+    return () => clearTimeout(t);
+  }, [showIntro]);
 
   // ✅ capture ?ref= in URL (store once)
   useEffect(() => {
@@ -1946,6 +1949,18 @@ useEffect(() => {
 
   const [logoPreview, setLogoPreview] = useState("");
   const [logoError, setLogoError] = useState("");
+
+  const onPickLogo = async (file) => {
+    if (!file) return;
+
+    try {
+      const b64 = await fileToCompressedDataUrl(file, 512, 0.75);
+      setLogoPreview(b64);
+      setLogoError("");
+    } catch (e) {
+      setLogoError("Invalid image");
+    }
+  };
 
   const [profile, setProfile] = useState(null);
   const [loadingProfile, setLoadingProfile] = useState(false);
@@ -2030,7 +2045,6 @@ useEffect(() => {
     setLoadingProfile(false);
   }
 
-  // ✅ FIXED: no undefined "t"
   useEffect(() => {
     if (!authenticated || !solAddr) return;
 
@@ -2118,10 +2132,17 @@ useEffect(() => {
     return [...arr].sort((a, b) => (b.t || 0) - (a.t || 0));
   }, [profile]);
 
-  const myRewards = useMemo(() => profile?.rewards || { totalSol: 0, byCoin: {} }, [profile]);
+  // ✅ REWARDS FIX (robust fields)
+  const myRewards = useMemo(() => {
+    const r = profile?.rewards || profile?.creatorRewards || {};
+    const totalSol = Number(r?.totalSol ?? r?.total ?? r?.sol ?? profile?.creatorRewardsSol ?? 0) || 0;
+    const byCoin = r?.byCoin && typeof r.byCoin === "object" ? r.byCoin : {};
+    return { totalSol, byCoin };
+  }, [profile]);
 
   const myReferralRewardsSol = useMemo(() => {
-    const d = Number(profile?.referralRewards?.totalSol || 0);
+    const rr = profile?.referralRewards || profile?.refRewards || {};
+    const d = Number(rr?.totalSol ?? rr?.total ?? rr?.sol ?? profile?.referralRewardsSol ?? 0) || 0;
     return Number.isFinite(d) && d > 0 ? d : 0;
   }, [profile]);
 
@@ -2146,30 +2167,6 @@ useEffect(() => {
   const storyErr = !story ? "" : storyOk ? "" : "Story 20–300 chars";
   const solErr = paidOk ? "" : "Paid create min 0.01 SOL. Free = 0";
 
-  function fileToDataUrl(file) {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(String(reader.result || ""));
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
-    });
-  }
-
-  async function onPickLogo(file) {
-    setLogoError("");
-    setLogoPreview("");
-    if (!file) return;
-    const okType = ["image/png", "image/jpeg", "image/jpg", "image/webp"].includes(file.type);
-    if (!okType) return setLogoError("PNG/JPG/WEBP only");
-    if (file.size > MAX_LOGO_BYTES) return setLogoError("Logo 5MB se chota hona chahiye");
-    if (file.size < 10 * 1024) return setLogoError("Logo bohat choti (min 10KB)");
-    try {
-      setLogoPreview(await fileToDataUrl(file));
-    } catch {
-      setLogoError("Logo read failed");
-    }
-  }
-
   async function openPrivyBackup() {
     try {
       await connectOrCreateWallet?.();
@@ -2181,7 +2178,6 @@ useEffect(() => {
     }
   }
 
-  // ✅ FIXED doTrade (clean / no duplicate / no stuck loading)
   async function doTrade(coin, side, solAmount) {
     const s = Number(solAmount);
     if (!solAddr) return showToast("Wallet not ready");
@@ -2222,8 +2218,13 @@ useEffect(() => {
     if (!solAddr) return showToast("Wallet not ready");
     setOneClickW(kind);
 
-    const body = { wallet: solAddr, to: solAddr, kind };
-    const res = await apiPostTry(["/api/withdraw", "/api/withdraw/creator", "/api/withdraw/referral"], body);
+    const routes = ["/api/withdraw", "/api/withdraw/creator", "/api/withdraw/referral"];
+    const kindModern = kind === "REF" ? "REFERRAL" : kind === "CREATOR" ? "CREATOR" : kind;
+
+    let res = await apiPostTry(routes, { wallet: solAddr, to: solAddr, kind: kindModern });
+    if (!res?.ok) {
+      res = await apiPostTry(routes, { wallet: solAddr, to: solAddr, kind });
+    }
 
     if (res?.ok) {
       showToast("Withdraw ✅ (sent to main wallet)");
@@ -2252,9 +2253,6 @@ useEffect(() => {
 
   // -------------------- UI CONTENT --------------------
   let content = null;
-  if (showIntro) {
-  return <SplashIntro />;
-}
 
   if (!ready) {
     content = (
@@ -2342,7 +2340,9 @@ useEffect(() => {
           <Card>
             <SectionHeader title="Quick actions" />
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-              <MiniBtn tone="good" onClick={() => setScreen("CREATE")}>✦ Create coin</MiniBtn>
+              <MiniBtn tone="good" onClick={() => setScreen("CREATE")}>
+                ✦ Create coin
+              </MiniBtn>
               <MiniBtn onClick={() => setScreen("SEARCH")}>⌕ Search</MiniBtn>
               <MiniBtn onClick={() => setScreen("PROFILE")}>👤 Profile</MiniBtn>
               <MiniBtn onClick={() => setScreen("SETTINGS")}>⚙ Settings</MiniBtn>
@@ -2448,7 +2448,10 @@ useEffect(() => {
             <MiniBtn onClick={() => setSearchMode("TOPVOL")} style={{ flex: 1, opacity: searchMode === "TOPVOL" ? 1 : 0.7 }}>
               Top Volume
             </MiniBtn>
-            <MiniBtn onClick={() => setSearchMode("TOPMOVES")} style={{ flex: 1, opacity: searchMode === "TOPMOVES" ? 1 : 0.7 }}>
+            <MiniBtn
+              onClick={() => setSearchMode("TOPMOVES")}
+              style={{ flex: 1, opacity: searchMode === "TOPMOVES" ? 1 : 0.7 }}
+            >
               Top Moves 24h
             </MiniBtn>
           </div>
@@ -2607,7 +2610,9 @@ useEffect(() => {
               right={
                 <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
                   <MiniBtn onClick={() => setScreen("HOME")}>Back</MiniBtn>
-                  <MiniBtn onClick={() => copyText(c.id)} tone="warn">Copy ID</MiniBtn>
+                  <MiniBtn onClick={() => copyText(c.id)} tone="warn">
+                    Copy ID
+                  </MiniBtn>
                 </div>
               }
             >
@@ -2871,8 +2876,12 @@ useEffect(() => {
                   <div style={{ fontWeight: 950 }}>{balance} SOL</div>
                 </div>
                 <div style={{ display: "flex", gap: 10 }}>
-                  <MiniBtn tone="good" disabled={!solAddr} onClick={openDeposit}>Deposit</MiniBtn>
-                  <MiniBtn tone="warn" disabled={!solAddr} onClick={openWithdraw}>Withdraw</MiniBtn>
+                  <MiniBtn tone="good" disabled={!solAddr} onClick={openDeposit}>
+                    Deposit
+                  </MiniBtn>
+                  <MiniBtn tone="warn" disabled={!solAddr} onClick={openWithdraw}>
+                    Withdraw
+                  </MiniBtn>
                 </div>
               </div>
 
@@ -2993,7 +3002,7 @@ useEffect(() => {
               </div>
             </Card>
 
-            <Card>
+            <Card data-noanim="1">
               <SectionHeader title="My Holdings" right={<Pill>{holdingsEnriched.length}</Pill>} />
               <div style={{ display: "grid", gap: 10 }}>
                 {holdingsEnriched.length === 0 ? (
@@ -3147,6 +3156,7 @@ useEffect(() => {
     <>
       <ThemeStyles />
 
+      {/* ✅ Show intro overlay (auto hides after 5s) */}
       {showIntro ? <SplashIntro logoUrl={APP_LOGO_URL} /> : null}
 
       {content}
@@ -3236,4 +3246,3 @@ useEffect(() => {
     </>
   );
 }
-
