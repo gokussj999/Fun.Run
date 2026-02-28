@@ -232,13 +232,24 @@ async function loadStoreOnce() {
       return STORE_CACHE;
     }
 
-    const { data, error } = await supabase.from(SUPABASE_TABLE).select("data").eq("id", "main").maybeSingle();
+    const { data, error } = await supabase
+      .from(SUPABASE_TABLE)
+      .select("data")
+      .eq("id", "main")
+      .maybeSingle();
+
     if (error) throw new Error("Supabase read failed: " + error.message);
 
-    if (!data?.data) {
+    // If row not found -> create once
+    if (!data || !data.data) {
       const init = defaultStore();
-      const { error: e2 } = await supabase.from(SUPABASE_TABLE).upsert({ id: "main", data: init }, { onConflict: "id" });
-      if (e2) throw new Error("Supabase init failed: " + e2.message);
+
+      const { error: e2 } = await supabase
+        .from(SUPABASE_TABLE)
+        .upsert({ id: "main", data: init }, { onConflict: "id" });
+
+      if (e2) throw e2;
+
       STORE_CACHE = init;
       return STORE_CACHE;
     }
@@ -252,11 +263,12 @@ async function loadStoreOnce() {
   return s;
 }
 
-function scheduleSupabaseWrite() {
+function scheduleWrite() {
   if (DB_MODE !== "supabase" || !supabase) return;
-  WRITE_PENDING = true;
 
+  WRITE_PENDING = true;
   if (WRITE_TIMER) return;
+
   WRITE_TIMER = setTimeout(async () => {
     WRITE_TIMER = null;
     if (!WRITE_PENDING) return;
@@ -266,10 +278,16 @@ function scheduleSupabaseWrite() {
       const store = STORE_CACHE || defaultStore();
       store.updatedAt = nowMS();
 
-      if (Array.isArray(store.lastTx)) store.lastTx = store.lastTx.slice(0, 200);
-      if (Array.isArray(store.coins)) store.coins = store.coins.slice(0, 2000);
+      if (Array.isArray(store.lastTx))
+        store.lastTx = store.lastTx.slice(0, 200);
 
-      const { error } = await supabase.from(SUPABASE_TABLE).upsert({ id: "main", data: store }, { onConflict: "id" });
+      if (Array.isArray(store.coins))
+        store.coins = store.coins.slice(0, 2000);
+
+      const { error } = await supabase
+        .from(SUPABASE_TABLE)
+        .upsert({ id: "main", data: store }, { onConflict: "id" });
+
       if (error) console.log("Supabase write failed:", error.message);
     } catch (e) {
       console.log("Supabase write exception:", e?.message || e);
