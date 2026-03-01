@@ -619,11 +619,41 @@ async function doTrade(req, res, side) {
       return res.json({ ok: false, error: "wallet/coinId/sol required" });
     }
 
-    const store = await loadStoreOnce();
-    const coinRaw = findCoin(store, coinId);
-    if (!coinRaw) return res.json({ ok: false, error: "token not found" });
+   let store = null;
+let coin = null;
 
-    const coin = ensureCoin(coinRaw);
+// ✅ Supabase mode: coins table se coin lao
+if (DB_MODE === "supabase") {
+  const { data, error } = await supabase
+    .from("coins")
+    .select("*")
+    .eq("id", coinId)
+    .maybeSingle();
+
+  if (error || !data) {
+    return res.json({ ok: false, error: "token not found" });
+  }
+
+  coin = ensureCoin({
+    id: data.id,
+    name: data.name,
+    symbol: data.symbol,
+    story: data.story || "",
+    logo: data.logo || "",
+    creatorWallet: data.creator_wallet || "",
+    owner: data.creator_wallet || "",
+    status: "LIVE",
+    createdAt: data.created_at ? new Date(data.created_at).getTime() : nowMS(),
+  });
+
+  // store rewards/logs ke liye (agar use ho raha)
+  store = await loadStoreOnce();
+} else {
+  store = await loadStoreOnce();
+  const coinRaw = findCoin(store, coinId);
+  if (!coinRaw) return res.json({ ok: false, error: "token not found" });
+  coin = ensureCoin(coinRaw);
+}
     ensureProfile(store, wallet);
 
     if (String(side).toLowerCase() === "buy") {
