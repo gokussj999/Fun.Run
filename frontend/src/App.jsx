@@ -1805,7 +1805,9 @@ function PriceChart({ points, txMarkers, mode, onToggleMode }) {
       </svg>
     </div>
   );
-}// =========================== App.jsx (FULL FILE) — PART 5 / 5 ===========================
+}
+
+// =========================== App.jsx (FULL FILE) — PART 5 / 5 ===========================
 // ✅ Paste this PART 5 by REPLACING your current PART 5 completely.
 // ✅ This PART 5 is COMPLETE (no “rest of screens paste later” wali kami nahi hogi).
 

@@ -449,6 +449,34 @@ app.get("/api/balance/:wallet", async (req, res) => {
 // coin list
 app.get("/api/coin/list", async (req, res) => {
   try {
+    // ✅ Supabase mode: coins table se lao
+    if (DB_MODE === "supabase") {
+      const { data, error } = await supabase
+        .from("coins")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (error) return res.status(500).json({ ok: false, error: error.message });
+
+      // UI ko same shape me do (ensureCoin compatible)
+      const coins = (data || []).map((r) =>
+        ensureCoin({
+          id: r.id,
+          name: r.name,
+          symbol: r.symbol,
+          story: r.story || "",
+          logo: r.logo || "",
+          creatorWallet: r.creator_wallet || "",
+          owner: r.creator_wallet || "",
+          status: "LIVE",
+          createdAt: r.created_at ? new Date(r.created_at).getTime() : nowMS(),
+        })
+      );
+
+      return res.json({ ok: true, coins });
+    }
+
+    // ✅ File mode: old behavior
     const store = await loadStoreOnce();
     const coins = (store.coins || []).map(ensureCoin);
     coins.sort((a, b) => safeNum(b.createdAt) - safeNum(a.createdAt));
@@ -473,8 +501,7 @@ app.post("/api/coin/create", async (req, res) => {
       return res.json({ ok: false, error: "name/symbol/creatorWallet required" });
     }
 
-    const store = await loadStoreOnce();
-    store.coins = Array.isArray(store.coins) ? store.coins : [];
+  
 
     const totalSupply = TOTAL_SUPPLY;
     const vTokens = (totalSupply * VIRTUAL_TOKEN_PCT) / 100;
@@ -504,7 +531,24 @@ app.post("/api/coin/create", async (req, res) => {
       volumeSol: Math.max(0, initialSol),
       holders: {},
       chart: [], // will be created in ensureCoin
-    });
+    });  
+    
+    if (DB_MODE === "supabase") {
+  const row = {
+    id: coin.id,
+    name: coin.name,
+    symbol: coin.symbol,
+    story: coin.story || "",
+    logo: coin.logo || "",
+    creator_wallet: creatorWallet,
+    created_at: new Date().toISOString(),
+  };
+
+  const { error } = await supabase.from("coins").insert([row]);
+  if (error) return res.json({ ok: false, error: "Supabase insert failed: " + error.message });
+
+  return res.json({ ok: true, coin });
+}
 
     // push into store
     store.coins.unshift(coin);
@@ -699,6 +743,38 @@ app.post("/api/withdraw", async (req, res) => {
 
       return res.json({ ok: true, kind: "REF", amountSol: amt, to: wallet });
     }
+
+    // -------------------- SUPABASE WRITE (debounced) --------------------
+async function flushSupabaseNow() {
+  if (!supabase) throw new Error("Supabase not configured");
+
+  // store ko yahan se lo (jo tum already use kar rahe ho)
+  const store = STORE_CACHE || (await readDB());
+
+  const { error } = await supabase
+    .from(SUPABASE_TABLE)
+    .upsert({ id: "main", data: store }, { onConflict: "id" });
+
+  if (error) throw new Error("Supabase write failed: " + error.message);
+}
+
+function scheduleSupabaseWrite() {
+  if (writeTimer) return;
+  writeTimer = setTimeout(async () => {
+    writeTimer = null;
+    try {
+      await flushSupabaseNow();
+    } catch (e) {
+      console.error("Supabase DB flush failed:", e?.message || e);
+    }
+  }, 600);
+}
+
+// ✅ ONE unified scheduler (use this everywhere)
+function scheduleStoreWrite() {
+  if (DB_MODE === "supabase") scheduleSupabaseWrite();
+  else scheduleFileWrite();
+}
 
     if (kind === "CREATOR") {
       const amt = safeNum(p.creatorRewardsSol, 0);
