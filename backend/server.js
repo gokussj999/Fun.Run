@@ -447,35 +447,22 @@ app.get("/api/balance/:wallet", async (req, res) => {
   }
 });
 
+
 // coin list
 app.get("/api/coin/list", async (req, res) => {
   try {
-    // ✅ Supabase mode: coins table se lao
     if (DB_MODE === "supabase") {
       const { data, error } = await supabase
         .from("coins")
         .select("*")
         .order("created_at", { ascending: false });
 
-      if (error) return res.status(500).json({ ok: false, error: error.message });
-      const coins2 = (data || []).map((r) =>
-  ensureCoin({
-    id: r.id,
-    name: r.name,
-    symbol: r.symbol,
-    story: r.story || "",
-    logo: r.logo || "",
-    creatorWallet: r.creator_wallet || "",
-    owner: r.creator_wallet || "",
-    status: "LIVE",
-    createdAt: r.created_at ? new Date(r.created_at).getTime() : nowMS(),
-  })
-);
+      if (error) {
+        console.log("coin/list supabase error:", error.message);
+        return res.status(500).json({ ok: false, error: error.message });
+      }
 
-return res.json({ ok: true, coins });
-
-      // UI ko same shape me do (ensureCoin compatible)
-      const coins = (data || []).map((r) =>
+      const coinsOut = (data || []).map((r) =>
         ensureCoin({
           id: r.id,
           name: r.name,
@@ -489,14 +476,14 @@ return res.json({ ok: true, coins });
         })
       );
 
-      return res.json({ ok: true, coins });
+      return res.json({ ok: true, coins: coinsOut });
     }
 
-    // ✅ File mode: old behavior
+    // file mode
     const store = await loadStoreOnce();
-    const coins = (store.coins || []).map(ensureCoin);
-    coins.sort((a, b) => safeNum(b.createdAt) - safeNum(a.createdAt));
-    return res.json({ ok: true, coins });
+    const coinsOut = (store.coins || []).map(ensureCoin);
+    coinsOut.sort((a, b) => safeNum(b.createdAt) - safeNum(a.createdAt));
+    return res.json({ ok: true, coins: coinsOut });
   } catch (e) {
     console.log("coin/list error:", e?.message || e);
     return res.status(500).json({ ok: false, error: String(e?.message || e) });

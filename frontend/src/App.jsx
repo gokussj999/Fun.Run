@@ -2148,10 +2148,21 @@ export default function App() {
     return Number.isFinite(d) && d > 0 ? d : 0;
   }, [profile]);
 
-  const myCreations = useMemo(() => {
-    if (!solAddr) return [];
-    return coinsSorted.filter((c) => String(c.creatorWallet || c.owner || "") === String(solAddr));
-  }, [coinsSorted, solAddr]);
+ const myCreations = useMemo(() => {
+  if (!solAddr) return [];
+
+  const w = String(solAddr).trim().toLowerCase();
+
+  return coinsSorted.filter((c) => {
+    const cw = String(
+      c.creatorWallet || c.creator_wallet || c.owner || ""
+    )
+      .trim()
+      .toLowerCase();
+
+    return cw === w;
+  });
+}, [coinsSorted, solAddr]);
 
   const symbolUpper = (symbol || "").toUpperCase().replace(/\s+/g, "");
 
