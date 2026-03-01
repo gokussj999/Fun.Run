@@ -18,7 +18,8 @@ const TRUST_PROXY = String(process.env.TRUST_PROXY || "") === "1";
 
 const DB_MODE = String(process.env.DB_MODE || "supabase").toLowerCase(); // "supabase"
 const SUPABASE_URL = process.env.SUPABASE_URL || "";
-const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_KEY || "";
+const SUPABASE_SERVICE_ROLE_KEY =
+  process.env.SUPABASE_SERVICE_ROLE_KEY || "";
 const SUPABASE_TABLE = String(process.env.SUPABASE_TABLE || "pumpmini_store");
 
 const SOLANA_RPC = process.env.SOLANA_RPC || "https://api.devnet.solana.com";
