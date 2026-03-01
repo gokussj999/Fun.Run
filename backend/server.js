@@ -458,6 +458,21 @@ app.get("/api/coin/list", async (req, res) => {
         .order("created_at", { ascending: false });
 
       if (error) return res.status(500).json({ ok: false, error: error.message });
+      const coins2 = (data || []).map((r) =>
+  ensureCoin({
+    id: r.id,
+    name: r.name,
+    symbol: r.symbol,
+    story: r.story || "",
+    logo: r.logo || "",
+    creatorWallet: r.creator_wallet || "",
+    owner: r.creator_wallet || "",
+    status: "LIVE",
+    createdAt: r.created_at ? new Date(r.created_at).getTime() : nowMS(),
+  })
+);
+
+return res.json({ ok: true, coins });
 
       // UI ko same shape me do (ensureCoin compatible)
       const coins = (data || []).map((r) =>
