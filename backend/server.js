@@ -632,6 +632,7 @@ if (DB_MODE === "supabase") {
 
   if (error || !data) {
     return res.json({ ok: false, error: "token not found" });
+    store = await loadStoreOnce();
   }
 
   coin = ensureCoin({
