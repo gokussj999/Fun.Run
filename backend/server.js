@@ -451,44 +451,37 @@ app.get("/api/balance/:wallet", async (req, res) => {
 // coin list
 app.get("/api/coin/list", async (req, res) => {
   try {
+    let store = STORE_CACHE;
+
     if (DB_MODE === "supabase") {
       const { data, error } = await supabase
-        .from("coins")
-        .select("*")
-        .order("created_at", { ascending: false });
+        .from(SUPABASE_TABLE)
+        .select("data")
+        .eq("id", "main")
+        .single();
 
-      if (error) {
+      if (error && error.code !== "PGRST116") {
         console.log("coin/list supabase error:", error.message);
         return res.status(500).json({ ok: false, error: error.message });
       }
 
-      const coinsOut = (data || []).map((r) =>
-        ensureCoin({
-          id: r.id,
-          name: r.name,
-          symbol: r.symbol,
-          story: r.story || "",
-          logo: r.logo || "",
-          creatorWallet: r.creator_wallet || "",
-          owner: r.creator_wallet || "",
-          status: "LIVE",
-          createdAt: r.created_at ? new Date(r.created_at).getTime() : nowMS(),
-        })
-      );
-
-      return res.json({ ok: true, coins: coinsOut });
+      store = data?.data || { coins: [] };
+      STORE_CACHE = store;
     }
 
-    // file mode
-    const store = await loadStoreOnce();
-    const coinsOut = (store.coins || []).map(ensureCoin);
-    coinsOut.sort((a, b) => safeNum(b.createdAt) - safeNum(a.createdAt));
-    return res.json({ ok: true, coins: coinsOut });
+    const coinsOut = (store?.coins || [])
+      .map((c) => ensureCoin(c))
+      .sort((a, b) => Number(b.createdAt || 0) - Number(a.createdAt || 0));
+
+    res.json({ ok: true, coins: coinsOut });
+
   } catch (e) {
-    console.log("coin/list error:", e?.message || e);
-    return res.status(500).json({ ok: false, error: String(e?.message || e) });
+    console.log("coin/list route error:", e?.message || e);
+    res.status(500).json({ ok: false, error: String(e?.message || e) });
   }
 });
+
+     
 
 // create coin
 app.post("/api/coin/create", async (req, res) => {
@@ -600,7 +593,7 @@ app.post("/api/referral/set", async (req, res) => {
     p.updatedAt = nowMS();
 
     STORE_CACHE = store;
-    scheduleSupabaseWrite();
+    scheduleStoreWrite();
 
     return res.json({ ok: true, referrer });
   } catch (e) {
@@ -680,7 +673,7 @@ if (DB_MODE === "supabase") {
       });
 
       STORE_CACHE = store;
-      scheduleSupabaseWrite();
+      scheduleStoreWrite();
 
       return res.json({ ok: true, coin, tokens: r.tokensOut, fee: r.feeSol });
     }
@@ -708,7 +701,7 @@ if (DB_MODE === "supabase") {
       });
 
       STORE_CACHE = store;
-      scheduleSupabaseWrite();
+      scheduleStoreWrite();
 
       return res.json({ ok: true, coin, tokens: r.tokensIn, fee: r.feeSol });
     }
@@ -773,7 +766,7 @@ app.post("/api/withdraw", async (req, res) => {
       p.updatedAt = nowMS();
 
       STORE_CACHE = store;
-      scheduleSupabaseWrite();
+      scheduleStoreWrite();
 
       return res.json({ ok: true, kind: "REF", amountSol: amt, to: wallet });
     }
@@ -810,22 +803,22 @@ function scheduleStoreWrite() {
   else scheduleFileWrite();
 }
 
-    if (kind === "CREATOR") {
-      const amt = safeNum(p.creatorRewardsSol, 0);
-      if (amt <= 0) return res.json({ ok: false, error: "No creator rewards" });
-      p.creatorRewardsSol = 0;
-      p.updatedAt = nowMS();
+if (kind === "CREATOR") {
+  const amt = safeNum(p.creatorRewardsSol, 0);
+  if (amt <= 0) return res.json({ ok: false, error: "No creator rewards" });
+  p.creatorRewardsSol = 0;
+  p.updatedAt = nowMS();
 
-      STORE_CACHE = store;
-      scheduleSupabaseWrite();
+  STORE_CACHE = store;
+  scheduleStoreWrite();
 
-      return res.json({ ok: true, kind: "CREATOR", amountSol: amt, to: wallet });
-    }
+  return res.json({ ok: true, kind: "CREATOR", amountSol: amt, to: wallet });
+}
 
-    return res.json({ ok: false, error: "Unsupported kind (use REF or CREATOR)" });
-  } catch (e) {
-    return res.status(500).json({ ok: false, error: String(e?.message || e) });
-  }
+return res.json({ ok: false, error: "Unsupported kind (use REF or CREATOR)" });
+} catch (e) {
+  return res.status(500).json({ ok: false, error: String(e?.message || e) });
+}
 });
 
 // aliases your frontend tries
