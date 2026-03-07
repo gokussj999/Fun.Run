@@ -660,53 +660,70 @@ async function doTrade(req, res, side) {
       return res.json({ ok: false, error: "wallet/coinId/sol required" });
     }
 
-   let store = null;
-let coin = null;
+    let store = await loadStoreOnce();
+    if (!store || typeof store !== "object") {
+      store = { coins: [], profiles: {}, lastTx: [] };
+    }
+    if (!Array.isArray(store.coins)) store.coins = [];
+    if (!Array.isArray(store.lastTx)) store.lastTx = [];
 
-// ✅ Supabase mode: coins table se coin lao
-if (DB_MODE === "supabase") {
-  const { data, error } = await supabase
-    .from("coins")
-    .select("*")
-    .eq("id", coinId)
-    .maybeSingle();
+    let coin = null;
 
-  if (error || !data) {
-    return res.json({ ok: false, error: "token not found" });
-    store = await loadStoreOnce();
-  }
+    // ✅ Supabase mode: coins table se coin lao
+    if (DB_MODE === "supabase") {
+      const { data, error } = await supabase
+        .from("coins")
+        .select("*")
+        .eq("id", coinId)
+        .maybeSingle();
 
-  coin = ensureCoin({
-    id: data.id,
-    name: data.name,
-    symbol: data.symbol,
-    story: data.story || "",
-    logo: data.logo || "",
-    creatorWallet: data.creator_wallet || "",
-    owner: data.creator_wallet || "",
-    status: "LIVE",
-    createdAt: data.created_at ? new Date(data.created_at).getTime() : nowMS(),
-  });
+      if (error || !data) {
+        return res.json({ ok: false, error: "token not found" });
+      }
 
-  // store rewards/logs ke liye (agar use ho raha)
-  store = await loadStoreOnce();
-} else {
-  store = await loadStoreOnce();
-  const coinRaw = findCoin(store, coinId);
-  if (!coinRaw) return res.json({ ok: false, error: "token not found" });
-  coin = ensureCoin(coinRaw);
-}
+      coin = ensureCoin({
+        id: data.id,
+        name: data.name,
+        symbol: data.symbol,
+        story: data.story || "",
+        logo: data.logo || "",
+        creatorWallet: data.creator_wallet || "",
+        owner: data.creator_wallet || "",
+        status: "LIVE",
+        createdAt: data.created_at ? new Date(data.created_at).getTime() : nowMS(),
+
+        // important runtime fields
+        supply: safeNum(data.supply, 0),
+        reserveSol: safeNum(data.reserve_sol, 0),
+        reserveToken: safeNum(data.reserve_token, 0),
+        volumeSol: safeNum(data.volume_sol, 0),
+        marketCap: safeNum(data.market_cap, 0),
+        lastPrice: safeNum(data.last_price, 0),
+        athMarketCap: safeNum(data.ath_market_cap, 0),
+        holders: data.holders || {},
+      });
+
+      // runtime store me bhi same coin sync rakho
+      const existingIdx = store.coins.findIndex((c) => String(c.id) === String(coinId));
+      if (existingIdx >= 0) store.coins[existingIdx] = coin;
+      else store.coins.unshift(coin);
+    } else {
+      const coinRaw = findCoin(store, coinId);
+      if (!coinRaw) return res.json({ ok: false, error: "token not found" });
+      coin = ensureCoin(coinRaw);
+    }
+
     ensureProfile(store, wallet);
 
     if (String(side).toLowerCase() === "buy") {
       const r = ammBuy(coin, wallet, sol);
 
-      // fee distribution (creator + referral)
       distributeFee(store, coin, r.feeSol);
       distributeReferral(store, wallet, r.feeSol);
 
       const idx = store.coins.findIndex((c) => String(c.id) === String(coinId));
       if (idx >= 0) store.coins[idx] = coin;
+      else store.coins.unshift(coin);
 
       pushLastTx(store, {
         id: uid(),
@@ -721,8 +738,32 @@ if (DB_MODE === "supabase") {
       });
 
       STORE_CACHE = store;
-      scheduleStoreWrite();
 
+      // ✅ Supabase coins table bhi update karo
+      if (DB_MODE === "supabase") {
+        const { error: updateErr } = await supabase
+          .from("coins")
+          .update({
+            story: coin.story || "",
+            logo: coin.logo || "",
+            supply: safeNum(coin.supply, 0),
+            reserve_sol: safeNum(coin.reserveSol, 0),
+            reserve_token: safeNum(coin.reserveToken, 0),
+            volume_sol: safeNum(coin.volumeSol, 0),
+            market_cap: safeNum(coin.marketCap, 0),
+            last_price: safeNum(coin.lastPrice, 0),
+            ath_market_cap: safeNum(coin.athMarketCap, 0),
+            holders: coin.holders || {},
+          })
+          .eq("id", coinId);
+
+        if (updateErr) {
+          console.log("buy coin update error:", updateErr.message || updateErr);
+          return res.status(500).json({ ok: false, error: String(updateErr.message || updateErr) });
+        }
+      }
+
+      scheduleStoreWrite();
       return res.json({ ok: true, coin, tokens: r.tokensOut, fee: r.feeSol });
     }
 
@@ -735,6 +776,7 @@ if (DB_MODE === "supabase") {
 
       const idx = store.coins.findIndex((c) => String(c.id) === String(coinId));
       if (idx >= 0) store.coins[idx] = coin;
+      else store.coins.unshift(coin);
 
       pushLastTx(store, {
         id: uid(),
@@ -749,8 +791,32 @@ if (DB_MODE === "supabase") {
       });
 
       STORE_CACHE = store;
-      scheduleStoreWrite();
 
+      // ✅ Supabase coins table bhi update karo
+      if (DB_MODE === "supabase") {
+        const { error: updateErr } = await supabase
+          .from("coins")
+          .update({
+            story: coin.story || "",
+            logo: coin.logo || "",
+            supply: safeNum(coin.supply, 0),
+            reserve_sol: safeNum(coin.reserveSol, 0),
+            reserve_token: safeNum(coin.reserveToken, 0),
+            volume_sol: safeNum(coin.volumeSol, 0),
+            market_cap: safeNum(coin.marketCap, 0),
+            last_price: safeNum(coin.lastPrice, 0),
+            ath_market_cap: safeNum(coin.athMarketCap, 0),
+            holders: coin.holders || {},
+          })
+          .eq("id", coinId);
+
+        if (updateErr) {
+          console.log("sell coin update error:", updateErr.message || updateErr);
+          return res.status(500).json({ ok: false, error: String(updateErr.message || updateErr) });
+        }
+      }
+
+      scheduleStoreWrite();
       return res.json({ ok: true, coin, tokens: r.tokensIn, fee: r.feeSol });
     }
 
