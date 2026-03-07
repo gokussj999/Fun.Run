@@ -2031,7 +2031,7 @@ export default function App() {
   async function loadCoins() {
     setLoadingCoins(true);
     try {
-      const data = await apiGet("/api/coin/list");
+      const data = await apiGet(`/api/coin/list?t=${Date.now()}`);
       if (data?.ok) setCoins((data.coins || []).map(ensureCoinShape));
     } catch {}
     setLoadingCoins(false);
@@ -2060,15 +2060,21 @@ export default function App() {
   }, [authenticated, solAddr]);
 
   useEffect(() => {
-    loadCoins();
-  }, []);
+  loadCoins();
+}, []);
 
-  useEffect(() => {
-    if (!authenticated) return;
-    if (!(screen === "HOME" || screen === "LATEST")) return;
-    const t = setInterval(() => loadCoins(), 20000);
-    return () => clearInterval(t);
-  }, [screen, authenticated]);
+useEffect(() => {
+  if (!authenticated) return;
+  if (!(screen === "HOME" || screen === "LATEST")) return;
+
+  loadCoins(); // ✅ screen/auth true hote hi turant reload
+
+  const t = setInterval(() => {
+    loadCoins();
+  }, 20000);
+
+  return () => clearInterval(t);
+}, [screen, authenticated]);
 
   const coinsSorted = useMemo(() => {
     const arr = [...coins];

@@ -510,9 +510,7 @@ app.get("/api/coin/list", async (req, res) => {
           creatorWallet: r.creator_wallet || "",
           owner: r.creator_wallet || "",
           status: "LIVE",
-          createdAt: r.created_at
-            ? new Date(r.created_at).getTime()
-            : Date.now(),
+          createdAt: r.created_at ? new Date(r.created_at).getTime() : Date.now(),
         })
       );
 
@@ -858,7 +856,6 @@ function scheduleSupabaseWrite() {
   }, 600);
 }
 
-// ✅ ONE unified scheduler (use this everywhere)
 function scheduleStoreWrite() {
   if (DB_MODE === "supabase") scheduleSupabaseWrite();
   else scheduleFileWrite();
