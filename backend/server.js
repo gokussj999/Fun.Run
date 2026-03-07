@@ -225,43 +225,81 @@ let WRITE_PENDING = false;
 
 async function loadStoreOnce() {
   if (STORE_CACHE) return STORE_CACHE;
-  if (STORE_LOADING) return STORE_LOADING;
 
-  STORE_LOADING = (async () => {
-    if (DB_MODE !== "supabase" || !supabase) {
-      STORE_CACHE = defaultStore();
+  // ---------- FILE MODE ----------
+  if (DB_MODE !== "supabase") {
+    try {
+      const raw = await fs.readFile(DB_FILE, "utf8");
+      const parsed = JSON.parse(raw || "{}");
+      STORE_CACHE = {
+        coins: Array.isArray(parsed.coins) ? parsed.coins.map(ensureCoin) : [],
+        profiles: parsed.profiles || {},
+        txs: Array.isArray(parsed.txs) ? parsed.txs : [],
+      };
+      return STORE_CACHE;
+    } catch {
+      STORE_CACHE = { coins: [], profiles: {}, txs: [] };
       return STORE_CACHE;
     }
+  }
 
+  // ---------- SUPABASE MODE ----------
+  // 1) Pehle unified store se read karo
+  let unifiedStore = { coins: [], profiles: {}, txs: [] };
+
+  try {
     const { data, error } = await supabase
       .from(SUPABASE_TABLE)
       .select("data")
       .eq("id", "main")
-      .maybeSingle();
+      .single();
 
-    if (error) throw new Error("Supabase read failed: " + error.message);
-
-    // If row not found -> create once
-    if (!data || !data.data) {
-      const init = defaultStore();
-
-      const { error: e2 } = await supabase
-        .from(SUPABASE_TABLE)
-        .upsert({ id: "main", data: init }, { onConflict: "id" });
-
-      if (e2) throw e2;
-
-      STORE_CACHE = init;
-      return STORE_CACHE;
+    if (!error && data?.data) {
+      unifiedStore = {
+        coins: Array.isArray(data.data.coins) ? data.data.coins.map(ensureCoin) : [],
+        profiles: data.data.profiles || {},
+        txs: Array.isArray(data.data.txs) ? data.data.txs : [],
+      };
     }
+  } catch (e) {
+    console.log("loadStoreOnce unified read failed:", e?.message || e);
+  }
 
-    STORE_CACHE = data.data;
-    return STORE_CACHE;
-  })();
+  // 2) Agar unified store me coins empty hon to legacy `coins` table se fallback lo
+  if (!unifiedStore.coins.length) {
+    try {
+      const { data: legacyCoins, error: legacyErr } = await supabase
+        .from("coins")
+        .select("*")
+        .order("created_at", { ascending: false });
 
-  const s = await STORE_LOADING;
-  STORE_LOADING = null;
-  return s;
+      if (!legacyErr && Array.isArray(legacyCoins) && legacyCoins.length) {
+        unifiedStore.coins = legacyCoins.map((r) =>
+          ensureCoin({
+            id: r.id,
+            name: r.name,
+            symbol: r.symbol,
+            story: r.story || "",
+            logo: r.logo || "",
+            creatorWallet: r.creator_wallet || "",
+            owner: r.creator_wallet || "",
+            status: "LIVE",
+            createdAt: r.created_at ? new Date(r.created_at).getTime() : Date.now(),
+          })
+        );
+
+        // fallback se load karne ke baad unified store me bhi save kar do
+        STORE_CACHE = unifiedStore;
+        await flushSupabaseNow();
+        return STORE_CACHE;
+      }
+    } catch (e) {
+      console.log("loadStoreOnce legacy coin fallback failed:", e?.message || e);
+    }
+  }
+
+  STORE_CACHE = unifiedStore;
+  return STORE_CACHE;
 }
 
 function scheduleWrite() {
@@ -451,33 +489,45 @@ app.get("/api/balance/:wallet", async (req, res) => {
 // coin list
 app.get("/api/coin/list", async (req, res) => {
   try {
-    let store = STORE_CACHE;
-
     if (DB_MODE === "supabase") {
       const { data, error } = await supabase
-        .from(SUPABASE_TABLE)
-        .select("data")
-        .eq("id", "main")
-        .single();
+        .from("coins")
+        .select("*")
+        .order("created_at", { ascending: false });
 
-      if (error && error.code !== "PGRST116") {
+      if (error) {
         console.log("coin/list supabase error:", error.message);
         return res.status(500).json({ ok: false, error: error.message });
       }
 
-      store = data?.data || { coins: [] };
-      STORE_CACHE = store;
+      const coinsOut = (data || []).map((r) =>
+        ensureCoin({
+          id: r.id,
+          name: r.name,
+          symbol: r.symbol,
+          story: r.story || "",
+          logo: r.logo || "",
+          creatorWallet: r.creator_wallet || "",
+          owner: r.creator_wallet || "",
+          status: "LIVE",
+          createdAt: r.created_at
+            ? new Date(r.created_at).getTime()
+            : Date.now(),
+        })
+      );
+
+      return res.json({ ok: true, coins: coinsOut });
     }
 
+    const store = await loadStoreOnce();
     const coinsOut = (store?.coins || [])
       .map((c) => ensureCoin(c))
       .sort((a, b) => Number(b.createdAt || 0) - Number(a.createdAt || 0));
 
-    res.json({ ok: true, coins: coinsOut });
-
+    return res.json({ ok: true, coins: coinsOut });
   } catch (e) {
     console.log("coin/list route error:", e?.message || e);
-    res.status(500).json({ ok: false, error: String(e?.message || e) });
+    return res.status(500).json({ ok: false, error: String(e?.message || e) });
   }
 });
 
@@ -771,19 +821,30 @@ app.post("/api/withdraw", async (req, res) => {
       return res.json({ ok: true, kind: "REF", amountSol: amt, to: wallet });
     }
 
-    // -------------------- SUPABASE WRITE (debounced) --------------------
 async function flushSupabaseNow() {
-  if (!supabase) throw new Error("Supabase not configured");
+  const store = STORE_CACHE || { coins: [], profiles: {}, txs: [] };
 
-  // store ko yahan se lo (jo tum already use kar rahe ho)
-  const store = STORE_CACHE || (await readDB());
+  const cleanStore = {
+    coins: Array.isArray(store.coins) ? store.coins.map(ensureCoin) : [],
+    profiles: store.profiles || {},
+    txs: Array.isArray(store.txs) ? store.txs : [],
+  };
 
   const { error } = await supabase
     .from(SUPABASE_TABLE)
-    .upsert({ id: "main", data: store }, { onConflict: "id" });
+    .upsert(
+      {
+        id: "main",
+        data: cleanStore,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "id" }
+    );
 
-  if (error) throw new Error("Supabase write failed: " + error.message);
+  if (error) throw error;
 }
+
+let writeTimer = null;
 
 function scheduleSupabaseWrite() {
   if (writeTimer) return;
@@ -796,6 +857,8 @@ function scheduleSupabaseWrite() {
     }
   }, 600);
 }
+
+
 
 // ✅ ONE unified scheduler (use this everywhere)
 function scheduleStoreWrite() {
@@ -826,14 +889,29 @@ app.post("/api/withdraw/creator", (req, res) => app._router.handle({ ...req, url
 app.post("/api/withdraw/referral", (req, res) => app._router.handle({ ...req, url: "/api/withdraw" }, res, () => {}));
 
 // -------------------- START --------------------
-app.listen(PORT, () => {
-  console.log("✅ Backend running on port:", PORT);
-  console.log("✅ Solana RPC:", SOLANA_RPC);
-  console.log("✅ DB MODE:", DB_MODE);
-  console.log("✅ CORS_ORIGINS:", CORS_ORIGINS.join(", "));
-  console.log("✅ JSON_LIMIT:", JSON_LIMIT);
-  console.log("✅ Fee:", FEE_PCT + "%");
-  console.log("✅ Rewards: creator", CREATOR_PCT_OF_FEE + "% of fee,", "referral", REFERRAL_PCT_OF_FEE + "% of fee");
-  console.log("✅ AMM virtual:", "vSOL", VIRTUAL_SOL, "vTOK%", VIRTUAL_TOKEN_PCT);
-  console.log("✅ SOL_USD:", SOL_USD);
-});
+function startServer(port) {
+
+  const server = app.listen(port, () => {
+    console.log("✅ Backend running on port:", port);
+    console.log("✅ Solana RPC:", SOLANA_RPC);
+    console.log("✅ DB MODE:", DB_MODE);
+    console.log("✅ CORS_ORIGINS:", CORS_ORIGINS.join(", "));
+    console.log("✅ JSON_LIMIT:", JSON_LIMIT);
+    console.log("✅ Fee:", FEE_PCT + "%");
+    console.log("✅ Rewards: creator", CREATOR_PCT_OF_FEE + "% of fee,", "referral", REFERRAL_PCT_OF_FEE + "% of fee");
+    console.log("✅ AMM virtual:", "vSOL", VIRTUAL_SOL, "vTOK%", VIRTUAL_TOKEN_PCT);
+    console.log("✅ SOL_USD:", SOL_USD);
+  });
+
+  server.on("error", (err) => {
+    if (err.code === "EADDRINUSE" && !process.env.PORT) {
+      console.log(`⚠️ Port ${port} busy hai, ${port + 1} try kar raha hoon...`);
+      startServer(port + 1);
+      return;
+    }
+    throw err;
+  });
+
+}
+
+startServer(Number(process.env.PORT || 5000));
