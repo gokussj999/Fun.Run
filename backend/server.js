@@ -876,23 +876,6 @@ if (kind === "CREATOR") {
   return res.json({ ok: true, kind: "CREATOR", amountSol: amt, to: wallet });
 }
 
-// ✅ ONE unified scheduler (use this everywhere)
-function scheduleStoreWrite() {
-  if (DB_MODE === "supabase") scheduleSupabaseWrite();
-  else scheduleFileWrite();
-}
-
-if (kind === "CREATOR") {
-  const amt = safeNum(p.creatorRewardsSol, 0);
-  if (amt <= 0) return res.json({ ok: false, error: "No creator rewards" });
-  p.creatorRewardsSol = 0;
-  p.updatedAt = nowMS();
-
-  STORE_CACHE = store;
-  scheduleStoreWrite();
-
-  return res.json({ ok: true, kind: "CREATOR", amountSol: amt, to: wallet });
-}
 
 if (kind === "CREATOR") {
   const amt = safeNum(p.creatorRewardsSol, 0);
