@@ -1511,22 +1511,29 @@ function isValidStory(s) {
 }
 
 function ensureCoinShape(c) {
-  const live = c?.status === "LIVE";
-  const baseMC = live ? Number(c?.mc || STARTING_MC_USD) : 0;
-  const baseATH = live ? Number(c?.ath || baseMC || STARTING_MC_USD) : 0;
+  const live = String(c?.status || "").toUpperCase() === "LIVE";
+
+  const mcRaw = Number(c?.mc || 0);
+  const mc = live ? (mcRaw > 0 ? mcRaw : STARTING_MC_USD) : 0;
+
+  const athRaw = Number(c?.ath || 0);
+  const ath = live ? Math.max(athRaw || 0, mc) : 0;
+
+  const rawChart = Array.isArray(c?.chart) ? c.chart.map((n) => Number(n || 0)) : [];
+  const validChart = rawChart.filter((n) => Number.isFinite(n) && n > 0);
+
   const chart =
-    Array.isArray(c?.chart) && c.chart.length
-      ? c.chart
-      : live
-      ? [baseMC, baseMC, baseMC, baseMC, baseMC]
+    live
+      ? (validChart.length ? validChart : [mc, mc, mc, mc, mc])
       : [0, 0, 0, 0, 0];
 
   return {
     ...c,
-    mc: baseMC,
-    ath: baseATH,
+    status: live ? "LIVE" : String(c?.status || "DRAFT"),
+    mc,
+    ath,
     chart,
-    createdAt: c?.createdAt || Date.now(),
+    createdAt: Number(c?.createdAt || Date.now()),
     volumeSol: Number(c?.volumeSol || 0),
     creatorRewardsSol: Number(c?.creatorRewardsSol || 0),
     totalSupply: Number(c?.totalSupply || 0),
@@ -1623,9 +1630,9 @@ function PriceChart({ points, txMarkers, mode, onToggleMode }) {
 
   const safePoints = Array.isArray(points) && points.length ? points : [0, 0, 0, 0, 0];
 
-  const min = Math.min(...safePoints);
-  const max = Math.max(...safePoints);
-  const span = Math.max(1, max - min);
+const min = Math.min(...safePoints);
+const max = Math.max(...safePoints);
+const span = Math.max(1, max - min);
 
   const bg = mode === "dark" ? "#070B12" : "#FFFFFF";
   const border = mode === "dark" ? "rgba(255,255,255,.10)" : "rgba(0,0,0,.10)";
@@ -2028,29 +2035,35 @@ export default function App() {
     setLoadingBal(false);
   }
 
-  async function loadCoins() {
-    setLoadingCoins(true);
-    try {
-      const data = await apiGet(`/api/coin/list?t=${Date.now()}`);
-      if (data?.ok) setCoins((data.coins || []).map(ensureCoinShape));
-    } catch {}
-    setLoadingCoins(false);
-  }
+ async function loadCoins() {
+  setLoadingCoins(true);
+  try {
+    const data = await apiGet(`/api/coin/list?t=${Date.now()}`);
+    if (data?.ok) setCoins((data.coins || []).map(ensureCoinShape));
+  } catch {}
+  setLoadingCoins(false);
+}
 
   async function loadProfile() {
-    if (!solAddr) return;
-    setLoadingProfile(true);
-    try {
-      const j = await apiGet(`/api/profile/${solAddr}`);
-      if (j?.ok) setProfile(j.profile || null);
-    } catch {}
-    setLoadingProfile(false);
-  }
+  if (!solAddr) return;
+  setLoadingProfile(true);
+  try {
+    const j = await apiGet(`/api/profile/${solAddr}`);
+    if (j?.ok) {
+      setProfile({
+        ...(j.profile || {}),
+        myCreations: Array.isArray(j.myCreations) ? j.myCreations : [],
+        lastTx: Array.isArray(j.lastTx) ? j.lastTx : [],
+      });
+    }
+  } catch {}
+  setLoadingProfile(false);
+}
 
   useEffect(() => {
     if (!authenticated || !solAddr) return;
 
-    loadProfile();
+     loadProfile();
 
     const t = setTimeout(() => {
       refreshBalance();
@@ -2067,7 +2080,7 @@ useEffect(() => {
   if (!authenticated) return;
   if (!(screen === "HOME" || screen === "LATEST")) return;
 
-  loadCoins(); // ✅ screen/auth true hote hi turant reload
+  loadCoins();
 
   const t = setInterval(() => {
     loadCoins();
@@ -2155,20 +2168,18 @@ useEffect(() => {
   }, [profile]);
 
  const myCreations = useMemo(() => {
+  const fromProfile = Array.isArray(profile?.myCreations) ? profile.myCreations : [];
+  if (fromProfile.length) return fromProfile.map(ensureCoinShape);
+
   if (!solAddr) return [];
 
-  const w = String(solAddr).trim().toLowerCase();
+  const w = String(solAddr).trim();
 
   return coinsSorted.filter((c) => {
-    const cw = String(
-      c.creatorWallet || c.creator_wallet || c.owner || ""
-    )
-      .trim()
-      .toLowerCase();
-
+    const cw = String(c.creatorWallet || c.creator_wallet || c.owner || "").trim();
     return cw === w;
   });
-}, [coinsSorted, solAddr]);
+}, [profile, coinsSorted, solAddr]);
 
   const symbolUpper = (symbol || "").toUpperCase().replace(/\s+/g, "");
 
@@ -2649,11 +2660,10 @@ useEffect(() => {
               </div>
             </div>
 
-            <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
-              <Pill>Supply: {Number(totalSupply || 0).toFixed(0)}</Pill>
-              <Pill tone="warn">Your: {Number(myHoldingForCoin || 0).toFixed(0)}</Pill>
-              <Pill tone={myPct >= 20 ? "danger" : "good"}>Share: {myPct.toFixed(2)}%</Pill>
-            </div>
+           <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
+  <Pill>Supply: {Number(totalSupply || 0).toFixed(0)}</Pill>
+  <Pill tone="warn">Your: {Number(myHoldingForCoin || 0).toFixed(0)}</Pill>
+</div>
 
             <PriceChart
               points={c.chart}

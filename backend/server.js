@@ -729,7 +729,44 @@ app.get("/api/profile/:wallet", async (req, res) => {
     const store = await loadStoreOnce();
     const p = ensureProfile(store, wallet);
 
-    const coins = (store.coins || []).map(ensureCoin);
+    let coins = (store.coins || []).map(ensureCoin);
+
+// Supabase mode me coins table se bhi fresh load karo
+if (DB_MODE === "supabase") {
+  try {
+    const { data } = await supabase
+      .from("coins")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (Array.isArray(data) && data.length) {
+      coins = data.map((r) =>
+        ensureCoin({
+          id: r.id,
+          name: r.name,
+          symbol: r.symbol,
+          story: r.story || "",
+          logo: r.logo || "",
+          creatorWallet: r.creator_wallet || "",
+          owner: r.creator_wallet || "",
+          status: "LIVE",
+          createdAt: r.created_at ? new Date(r.created_at).getTime() : Date.now(),
+          holders: r.holders || {},
+          volumeSol: r.volume_sol || 0,
+          lastTradeAt: r.last_trade_at || 0,
+          totalSupply: r.total_supply || TOTAL_SUPPLY,
+          solReserve: r.reserve_sol || 0,
+          tokenReserve: r.reserve_token || TOTAL_SUPPLY,
+          mc: r.market_cap || 0,
+          ath: r.ath_market_cap || 0,
+          priceSol: r.last_price || 0,
+        })
+      );
+    }
+  } catch (e) {
+    console.log("profile coin load error:", e?.message || e);
+  }
+}
 
     const myCreations = coins
       .filter((c) => String(c.creatorWallet || c.owner || "").trim() === wallet)
