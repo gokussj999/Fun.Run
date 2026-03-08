@@ -1,5 +1,4 @@
-// backend/server.js (FULL FILE) — STABLE AMM + CREATOR REWARDS + REFERRAL (DEMO)
-
+// backend/server.js
 import "dotenv/config";
 import express from "express";
 import cors from "cors";
@@ -13,41 +12,41 @@ import { Connection, PublicKey } from "@solana/web3.js";
 const app = express();
 
 // -------------------- ENV --------------------
-const PORT = Number(process.env.PORT || 8080);
+const PORT = Number(process.env.PORT || 5000);
 const TRUST_PROXY = String(process.env.TRUST_PROXY || "") === "1";
 
-const DB_MODE = String(process.env.DB_MODE || "supabase").toLowerCase(); // "supabase"
+const DB_MODE = String(process.env.DB_MODE || "supabase").toLowerCase();
 const SUPABASE_URL = process.env.SUPABASE_URL || "";
-const SUPABASE_SERVICE_ROLE_KEY =
-  process.env.SUPABASE_SERVICE_ROLE_KEY || "";
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
 const SUPABASE_TABLE = String(process.env.SUPABASE_TABLE || "pumpmini_store");
 
 const SOLANA_RPC = process.env.SOLANA_RPC || "https://api.devnet.solana.com";
+const JSON_LIMIT = process.env.JSON_LIMIT || "15mb";
 
 const CORS_ORIGINS = (process.env.CORS_ORIGINS || "http://localhost:5173")
   .split(",")
   .map((s) => s.trim())
   .filter(Boolean);
 
-const JSON_LIMIT = process.env.JSON_LIMIT || "15mb";
+// fees
+const FEE_PCT = clampNum(Number(process.env.FEE_PCT || 1), 0, 10);
+const REFERRAL_PCT_OF_FEE = clampNum(Number(process.env.REFERRAL_PCT_OF_FEE || 20), 0, 100);
+const CREATOR_PCT_OF_FEE = clampNum(Number(process.env.CREATOR_PCT_OF_FEE || 50), 0, 100);
+const SOL_USD = clampNum(Number(process.env.SOL_USD || 80), 1, 100000);
 
-// Fees & rewards
-const FEE_PCT = clampNum(Number(process.env.FEE_PCT || 1), 0, 10); // 1% default
-const REFERRAL_PCT_OF_FEE = clampNum(Number(process.env.REFERRAL_PCT_OF_FEE || 20), 0, 100); // 20% of fee
-const CREATOR_PCT_OF_FEE = clampNum(Number(process.env.CREATOR_PCT_OF_FEE || 50), 0, 100); // 50% of fee
-const SOL_USD = clampNum(Number(process.env.SOL_USD || 80), 1, 10000); // demo conversion (for UI MC)
+// amm
+const VIRTUAL_SOL = clampNum(Number(process.env.VIRTUAL_SOL || 10), 0, 1000000);
+const VIRTUAL_TOKEN_PCT = clampNum(Number(process.env.VIRTUAL_TOKEN_PCT || 20), 1, 95);
+const TOTAL_SUPPLY = clampNum(Number(process.env.TOTAL_SUPPLY || 1_000_000_000), 1, 100_000_000_000);
 
-// AMM stability (virtual liquidity)
-const VIRTUAL_SOL = clampNum(Number(process.env.VIRTUAL_SOL || 10), 0, 1_000_000);
-const VIRTUAL_TOKEN_PCT = clampNum(Number(process.env.VIRTUAL_TOKEN_PCT || 20), 1, 95); // 20% of supply as vTokens
-
-// Coin supply
-const TOTAL_SUPPLY = clampNum(Number(process.env.TOTAL_SUPPLY || 1_000_000_000), 1, 10_000_000_000);
+// limits
+const MAX_LAST_TX = 400;
+const MAX_COINS = 5000;
 
 // -------------------- APP SETUP --------------------
 if (TRUST_PROXY) app.set("trust proxy", 1);
 
-app.use(helmet());
+app.use(helmet({ crossOriginResourcePolicy: false }));
 app.use(compression());
 app.use(express.json({ limit: JSON_LIMIT }));
 app.use(
@@ -70,16 +69,7 @@ app.use(
 );
 app.use(morgan("tiny"));
 
-app.get("/", (req, res) => {
-  res.json({
-    ok: true,
-    name: "pumpmini-backend",
-    dbMode: DB_MODE,
-    ts: Date.now(),
-  });
-});
-
-// -------------------- SUPABASE + SOLANA --------------------
+// -------------------- CLIENTS --------------------
 const supabase =
   SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY
     ? createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
@@ -90,22 +80,33 @@ const supabase =
 const connection = new Connection(SOLANA_RPC, "confirmed");
 
 // -------------------- HELPERS --------------------
-const nowMS = () => Date.now();
-function clampNum(n, a, b) {
-  const x = Number(n);
-  if (!Number.isFinite(x)) return a;
-  return Math.max(a, Math.min(b, x));
+function nowMS() {
+  return Date.now();
 }
-const safeNum = (v, d = 0) => {
+
+function clampNum(n, min, max) {
+  const x = Number(n);
+  if (!Number.isFinite(x)) return min;
+  return Math.max(min, Math.min(max, x));
+}
+
+function safeNum(v, d = 0) {
   const n = Number(v);
   return Number.isFinite(n) ? n : d;
-};
-const uid = () => Math.random().toString(36).slice(2) + nowMS().toString(36);
+}
+
+function uid() {
+  return Math.random().toString(36).slice(2) + nowMS().toString(36);
+}
+
+function asObj(v, fallback = {}) {
+  return v && typeof v === "object" && !Array.isArray(v) ? v : fallback;
+}
 
 function defaultStore() {
   return {
     coins: [],
-    profiles: {}, // wallet => { referrer?, referralRewardsSol?, creatorRewardsSol? }
+    profiles: {},
     lastTx: [],
     createdAt: nowMS(),
     updatedAt: nowMS(),
@@ -114,9 +115,12 @@ function defaultStore() {
 }
 
 function ensureProfile(store, wallet) {
-  store.profiles = store.profiles && typeof store.profiles === "object" ? store.profiles : {};
-  if (!store.profiles[wallet]) {
-    store.profiles[wallet] = {
+  store.profiles = asObj(store.profiles, {});
+  const w = String(wallet || "").trim();
+  if (!w) return null;
+
+  if (!store.profiles[w]) {
+    store.profiles[w] = {
       referrer: "",
       referralRewardsSol: 0,
       creatorRewardsSol: 0,
@@ -124,27 +128,32 @@ function ensureProfile(store, wallet) {
       updatedAt: nowMS(),
     };
   }
-  return store.profiles[wallet];
+
+  return store.profiles[w];
 }
 
-function pushLastTx(store, tx) {
-  store.lastTx = Array.isArray(store.lastTx) ? store.lastTx : [];
-  store.lastTx.unshift(tx);
-  store.lastTx = store.lastTx.slice(0, 200);
+function calcPricing({ totalSupply, solReserve, tokenReserve, vSol, vTokens }) {
+  const x = Math.max(0, safeNum(solReserve, 0)) + Math.max(0, safeNum(vSol, 0));
+  const y = Math.max(1e-9, Math.max(0, safeNum(tokenReserve, 0)) + Math.max(0, safeNum(vTokens, 0)));
+
+  const priceSol = x / y;
+  const priceUsd = priceSol * SOL_USD;
+
+  const circulating = Math.max(0, safeNum(totalSupply, 0) - Math.max(0, safeNum(tokenReserve, 0)));
+  const mcUsd = priceUsd * circulating;
+
+  return { priceSol, priceUsd, mcUsd };
 }
 
-function ensureCoin(c = {}) {
-  const createdAt = safeNum(c?.createdAt, nowMS());
-  const status = c?.status || "DRAFT";
+function ensureCoin(input = {}) {
+  const totalSupply = safeNum(input.totalSupply, TOTAL_SUPPLY);
+  const vTokens = safeNum(input.vTokens, (totalSupply * VIRTUAL_TOKEN_PCT) / 100);
+  const vSol = safeNum(input.vSol, VIRTUAL_SOL);
 
-  const totalSupply = safeNum(c?.totalSupply, TOTAL_SUPPLY);
-  const vTokens = safeNum(c?.vTokens, (totalSupply * VIRTUAL_TOKEN_PCT) / 100);
-  const vSol = safeNum(c?.vSol, VIRTUAL_SOL);
+  const solReserve = Math.max(0, safeNum(input.solReserve, 0));
+  const tokenReserve = clampNum(safeNum(input.tokenReserve, totalSupply), 0, totalSupply);
 
-  const solReserve = safeNum(c?.solReserve, 0);
-  const tokenReserve = clampNum(safeNum(c?.tokenReserve, totalSupply), 0, totalSupply);
-
-  const { priceSol, priceUsd, mcUsd } = calcPricing({
+  const pricing = calcPricing({
     totalSupply,
     solReserve,
     tokenReserve,
@@ -152,326 +161,363 @@ function ensureCoin(c = {}) {
     vTokens,
   });
 
-  const mc = safeNum(c?.mc, status === "LIVE" ? mcUsd : 0);
-  const ath = safeNum(c?.ath, mc || 0);
+  const holders = asObj(input.holders, {});
+  const chartInput = Array.isArray(input.chart) ? input.chart.filter((n) => Number.isFinite(Number(n))).map(Number) : [];
 
+  const mc = safeNum(input.mc, pricing.mcUsd);
+  const ath = Math.max(safeNum(input.ath, mc), mc);
   const chart =
-    Array.isArray(c?.chart) && c.chart.length
-      ? c.chart
-      : status === "LIVE"
-      ? [mc, mc, mc, mc, mc]
-      : [0, 0, 0, 0, 0];
+    chartInput.length > 0
+      ? chartInput.slice(-120)
+      : [mc, mc, mc, mc, mc].map((n) => safeNum(n, 0));
 
   return {
-    id: c?.id || uid(),
-    name: String(c?.name || "").trim(),
-    symbol: String(c?.symbol || "").trim().toUpperCase(),
-    story: String(c?.story || "").trim(),
-    logo: c?.logo || "",
-    creatorWallet: c?.creatorWallet || c?.owner || "",
-    owner: c?.owner || c?.creatorWallet || "",
-    createdAt,
-    status,
+    id: String(input.id || uid()),
+    name: String(input.name || "").trim(),
+    symbol: String(input.symbol || "").trim().toUpperCase(),
+    story: String(input.story || "").trim(),
+    logo: String(input.logo || ""),
+    creatorWallet: String(input.creatorWallet || input.creator_wallet || input.owner || "").trim(),
+    owner: String(input.owner || input.creatorWallet || input.creator_wallet || "").trim(),
+    createdAt: safeNum(input.createdAt, nowMS()),
+    status: String(input.status || "LIVE").toUpperCase(),
 
     totalSupply,
-    holders: c?.holders && typeof c.holders === "object" ? c.holders : {},
-
-    // AMM reserves
+    vTokens,
+    vSol,
     solReserve,
     tokenReserve,
-    vSol,
-    vTokens,
+    holders,
 
-    // analytics
-    volumeSol: safeNum(c?.volumeSol, 0),
-    lastTradeAt: safeNum(c?.lastTradeAt, 0),
+    volumeSol: Math.max(0, safeNum(input.volumeSol, 0)),
+    lastTradeAt: safeNum(input.lastTradeAt, 0),
 
-    // UI-facing values (USD-based MC like your frontend expects)
-    priceSol,
-    priceUsd,
-    mc: mc,
-    ath: ath,
+    priceSol: pricing.priceSol,
+    priceUsd: pricing.priceUsd,
+    mc,
+    ath,
     chart,
 
-    // rewards
-    creatorRewardsSol: safeNum(c?.creatorRewardsSol, 0),
+    creatorRewardsSol: Math.max(0, safeNum(input.creatorRewardsSol, 0)),
   };
 }
 
-function calcPricing({ totalSupply, solReserve, tokenReserve, vSol, vTokens }) {
-  const x = Math.max(0, solReserve) + Math.max(0, vSol);
-  const y = Math.max(1e-9, Math.max(0, tokenReserve) + Math.max(0, vTokens));
+function sanitizeStore(storeLike) {
+  const src = storeLike && typeof storeLike === "object" ? storeLike : defaultStore();
+  const store = defaultStore();
 
-  const priceSol = x / y; // SOL per token
-  const priceUsd = priceSol * SOL_USD;
+  store.createdAt = safeNum(src.createdAt, nowMS());
+  store.updatedAt = safeNum(src.updatedAt, nowMS());
+  store.feePct = safeNum(src.feePct, FEE_PCT);
 
-  const circulating = Math.max(0, totalSupply - Math.max(0, tokenReserve));
-  const mcUsd = priceUsd * circulating;
+  store.coins = Array.isArray(src.coins) ? src.coins.map(ensureCoin).slice(0, MAX_COINS) : [];
+  store.profiles = asObj(src.profiles, {});
+  store.lastTx = Array.isArray(src.lastTx)
+    ? src.lastTx
+        .map((t) => ({
+          id: String(t?.id || uid()),
+          type: String(t?.type || t?.side || "TX").toUpperCase(),
+          side: String(t?.side || t?.type || "TX").toUpperCase(),
+          coinId: String(t?.coinId || ""),
+          wallet: String(t?.wallet || ""),
+          sol: Math.max(0, safeNum(t?.sol, 0)),
+          tokens: Math.max(0, safeNum(t?.tokens, 0)),
+          fee: Math.max(0, safeNum(t?.fee, 0)),
+          ts: safeNum(t?.ts || t?.t, nowMS()),
+        }))
+        .slice(0, MAX_LAST_TX)
+    : [];
 
-  return { priceSol, priceUsd, mcUsd };
+  for (const wallet of Object.keys(store.profiles)) {
+    const p = asObj(store.profiles[wallet], {});
+    store.profiles[wallet] = {
+      referrer: String(p.referrer || "").trim(),
+      referralRewardsSol: Math.max(0, safeNum(p.referralRewardsSol, 0)),
+      creatorRewardsSol: Math.max(0, safeNum(p.creatorRewardsSol, 0)),
+      createdAt: safeNum(p.createdAt, nowMS()),
+      updatedAt: safeNum(p.updatedAt, nowMS()),
+    };
+  }
+
+  return store;
 }
 
-function findCoin(store, coinId) {
-  const arr = Array.isArray(store.coins) ? store.coins : [];
-  return arr.find((x) => String(x.id) === String(coinId)) || null;
+function pushLastTx(store, tx) {
+  store.lastTx = Array.isArray(store.lastTx) ? store.lastTx : [];
+  store.lastTx.unshift({
+    id: String(tx?.id || uid()),
+    type: String(tx?.type || tx?.side || "TX").toUpperCase(),
+    side: String(tx?.side || tx?.type || "TX").toUpperCase(),
+    coinId: String(tx?.coinId || ""),
+    wallet: String(tx?.wallet || ""),
+    sol: Math.max(0, safeNum(tx?.sol, 0)),
+    tokens: Math.max(0, safeNum(tx?.tokens, 0)),
+    fee: Math.max(0, safeNum(tx?.fee, 0)),
+    ts: safeNum(tx?.ts, nowMS()),
+  });
+  store.lastTx = store.lastTx.slice(0, MAX_LAST_TX);
 }
 
-// -------------------- STORE CACHE + FAST WRITE (SUPABASE) --------------------
+function findCoinIndex(store, coinId) {
+  return (store.coins || []).findIndex((c) => String(c.id) === String(coinId));
+}
+
+function countReferrals(store, wallet) {
+  const w = String(wallet || "").trim();
+  if (!w) return 0;
+  const profiles = asObj(store.profiles, {});
+  let count = 0;
+  for (const key of Object.keys(profiles)) {
+    if (String(profiles[key]?.referrer || "").trim() === w) count += 1;
+  }
+  return count;
+}
+
+// -------------------- STORE CACHE --------------------
 let STORE_CACHE = null;
-let STORE_LOADING = null;
-
 let WRITE_TIMER = null;
-let WRITE_PENDING = false;
+let WRITE_IN_FLIGHT = false;
+let WRITE_AGAIN = false;
+
+async function loadLegacyCoinsIfNeeded(store) {
+  if (!supabase) return store;
+  if (Array.isArray(store.coins) && store.coins.length > 0) return store;
+
+  try {
+    const { data, error } = await supabase
+      .from("coins")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (error || !Array.isArray(data) || data.length === 0) return store;
+
+    const importedCoins = data.map((r) =>
+      ensureCoin({
+        id: r.id,
+        name: r.name,
+        symbol: r.symbol,
+        story: r.story || "",
+        logo: r.logo || "",
+        creatorWallet: r.creator_wallet || "",
+        owner: r.creator_wallet || "",
+        createdAt: r.created_at ? new Date(r.created_at).getTime() : nowMS(),
+        status: "LIVE",
+      })
+    );
+
+    const next = sanitizeStore({
+      ...store,
+      coins: importedCoins,
+    });
+
+    return next;
+  } catch (e) {
+    console.log("Legacy coins fallback failed:", e?.message || e);
+    return store;
+  }
+}
 
 async function loadStoreOnce() {
   if (STORE_CACHE) return STORE_CACHE;
 
-  // ---------- FILE MODE ----------
-  if (DB_MODE !== "supabase") {
-    try {
-      const raw = await fs.readFile(DB_FILE, "utf8");
-      const parsed = JSON.parse(raw || "{}");
-      STORE_CACHE = {
-        coins: Array.isArray(parsed.coins) ? parsed.coins.map(ensureCoin) : [],
-        profiles: parsed.profiles || {},
-        txs: Array.isArray(parsed.txs) ? parsed.txs : [],
-      };
-      return STORE_CACHE;
-    } catch {
-      STORE_CACHE = { coins: [], profiles: {}, txs: [] };
-      return STORE_CACHE;
-    }
+  if (DB_MODE !== "supabase" || !supabase) {
+    STORE_CACHE = defaultStore();
+    return STORE_CACHE;
   }
-
-  // ---------- SUPABASE MODE ----------
-  // 1) Pehle unified store se read karo
-  let unifiedStore = { coins: [], profiles: {}, txs: [] };
 
   try {
     const { data, error } = await supabase
       .from(SUPABASE_TABLE)
-      .select("data")
+      .select("id, data, updated_at")
       .eq("id", "main")
-      .single();
+      .maybeSingle();
 
-    if (!error && data?.data) {
-      unifiedStore = {
-        coins: Array.isArray(data.data.coins) ? data.data.coins.map(ensureCoin) : [],
-        profiles: data.data.profiles || {},
-        txs: Array.isArray(data.data.txs) ? data.data.txs : [],
-      };
+    if (error) {
+      console.log("Store read error:", error.message);
+      STORE_CACHE = await loadLegacyCoinsIfNeeded(defaultStore());
+      return STORE_CACHE;
     }
+
+    const base = sanitizeStore(data?.data || defaultStore());
+    STORE_CACHE = await loadLegacyCoinsIfNeeded(base);
+
+    if (!data?.data && STORE_CACHE) {
+      await flushStoreNow();
+    }
+
+    return STORE_CACHE;
   } catch (e) {
-    console.log("loadStoreOnce unified read failed:", e?.message || e);
+    console.log("Store load exception:", e?.message || e);
+    STORE_CACHE = await loadLegacyCoinsIfNeeded(defaultStore());
+    return STORE_CACHE;
   }
-
-  // 2) Agar unified store me coins empty hon to legacy `coins` table se fallback lo
-  if (!unifiedStore.coins.length) {
-    try {
-      const { data: legacyCoins, error: legacyErr } = await supabase
-        .from("coins")
-        .select("*")
-        .order("created_at", { ascending: false });
-
-      if (!legacyErr && Array.isArray(legacyCoins) && legacyCoins.length) {
-        unifiedStore.coins = legacyCoins.map((r) =>
-          ensureCoin({
-            id: r.id,
-            name: r.name,
-            symbol: r.symbol,
-            story: r.story || "",
-            logo: r.logo || "",
-            creatorWallet: r.creator_wallet || "",
-            owner: r.creator_wallet || "",
-            status: "LIVE",
-            createdAt: r.created_at ? new Date(r.created_at).getTime() : Date.now(),
-          })
-        );
-
-        // fallback se load karne ke baad unified store me bhi save kar do
-        STORE_CACHE = unifiedStore;
-        await flushSupabaseNow();
-        return STORE_CACHE;
-      }
-    } catch (e) {
-      console.log("loadStoreOnce legacy coin fallback failed:", e?.message || e);
-    }
-  }
-
-  STORE_CACHE = unifiedStore;
-  return STORE_CACHE;
 }
 
-function scheduleWrite() {
+async function flushStoreNow() {
   if (DB_MODE !== "supabase" || !supabase) return;
 
-  WRITE_PENDING = true;
+  const store = sanitizeStore(STORE_CACHE || defaultStore());
+  store.updatedAt = nowMS();
+  STORE_CACHE = store;
+
+  const payload = {
+    id: "main",
+    data: store,
+    updated_at: new Date().toISOString(),
+  };
+
+  const { error } = await supabase.from(SUPABASE_TABLE).upsert(payload, { onConflict: "id" });
+  if (error) throw error;
+}
+
+function scheduleStoreWrite() {
+  if (DB_MODE !== "supabase" || !supabase) return;
+
+  if (WRITE_IN_FLIGHT) {
+    WRITE_AGAIN = true;
+    return;
+  }
+
   if (WRITE_TIMER) return;
 
   WRITE_TIMER = setTimeout(async () => {
     WRITE_TIMER = null;
-    if (!WRITE_PENDING) return;
-    WRITE_PENDING = false;
+    WRITE_IN_FLIGHT = true;
 
     try {
-      const store = STORE_CACHE || defaultStore();
-      store.updatedAt = nowMS();
-
-      if (Array.isArray(store.lastTx))
-        store.lastTx = store.lastTx.slice(0, 200);
-
-      if (Array.isArray(store.coins))
-        store.coins = store.coins.slice(0, 2000);
-
-      const { error } = await supabase
-        .from(SUPABASE_TABLE)
-        .upsert({ id: "main", data: store }, { onConflict: "id" });
-
-      if (error) console.log("Supabase write failed:", error.message);
+      await flushStoreNow();
     } catch (e) {
-      console.log("Supabase write exception:", e?.message || e);
+      console.log("Store write failed:", e?.message || e);
+    } finally {
+      WRITE_IN_FLIGHT = false;
+      if (WRITE_AGAIN) {
+        WRITE_AGAIN = false;
+        scheduleStoreWrite();
+      }
     }
-  }, 700);
+  }, 250);
 }
-process.on("SIGTERM", () => scheduleWrite());
-process.on("SIGINT", () => scheduleWrite());
-// -------------------- AMM CORE --------------------
+
+// -------------------- AMM --------------------
 function applyFee(solAmount) {
-  const fee = solAmount * (FEE_PCT / 100);
-  const net = Math.max(0, solAmount - fee);
+  const gross = Math.max(0, safeNum(solAmount, 0));
+  const fee = gross * (FEE_PCT / 100);
+  const net = Math.max(0, gross - fee);
   return { fee, net };
 }
 
-function distributeFee(store, coin, feeSol) {
-  if (!feeSol || feeSol <= 0) return;
+function distributeFee(store, coin, traderWallet, feeSol) {
+  if (feeSol <= 0) return;
 
-  const creator = String(coin.creatorWallet || coin.owner || "").trim();
+  const creatorWallet = String(coin.creatorWallet || coin.owner || "").trim();
   const creatorPart = feeSol * (CREATOR_PCT_OF_FEE / 100);
 
-  if (creator) {
-    const p = ensureProfile(store, creator);
-    p.creatorRewardsSol = safeNum(p.creatorRewardsSol, 0) + creatorPart;
+  if (creatorWallet && creatorPart > 0) {
+    const p = ensureProfile(store, creatorWallet);
+    p.creatorRewardsSol = Math.max(0, safeNum(p.creatorRewardsSol, 0) + creatorPart);
     p.updatedAt = nowMS();
-    coin.creatorRewardsSol = safeNum(coin.creatorRewardsSol, 0) + creatorPart;
+    coin.creatorRewardsSol = Math.max(0, safeNum(coin.creatorRewardsSol, 0) + creatorPart);
   }
 
-  // Referral is paid to the referrer of the TRADER (wallet), handled in doTrade after wallet known
-}
-
-function distributeReferral(store, traderWallet, feeSol) {
-  if (!feeSol || feeSol <= 0) return;
   const trader = String(traderWallet || "").trim();
   if (!trader) return;
 
   const traderProfile = ensureProfile(store, trader);
-  const ref = String(traderProfile.referrer || "").trim();
-  if (!ref) return;
+  const referrer = String(traderProfile?.referrer || "").trim();
+  if (!referrer || referrer === trader) return;
 
   const refPart = feeSol * (REFERRAL_PCT_OF_FEE / 100);
   if (refPart <= 0) return;
 
-  const refProf = ensureProfile(store, ref);
-  refProf.referralRewardsSol = safeNum(refProf.referralRewardsSol, 0) + refPart;
-  refProf.updatedAt = nowMS();
+  const refP = ensureProfile(store, referrer);
+  refP.referralRewardsSol = Math.max(0, safeNum(refP.referralRewardsSol, 0) + refPart);
+  refP.updatedAt = nowMS();
+}
+
+function recalcCoin(coin) {
+  const fixed = ensureCoin(coin);
+  const nextChart = Array.isArray(coin.chart) && coin.chart.length ? coin.chart.slice(-119).concat([fixed.mc]) : [fixed.mc, fixed.mc, fixed.mc, fixed.mc, fixed.mc];
+  fixed.chart = nextChart.slice(-120);
+  fixed.ath = Math.max(safeNum(coin.ath, fixed.mc), fixed.mc);
+  return fixed;
 }
 
 function ammBuy(coin, wallet, solInGross) {
   const { fee, net } = applyFee(solInGross);
+  if (net <= 0) return { ok: false, error: "Invalid amount" };
 
-  const totalSupply = coin.totalSupply;
   const x = coin.solReserve + coin.vSol;
   const y = coin.tokenReserve + coin.vTokens;
   const k = x * y;
 
   const newX = x + net;
   const newY = k / Math.max(1e-9, newX);
-  const tokensOut = Math.max(0, y - newY);
+  const tokensOutRaw = Math.max(0, y - newY);
+  const tokensOut = Math.min(tokensOutRaw, coin.tokenReserve);
 
-  // Cap: can't take more than tokenReserve
-  const out = Math.min(tokensOut, coin.tokenReserve);
+  if (tokensOut <= 0) return { ok: false, error: "Pool empty" };
 
   coin.solReserve = coin.solReserve + net;
-  coin.tokenReserve = Math.max(0, coin.tokenReserve - out);
-
-  coin.holders = coin.holders && typeof coin.holders === "object" ? coin.holders : {};
-  coin.holders[wallet] = safeNum(coin.holders[wallet], 0) + out;
-
-  coin.volumeSol = safeNum(coin.volumeSol, 0) + solInGross;
+  coin.tokenReserve = Math.max(0, coin.tokenReserve - tokensOut);
+  coin.holders = asObj(coin.holders, {});
+  coin.holders[wallet] = Math.max(0, safeNum(coin.holders[wallet], 0) + tokensOut);
+  coin.volumeSol = Math.max(0, safeNum(coin.volumeSol, 0) + solInGross);
   coin.lastTradeAt = nowMS();
   coin.status = "LIVE";
 
-  const { mcUsd } = calcPricing({
-    totalSupply: totalSupply,
-    solReserve: coin.solReserve,
-    tokenReserve: coin.tokenReserve,
-    vSol: coin.vSol,
-    vTokens: coin.vTokens,
-  });
-
-  coin.mc = mcUsd;
-  coin.ath = Math.max(safeNum(coin.ath, 0), coin.mc);
-  coin.chart = [...(coin.chart || [])].slice(-70).concat([coin.mc]);
-
-  return { tokensOut: out, feeSol: fee, netSol: net };
+  return { ok: true, tokensOut, feeSol: fee, netSol: net };
 }
 
-// SELL: frontend sends "sol" input. We'll interpret it as "SOL OUT (gross)" target for demo.
 function ammSellBySolOut(coin, wallet, solOutGross) {
-  const { fee, net } = applyFee(solOutGross);
-  // We'll actually remove solOutGross from pool, fee counted as cost (for rewards)
-  // User would receive net, fee goes to rewards. (Demo)
+  const gross = Math.max(0, safeNum(solOutGross, 0));
+  if (gross <= 0) return { ok: false, error: "Invalid amount" };
+  if (coin.solReserve < gross) return { ok: false, error: "Pool has low SOL liquidity" };
 
-  const totalSupply = coin.totalSupply;
+  const { fee, net } = applyFee(gross);
+
   const x = coin.solReserve + coin.vSol;
   const y = coin.tokenReserve + coin.vTokens;
   const k = x * y;
 
-  const desiredGross = solOutGross;
-  if (desiredGross <= 0) return { ok: false, error: "Invalid amount" };
-  if (coin.solReserve < desiredGross) return { ok: false, error: "Pool has low SOL liquidity" };
-
-  const newX = Math.max(1e-9, x - desiredGross);
+  const newX = Math.max(1e-9, x - gross);
   const newY = k / newX;
-  const tokensIn = Math.max(0, newY - y); // tokens required to pay out that SOL
+  const tokensIn = Math.max(0, newY - y);
 
-  const have = safeNum(coin.holders?.[wallet], 0);
+  const have = Math.max(0, safeNum(coin.holders?.[wallet], 0));
   if (have < tokensIn) return { ok: false, error: "Not enough tokens" };
 
-  coin.holders[wallet] = have - tokensIn;
+  coin.holders[wallet] = Math.max(0, have - tokensIn);
+  if (coin.holders[wallet] <= 0.0000001) delete coin.holders[wallet];
 
-  coin.solReserve = Math.max(0, coin.solReserve - desiredGross);
-  coin.tokenReserve = Math.min(totalSupply, coin.tokenReserve + tokensIn);
-
-  coin.volumeSol = safeNum(coin.volumeSol, 0) + solOutGross;
+  coin.solReserve = Math.max(0, coin.solReserve - gross);
+  coin.tokenReserve = Math.min(coin.totalSupply, coin.tokenReserve + tokensIn);
+  coin.volumeSol = Math.max(0, safeNum(coin.volumeSol, 0) + gross);
   coin.lastTradeAt = nowMS();
   coin.status = "LIVE";
-
-  const { mcUsd } = calcPricing({
-    totalSupply: totalSupply,
-    solReserve: coin.solReserve,
-    tokenReserve: coin.tokenReserve,
-    vSol: coin.vSol,
-    vTokens: coin.vTokens,
-  });
-
-  coin.mc = mcUsd;
-  coin.ath = Math.max(safeNum(coin.ath, 0), coin.mc);
-  coin.chart = [...(coin.chart || [])].slice(-70).concat([coin.mc]);
 
   return { ok: true, tokensIn, feeSol: fee, netSol: net };
 }
 
 // -------------------- ROUTES --------------------
-app.get("/health", (req, res) =>
-  res.json({
+app.get("/", async (req, res) => {
+  return res.json({
     ok: true,
     name: "pumpmini-backend",
-    ts: Date.now(),
     dbMode: DB_MODE,
-  })
-);
+    ts: nowMS(),
+  });
+});
 
-// balance (chain read)
+app.get("/health", async (req, res) => {
+  const store = await loadStoreOnce();
+  return res.json({
+    ok: true,
+    dbMode: DB_MODE,
+    coins: Array.isArray(store?.coins) ? store.coins.length : 0,
+    ts: nowMS(),
+  });
+});
+
 app.get("/api/balance/:wallet", async (req, res) => {
   try {
     const wallet = String(req.params.wallet || "").trim();
@@ -485,75 +531,49 @@ app.get("/api/balance/:wallet", async (req, res) => {
   }
 });
 
-
-// coin list
 app.get("/api/coin/list", async (req, res) => {
   try {
-    if (DB_MODE === "supabase") {
-      const { data, error } = await supabase
-        .from("coins")
-        .select("*")
-        .order("created_at", { ascending: false });
-
-      if (error) {
-        console.log("coin/list supabase error:", error.message);
-        return res.status(500).json({ ok: false, error: error.message });
-      }
-
-      const coinsOut = (data || []).map((r) =>
-        ensureCoin({
-          id: r.id,
-          name: r.name,
-          symbol: r.symbol,
-          story: r.story || "",
-          logo: r.logo || "",
-          creatorWallet: r.creator_wallet || "",
-          owner: r.creator_wallet || "",
-          status: "LIVE",
-          createdAt: r.created_at ? new Date(r.created_at).getTime() : Date.now(),
-        })
-      );
-
-      return res.json({ ok: true, coins: coinsOut });
-    }
-
     const store = await loadStoreOnce();
-    const coinsOut = (store?.coins || [])
-      .map((c) => ensureCoin(c))
-      .sort((a, b) => Number(b.createdAt || 0) - Number(a.createdAt || 0));
+    const coinsOut = (store.coins || [])
+      .map(ensureCoin)
+      .sort((a, b) => {
+        const aLive = a.status === "LIVE" ? 1 : 0;
+        const bLive = b.status === "LIVE" ? 1 : 0;
+        if (aLive !== bLive) return bLive - aLive;
+        return safeNum(b.createdAt, 0) - safeNum(a.createdAt, 0);
+      });
 
-    return res.json({ ok: true, coins: coinsOut });
+    return res.json({
+      ok: true,
+      coins: coinsOut,
+      cached: true,
+      count: coinsOut.length,
+    });
   } catch (e) {
-    console.log("coin/list route error:", e?.message || e);
+    console.log("coin/list error:", e?.message || e);
     return res.status(500).json({ ok: false, error: String(e?.message || e) });
   }
 });
 
-     
-
-// create coin
 app.post("/api/coin/create", async (req, res) => {
   try {
     const name = String(req.body?.name || "").trim();
     const symbol = String(req.body?.symbol || "").trim().toUpperCase();
     const story = String(req.body?.story || "").trim();
-    const logo = req.body?.logo || "";
-    const initialSol = safeNum(req.body?.initialSol, 0);
+    const logo = String(req.body?.logo || "");
     const creatorWallet = String(req.body?.creatorWallet || "").trim();
+    const initialSol = Math.max(0, safeNum(req.body?.initialSol, 0));
 
     if (!name || !symbol || !creatorWallet) {
       return res.json({ ok: false, error: "name/symbol/creatorWallet required" });
     }
 
-  
+    const store = await loadStoreOnce();
+    ensureProfile(store, creatorWallet);
 
     const totalSupply = TOTAL_SUPPLY;
     const vTokens = (totalSupply * VIRTUAL_TOKEN_PCT) / 100;
     const vSol = VIRTUAL_SOL;
-
-    // Start reserves
-    const solReserve = Math.max(0, initialSol); // if 0, still stable because vSol exists
-    const tokenReserve = totalSupply; // initially all tokens in pool
 
     const coin = ensureCoin({
       id: uid(),
@@ -563,40 +583,19 @@ app.post("/api/coin/create", async (req, res) => {
       logo,
       creatorWallet,
       owner: creatorWallet,
-      status: "LIVE",
       createdAt: nowMS(),
-
+      status: "LIVE",
       totalSupply,
       vTokens,
       vSol,
-      solReserve,
-      tokenReserve,
-
-      volumeSol: Math.max(0, initialSol),
+      solReserve: initialSol,
+      tokenReserve: totalSupply,
       holders: {},
-      chart: [], // will be created in ensureCoin
-    });  
-    
-    if (DB_MODE === "supabase") {
-  const row = {
-    id: coin.id,
-    name: coin.name,
-    symbol: coin.symbol,
-    story: coin.story || "",
-    logo: coin.logo || "",
-    creator_wallet: creatorWallet,
-    created_at: new Date().toISOString(),
-  };
+      volumeSol: initialSol,
+    });
 
-  const { error } = await supabase.from("coins").insert([row]);
-  if (error) return res.json({ ok: false, error: "Supabase insert failed: " + error.message });
-
-  return res.json({ ok: true, coin });
-}
-
-    // push into store
     store.coins.unshift(coin);
-    store.coins = store.coins.slice(0, 2000);
+    store.coins = store.coins.slice(0, MAX_COINS);
 
     pushLastTx(store, {
       id: uid(),
@@ -604,12 +603,14 @@ app.post("/api/coin/create", async (req, res) => {
       side: "CREATE",
       coinId: coin.id,
       wallet: creatorWallet,
-      sol: Math.max(0, initialSol),
+      sol: initialSol,
+      tokens: 0,
+      fee: 0,
       ts: nowMS(),
     });
 
-    STORE_CACHE = store;
-    scheduleWrite();
+    STORE_CACHE = sanitizeStore(store);
+    scheduleStoreWrite();
 
     return res.json({ ok: true, coin });
   } catch (e) {
@@ -618,7 +619,6 @@ app.post("/api/coin/create", async (req, res) => {
   }
 });
 
-// referral set (locks once)
 app.post("/api/referral/set", async (req, res) => {
   try {
     const wallet = String(req.body?.wallet || "").trim();
@@ -626,201 +626,92 @@ app.post("/api/referral/set", async (req, res) => {
 
     if (!wallet || !referrer) return res.json({ ok: false, error: "wallet/referrer required" });
     if (wallet === referrer) return res.json({ ok: false, error: "invalid referrer" });
+    if (referrer.length < 20) return res.json({ ok: false, error: "invalid referrer" });
 
     const store = await loadStoreOnce();
     const p = ensureProfile(store, wallet);
 
-    if (p.referrer && String(p.referrer).trim()) {
+    if (p.referrer) {
       return res.json({ ok: false, error: "immutable: already set" });
     }
-
-    // soft validate (just length)
-    if (referrer.length < 20) return res.json({ ok: false, error: "invalid referrer" });
 
     p.referrer = referrer;
     p.updatedAt = nowMS();
 
-    STORE_CACHE = store;
+    ensureProfile(store, referrer);
+
+    STORE_CACHE = sanitizeStore(store);
     scheduleStoreWrite();
 
     return res.json({ ok: true, referrer });
   } catch (e) {
+    console.log("referral/set error:", e?.message || e);
     return res.status(500).json({ ok: false, error: String(e?.message || e) });
   }
 });
 
-// trade
 async function doTrade(req, res, side) {
   try {
     const wallet = String(req.body?.wallet || "").trim();
     const coinId = String(req.body?.coinId || "").trim();
-    const sol = safeNum(req.body?.sol, 0);
+    const sol = Math.max(0, safeNum(req.body?.sol, 0));
 
     if (!wallet || !coinId || sol <= 0) {
       return res.json({ ok: false, error: "wallet/coinId/sol required" });
     }
 
-    let store = await loadStoreOnce();
-    if (!store || typeof store !== "object") {
-      store = { coins: [], profiles: {}, lastTx: [] };
-    }
-    if (!Array.isArray(store.coins)) store.coins = [];
-    if (!Array.isArray(store.lastTx)) store.lastTx = [];
-
-    let coin = null;
-
-    // ✅ Supabase mode: coins table se coin lao
-    if (DB_MODE === "supabase") {
-      const { data, error } = await supabase
-        .from("coins")
-        .select("*")
-        .eq("id", coinId)
-        .maybeSingle();
-
-      if (error || !data) {
-        return res.json({ ok: false, error: "token not found" });
-      }
-
-      coin = ensureCoin({
-        id: data.id,
-        name: data.name,
-        symbol: data.symbol,
-        story: data.story || "",
-        logo: data.logo || "",
-        creatorWallet: data.creator_wallet || "",
-        owner: data.creator_wallet || "",
-        status: "LIVE",
-        createdAt: data.created_at ? new Date(data.created_at).getTime() : nowMS(),
-
-        // important runtime fields
-        supply: safeNum(data.supply, 0),
-        reserveSol: safeNum(data.reserve_sol, 0),
-        reserveToken: safeNum(data.reserve_token, 0),
-        volumeSol: safeNum(data.volume_sol, 0),
-        marketCap: safeNum(data.market_cap, 0),
-        lastPrice: safeNum(data.last_price, 0),
-        athMarketCap: safeNum(data.ath_market_cap, 0),
-        holders: data.holders || {},
-      });
-
-      // runtime store me bhi same coin sync rakho
-      const existingIdx = store.coins.findIndex((c) => String(c.id) === String(coinId));
-      if (existingIdx >= 0) store.coins[existingIdx] = coin;
-      else store.coins.unshift(coin);
-    } else {
-      const coinRaw = findCoin(store, coinId);
-      if (!coinRaw) return res.json({ ok: false, error: "token not found" });
-      coin = ensureCoin(coinRaw);
-    }
-
+    const store = await loadStoreOnce();
     ensureProfile(store, wallet);
 
+    const idx = findCoinIndex(store, coinId);
+    if (idx < 0) return res.json({ ok: false, error: "token not found" });
+
+    let coin = ensureCoin(store.coins[idx]);
+    let tradeResult = null;
+
     if (String(side).toLowerCase() === "buy") {
-      const r = ammBuy(coin, wallet, sol);
-
-      distributeFee(store, coin, r.feeSol);
-      distributeReferral(store, wallet, r.feeSol);
-
-      const idx = store.coins.findIndex((c) => String(c.id) === String(coinId));
-      if (idx >= 0) store.coins[idx] = coin;
-      else store.coins.unshift(coin);
-
-      pushLastTx(store, {
-        id: uid(),
-        type: "BUY",
-        side: "BUY",
-        coinId,
-        wallet,
-        sol,
-        tokens: r.tokensOut,
-        fee: r.feeSol,
-        ts: nowMS(),
-      });
-
-      STORE_CACHE = store;
-
-      // ✅ Supabase coins table bhi update karo
-      if (DB_MODE === "supabase") {
-        const { error: updateErr } = await supabase
-          .from("coins")
-          .update({
-            story: coin.story || "",
-            logo: coin.logo || "",
-            supply: safeNum(coin.supply, 0),
-            reserve_sol: safeNum(coin.reserveSol, 0),
-            reserve_token: safeNum(coin.reserveToken, 0),
-            volume_sol: safeNum(coin.volumeSol, 0),
-            market_cap: safeNum(coin.marketCap, 0),
-            last_price: safeNum(coin.lastPrice, 0),
-            ath_market_cap: safeNum(coin.athMarketCap, 0),
-            holders: coin.holders || {},
-          })
-          .eq("id", coinId);
-
-        if (updateErr) {
-          console.log("buy coin update error:", updateErr.message || updateErr);
-          return res.status(500).json({ ok: false, error: String(updateErr.message || updateErr) });
-        }
-      }
-
-      scheduleStoreWrite();
-      return res.json({ ok: true, coin, tokens: r.tokensOut, fee: r.feeSol });
+      tradeResult = ammBuy(coin, wallet, sol);
+      if (!tradeResult.ok) return res.json({ ok: false, error: tradeResult.error });
+    } else if (String(side).toLowerCase() === "sell") {
+      tradeResult = ammSellBySolOut(coin, wallet, sol);
+      if (!tradeResult.ok) return res.json({ ok: false, error: tradeResult.error });
+    } else {
+      return res.json({ ok: false, error: "invalid side" });
     }
 
-    if (String(side).toLowerCase() === "sell") {
-      const r = ammSellBySolOut(coin, wallet, sol);
-      if (!r.ok) return res.json({ ok: false, error: r.error });
+    distributeFee(store, coin, wallet, tradeResult.feeSol);
+    coin = recalcCoin(coin);
 
-      distributeFee(store, coin, r.feeSol);
-      distributeReferral(store, wallet, r.feeSol);
+    store.coins[idx] = coin;
 
-      const idx = store.coins.findIndex((c) => String(c.id) === String(coinId));
-      if (idx >= 0) store.coins[idx] = coin;
-      else store.coins.unshift(coin);
+    pushLastTx(store, {
+      id: uid(),
+      type: String(side).toUpperCase(),
+      side: String(side).toUpperCase(),
+      coinId,
+      wallet,
+      sol,
+      tokens:
+        String(side).toLowerCase() === "buy"
+          ? Math.max(0, safeNum(tradeResult.tokensOut, 0))
+          : Math.max(0, safeNum(tradeResult.tokensIn, 0)),
+      fee: Math.max(0, safeNum(tradeResult.feeSol, 0)),
+      ts: nowMS(),
+    });
 
-      pushLastTx(store, {
-        id: uid(),
-        type: "SELL",
-        side: "SELL",
-        coinId,
-        wallet,
-        sol,
-        tokens: r.tokensIn,
-        fee: r.feeSol,
-        ts: nowMS(),
-      });
+    STORE_CACHE = sanitizeStore(store);
+    scheduleStoreWrite();
 
-      STORE_CACHE = store;
-
-      // ✅ Supabase coins table bhi update karo
-      if (DB_MODE === "supabase") {
-        const { error: updateErr } = await supabase
-          .from("coins")
-          .update({
-            story: coin.story || "",
-            logo: coin.logo || "",
-            supply: safeNum(coin.supply, 0),
-            reserve_sol: safeNum(coin.reserveSol, 0),
-            reserve_token: safeNum(coin.reserveToken, 0),
-            volume_sol: safeNum(coin.volumeSol, 0),
-            market_cap: safeNum(coin.marketCap, 0),
-            last_price: safeNum(coin.lastPrice, 0),
-            ath_market_cap: safeNum(coin.athMarketCap, 0),
-            holders: coin.holders || {},
-          })
-          .eq("id", coinId);
-
-        if (updateErr) {
-          console.log("sell coin update error:", updateErr.message || updateErr);
-          return res.status(500).json({ ok: false, error: String(updateErr.message || updateErr) });
-        }
-      }
-
-      scheduleStoreWrite();
-      return res.json({ ok: true, coin, tokens: r.tokensIn, fee: r.feeSol });
-    }
-
-    return res.json({ ok: false, error: "invalid side" });
+    return res.json({
+      ok: true,
+      coin,
+      tokens:
+        String(side).toLowerCase() === "buy"
+          ? Math.max(0, safeNum(tradeResult.tokensOut, 0))
+          : Math.max(0, safeNum(tradeResult.tokensIn, 0)),
+      fee: Math.max(0, safeNum(tradeResult.feeSol, 0)),
+      netSol: Math.max(0, safeNum(tradeResult.netSol, 0)),
+    });
   } catch (e) {
     console.log("trade error:", e?.message || e);
     return res.status(500).json({ ok: false, error: String(e?.message || e) });
@@ -830,31 +721,76 @@ async function doTrade(req, res, side) {
 app.post("/api/coin/buy", (req, res) => doTrade(req, res, "buy"));
 app.post("/api/coin/sell", (req, res) => doTrade(req, res, "sell"));
 
-// profile
 app.get("/api/profile/:wallet", async (req, res) => {
   try {
     const wallet = String(req.params.wallet || "").trim();
+    if (!wallet) return res.json({ ok: false, error: "wallet required" });
+
     const store = await loadStoreOnce();
+    const p = ensureProfile(store, wallet);
 
-    const p = wallet ? ensureProfile(store, wallet) : {};
-    const myCreations = (store.coins || [])
-      .map(ensureCoin)
-      .filter((c) => String(c.creatorWallet || c.owner || "") === String(wallet))
-      .slice(0, 50);
+    const coins = (store.coins || []).map(ensureCoin);
 
-    const lastTx = (store.lastTx || []).slice(0, 80);
+    const myCreations = coins
+      .filter((c) => String(c.creatorWallet || c.owner || "").trim() === wallet)
+      .sort((a, b) => safeNum(b.createdAt, 0) - safeNum(a.createdAt, 0));
 
-    const profile = {
-      referrer: p?.referrer || "",
-      referralRewards: { totalSol: safeNum(p?.referralRewardsSol, 0) },
-      rewards: { totalSol: safeNum(p?.creatorRewardsSol, 0), byCoin: {} },
-    };
+    const holdings = coins
+      .map((c) => {
+        const amount = Math.max(0, safeNum(c.holders?.[wallet], 0));
+        if (amount <= 0) return null;
+        return {
+          coinId: c.id,
+          amount,
+          lastAt: Math.max(
+            safeNum(c.lastTradeAt, 0),
+            ...((store.lastTx || [])
+              .filter((t) => String(t.wallet || "") === wallet && String(t.coinId || "") === c.id)
+              .map((t) => safeNum(t.ts, 0)))
+          ),
+        };
+      })
+      .filter(Boolean)
+      .sort((a, b) => safeNum(b.lastAt, 0) - safeNum(a.lastAt, 0));
+
+    const txs = (store.lastTx || [])
+      .filter((t) => String(t.wallet || "") === wallet)
+      .map((t) => ({
+        id: t.id,
+        coinId: t.coinId,
+        side: t.side,
+        sol: safeNum(t.sol, 0),
+        tokens: safeNum(t.tokens, 0),
+        fee: safeNum(t.fee, 0),
+        t: safeNum(t.ts, 0),
+      }))
+      .sort((a, b) => safeNum(b.t, 0) - safeNum(a.t, 0))
+      .slice(0, 120);
+
+    const rewardsByCoin = {};
+    for (const c of myCreations) {
+      rewardsByCoin[c.id] = {
+        coinId: c.id,
+        symbol: c.symbol,
+        sol: Math.max(0, safeNum(c.creatorRewardsSol, 0)),
+      };
+    }
 
     return res.json({
       ok: true,
-      profile,
+      profile: {
+        referrer: p?.referrer || "",
+        referralCount: countReferrals(store, wallet),
+        referralRewards: { totalSol: Math.max(0, safeNum(p?.referralRewardsSol, 0)) },
+        rewards: {
+          totalSol: Math.max(0, safeNum(p?.creatorRewardsSol, 0)),
+          byCoin: rewardsByCoin,
+        },
+        holdings,
+        txs,
+      },
       myCreations,
-      lastTx,
+      lastTx: (store.lastTx || []).slice(0, 120),
       feePct: FEE_PCT,
     });
   } catch (e) {
@@ -863,129 +799,112 @@ app.get("/api/profile/:wallet", async (req, res) => {
   }
 });
 
-// withdraw endpoints (DEMO: just resets counters, no on-chain transfer)
 app.post("/api/withdraw", async (req, res) => {
   try {
     const wallet = String(req.body?.wallet || "").trim();
-    const kind = String(req.body?.kind || "").trim().toUpperCase(); // "CREATOR" | "REF" | "MANUAL"
+    const kindRaw = String(req.body?.kind || "").trim().toUpperCase();
+
     if (!wallet) return res.json({ ok: false, error: "wallet required" });
+
+    const kind =
+      kindRaw === "REFERRAL"
+        ? "REF"
+        : kindRaw === "REF"
+        ? "REF"
+        : kindRaw === "CREATOR"
+        ? "CREATOR"
+        : kindRaw === "MANUAL"
+        ? "MANUAL"
+        : "";
+
+    if (!kind) return res.json({ ok: false, error: "Unsupported kind (use REF or CREATOR)" });
+    if (kind === "MANUAL") return res.json({ ok: false, error: "Manual withdraw not enabled in demo backend" });
 
     const store = await loadStoreOnce();
     const p = ensureProfile(store, wallet);
 
     if (kind === "REF") {
-      const amt = safeNum(p.referralRewardsSol, 0);
+      const amt = Math.max(0, safeNum(p.referralRewardsSol, 0));
       if (amt <= 0) return res.json({ ok: false, error: "No referral rewards" });
+
       p.referralRewardsSol = 0;
       p.updatedAt = nowMS();
 
-      STORE_CACHE = store;
+      STORE_CACHE = sanitizeStore(store);
       scheduleStoreWrite();
 
       return res.json({ ok: true, kind: "REF", amountSol: amt, to: wallet });
     }
 
-async function flushSupabaseNow() {
-  const store = STORE_CACHE || { coins: [], profiles: {}, txs: [] };
+    if (kind === "CREATOR") {
+      const amt = Math.max(0, safeNum(p.creatorRewardsSol, 0));
+      if (amt <= 0) return res.json({ ok: false, error: "No creator rewards" });
 
-  const cleanStore = {
-    coins: Array.isArray(store.coins) ? store.coins.map(ensureCoin) : [],
-    profiles: store.profiles || {},
-    txs: Array.isArray(store.txs) ? store.txs : [],
-  };
+      p.creatorRewardsSol = 0;
+      p.updatedAt = nowMS();
 
-  const { error } = await supabase
-    .from(SUPABASE_TABLE)
-    .upsert(
-      {
-        id: "main",
-        data: cleanStore,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "id" }
-    );
+      STORE_CACHE = sanitizeStore(store);
+      scheduleStoreWrite();
 
-  if (error) throw error;
-}
-
-let writeTimer = null;
-
-function scheduleSupabaseWrite() {
-  if (writeTimer) return;
-  writeTimer = setTimeout(async () => {
-    writeTimer = null;
-    try {
-      await flushSupabaseNow();
-    } catch (e) {
-      console.error("Supabase DB flush failed:", e?.message || e);
+      return res.json({ ok: true, kind: "CREATOR", amountSol: amt, to: wallet });
     }
-  }, 600);
-}
 
-function scheduleStoreWrite() {
-  if (DB_MODE === "supabase") scheduleSupabaseWrite();
-  else scheduleFileWrite();
-}
-
-if (kind === "CREATOR") {
-  const amt = safeNum(p.creatorRewardsSol, 0);
-  if (amt <= 0) return res.json({ ok: false, error: "No creator rewards" });
-  p.creatorRewardsSol = 0;
-  p.updatedAt = nowMS();
-
-  STORE_CACHE = store;
-  scheduleStoreWrite();
-
-  return res.json({ ok: true, kind: "CREATOR", amountSol: amt, to: wallet });
-}
-
-
-if (kind === "CREATOR") {
-  const amt = safeNum(p.creatorRewardsSol, 0);
-  if (amt <= 0) return res.json({ ok: false, error: "No creator rewards" });
-  p.creatorRewardsSol = 0;
-  p.updatedAt = nowMS();
-
-  STORE_CACHE = store;
-  scheduleStoreWrite();
-
-  return res.json({ ok: true, kind: "CREATOR", amountSol: amt, to: wallet });
-}
-
-return res.json({ ok: false, error: "Unsupported kind (use REF or CREATOR)" });
-} catch (e) {
-  return res.status(500).json({ ok: false, error: String(e?.message || e) });
-}
+    return res.json({ ok: false, error: "Unsupported kind (use REF or CREATOR)" });
+  } catch (e) {
+    console.log("withdraw error:", e?.message || e);
+    return res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
 });
 
-// aliases your frontend tries
-app.post("/api/withdraw/creator", (req, res) => app._router.handle({ ...req, url: "/api/withdraw" }, res, () => {}));
-app.post("/api/withdraw/referral", (req, res) => app._router.handle({ ...req, url: "/api/withdraw" }, res, () => {}));
+app.post("/api/withdraw/creator", async (req, res) => {
+  req.body = { ...(req.body || {}), kind: "CREATOR" };
+  return app._router.handle(req, res, () => {});
+});
+
+app.post("/api/withdraw/referral", async (req, res) => {
+  req.body = { ...(req.body || {}), kind: "REF" };
+  return app._router.handle(req, res, () => {});
+});
 
 // -------------------- START --------------------
-function startServer(port) {
+async function start() {
+  try {
+    await loadStoreOnce();
 
-  const server = app.listen(port, () => {
-    console.log("✅ Backend running on port:", port);
-    console.log("✅ Solana RPC:", SOLANA_RPC);
-    console.log("✅ DB MODE:", DB_MODE);
-    console.log("✅ CORS_ORIGINS:", CORS_ORIGINS.join(", "));
-    console.log("✅ JSON_LIMIT:", JSON_LIMIT);
-    console.log("✅ Fee:", FEE_PCT + "%");
-    console.log("✅ Rewards: creator", CREATOR_PCT_OF_FEE + "% of fee,", "referral", REFERRAL_PCT_OF_FEE + "% of fee");
-    console.log("✅ AMM virtual:", "vSOL", VIRTUAL_SOL, "vTOK%", VIRTUAL_TOKEN_PCT);
-    console.log("✅ SOL_USD:", SOL_USD);
-  });
-
-  server.on("error", (err) => {
-    if (err.code === "EADDRINUSE" && !process.env.PORT) {
-      console.log(`⚠️ Port ${port} busy hai, ${port + 1} try kar raha hoon...`);
-      startServer(port + 1);
-      return;
-    }
-    throw err;
-  });
-
+    app.listen(PORT, () => {
+      console.log("✅ Backend running on port:", PORT);
+      console.log("✅ Solana RPC:", SOLANA_RPC);
+      console.log("✅ DB MODE:", DB_MODE);
+      console.log("✅ CORS_ORIGINS:", CORS_ORIGINS.join(", "));
+      console.log("✅ JSON_LIMIT:", JSON_LIMIT);
+      console.log("✅ Fee:", FEE_PCT + "%");
+      console.log(
+        "✅ Rewards: creator",
+        CREATOR_PCT_OF_FEE + "% of fee, referral",
+        REFERRAL_PCT_OF_FEE + "% of fee"
+      );
+      console.log("✅ AMM virtual:", "vSOL", VIRTUAL_SOL, "vTOK%", VIRTUAL_TOKEN_PCT);
+      console.log("✅ SOL_USD:", SOL_USD);
+      console.log("✅ Cached coins:", Array.isArray(STORE_CACHE?.coins) ? STORE_CACHE.coins.length : 0);
+    });
+  } catch (e) {
+    console.error("❌ Startup failed:", e?.message || e);
+    process.exit(1);
+  }
 }
 
-startServer(Number(process.env.PORT || 5000));
+process.on("SIGINT", async () => {
+  try {
+    await flushStoreNow();
+  } catch {}
+  process.exit(0);
+});
+
+process.on("SIGTERM", async () => {
+  try {
+    await flushStoreNow();
+  } catch {}
+  process.exit(0);
+});
+
+start();
