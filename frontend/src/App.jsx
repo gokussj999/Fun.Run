@@ -2036,13 +2036,22 @@ export default function App() {
     setLoadingBal(false);
   }
 
- async function loadCoins() {
+let loadCoinsInFlight = false;
+
+async function loadCoins() {
+  if (loadCoinsInFlight) return;
+
+  loadCoinsInFlight = true;
   setLoadingCoins(true);
+
   try {
     const data = await apiGet(`/api/coin/list`);
     if (data?.ok) setCoins((data.coins || []).map(ensureCoinShape));
-  } catch {}
-  setLoadingCoins(false);
+  } catch {
+  } finally {
+    setLoadingCoins(false);
+    loadCoinsInFlight = false;
+  }
 }
 
   async function loadProfile() {
