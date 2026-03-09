@@ -1460,7 +1460,7 @@ async function fileToCompressedDataUrl(file, maxSize = 512, quality = 0.75) {
 }
 async function apiPost(path, body) {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 12000); // 12s
+  const timer = setTimeout(() => controller.abort(), 60000); // 60s
 
   try {
     const r = await fetch(`${API_BASE}${path}`, {
@@ -1474,7 +1474,7 @@ async function apiPost(path, body) {
     return data;
   } catch (e) {
     if (e?.name === "AbortError") {
-      return { ok: false, error: "Request timeout (12s). Backend/RPC slow." };
+      return { ok: false, error: "Request timeout (60s). Backend/RPC slow." };
     }
     return { ok: false, error: e?.message || "Network error" };
   } finally {

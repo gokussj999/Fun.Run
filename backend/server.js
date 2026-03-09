@@ -498,9 +498,26 @@ function distributeFee(store, coin, traderWallet, feeSol) {
 
 function recalcCoin(coin) {
   const fixed = ensureCoin(coin);
-  const nextChart = Array.isArray(coin.chart) && coin.chart.length ? coin.chart.slice(-119).concat([fixed.mc]) : [fixed.mc, fixed.mc, fixed.mc, fixed.mc, fixed.mc];
+
+  const point = Math.max(
+    0,
+    safeNum(
+      fixed.priceUsd ??
+      fixed.price ??
+      fixed.lastPriceUsd ??
+      fixed.mc,
+      0
+    )
+  );
+
+  const prev = Array.isArray(coin.chart) ? coin.chart : [];
+  const nextChart = prev.length
+    ? prev.slice(-119).concat([point])
+    : [point, point, point, point, point];
+
   fixed.chart = nextChart.slice(-120);
-  fixed.ath = Math.max(safeNum(coin.ath, fixed.mc), fixed.mc);
+  fixed.ath = Math.max(safeNum(coin.ath, point), point);
+
   return fixed;
 }
 
