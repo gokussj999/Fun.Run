@@ -595,7 +595,8 @@ app.get("/api/balance/:wallet", async (req, res) => {
 
 app.get("/api/coin/list", async (req, res) => {
   try {
-    const store = await loadStoreOnce();
+    const store = STORE_CACHE || (await loadStoreOnce());
+
     const coinsOut = (store.coins || [])
       .map(ensureCoin)
       .sort((a, b) => {
@@ -603,11 +604,12 @@ app.get("/api/coin/list", async (req, res) => {
         const bLive = b.status === "LIVE" ? 1 : 0;
         if (aLive !== bLive) return bLive - aLive;
         return safeNum(b.createdAt, 0) - safeNum(a.createdAt, 0);
-      });
+      })
+      .slice(0, 100);
 
     return res.json({
       ok: true,
-      coins: coinsOut.slice(0, 100),
+      coins: coinsOut,
       cached: true,
       count: coinsOut.length,
     });
@@ -616,6 +618,7 @@ app.get("/api/coin/list", async (req, res) => {
     return res.status(500).json({ ok: false, error: String(e?.message || e) });
   }
 });
+  
 
 app.post("/api/coin/create", async (req, res) => {
   try {
@@ -625,30 +628,29 @@ app.post("/api/coin/create", async (req, res) => {
     const logo = String(req.body?.logo || "");
     const creatorWallet = String(req.body?.creatorWallet || "").trim();
     const initialSol = Math.max(0, safeNum(req.body?.initialSol, 0));
-    
 
     let finalLogo = logo;
-let imageUri = "";
-let metadataUri = "";
+    let imageUri = "";
+    let metadataUri = "";
 
-if (logo && process.env.PINATA_JWT) {
-  const uploadedLogo = await uploadLogoToIPFS(
-    logo,
-    `${symbol || "coin"}-${Date.now()}.webp`
-  );
+    if (logo && process.env.PINATA_JWT) {
+      const uploadedLogo = await uploadLogoToIPFS(
+        logo,
+        `${symbol || "coin"}-${Date.now()}.webp`
+      );
 
-  finalLogo = uploadedLogo.url;
-  imageUri = uploadedLogo.ipfs;
+      finalLogo = uploadedLogo.url;
+      imageUri = uploadedLogo.ipfs;
 
-  const uploadedMeta = await uploadMetadataToIPFS({
-    name,
-    symbol,
-    description: story || `${name} (${symbol})`,
-    image: uploadedLogo.ipfs,
-  });
+      const uploadedMeta = await uploadMetadataToIPFS({
+        name,
+        symbol,
+        description: story || `${name} (${symbol})`,
+        image: uploadedLogo.ipfs,
+      });
 
-  metadataUri = uploadedMeta.ipfs;
-}
+      metadataUri = uploadedMeta.ipfs;
+    }
 
     if (!name || !symbol || !creatorWallet) {
       return res.json({ ok: false, error: "name/symbol/creatorWallet required" });
@@ -658,7 +660,7 @@ if (logo && process.env.PINATA_JWT) {
     ensureProfile(store, creatorWallet);
 
     const requestedSupply = Math.floor(safeNum(req.body?.totalSupply, TOTAL_SUPPLY));
-const totalSupply = clampNum(requestedSupply, 1_000, 1_000_000_000_000);
+    const totalSupply = clampNum(requestedSupply, 1_000, 1_000_000_000_000);
     const vTokens = (totalSupply * VIRTUAL_TOKEN_PCT) / 100;
     const vSol = VIRTUAL_SOL;
 
@@ -668,8 +670,8 @@ const totalSupply = clampNum(requestedSupply, 1_000, 1_000_000_000_000);
       symbol,
       story,
       logo: finalLogo,
-imageUri,
-metadataUri,
+      imageUri,
+      metadataUri,
       creatorWallet,
       owner: creatorWallet,
       createdAt: nowMS(),
@@ -677,31 +679,49 @@ metadataUri,
       totalSupply,
       vTokens,
       vSol,
-      solReserve: initialSol,
+      solReserve: 0,
       tokenReserve: totalSupply,
       holders: {},
-      volumeSol: initialSol,
+      volumeSol: 0,
     });
 
-    store.coins.unshift(coin);
+    let createdCoin = coin;
+    let createdTokens = 0;
+    let createdFee = 0;
+
+    if (initialSol > 0) {
+      const firstBuy = ammBuy(createdCoin, creatorWallet, initialSol);
+      if (!firstBuy?.ok) {
+        return res.json({ ok: false, error: firstBuy?.error || "Initial buy failed" });
+      }
+
+      createdCoin = recalcCoin(createdCoin);
+      createdTokens = Math.max(0, safeNum(firstBuy.tokensOut, 0));
+      createdFee = Math.max(0, safeNum(firstBuy.feeSol, 0));
+
+      distributeFee(store, createdCoin, creatorWallet, createdFee);
+      createdCoin = recalcCoin(createdCoin);
+    }
+
+    store.coins.unshift(createdCoin);
     store.coins = store.coins.slice(0, MAX_COINS);
 
     pushLastTx(store, {
       id: uid(),
       type: "CREATE",
       side: "CREATE",
-      coinId: coin.id,
+      coinId: createdCoin.id,
       wallet: creatorWallet,
       sol: initialSol,
-      tokens: 0,
-      fee: 0,
+      tokens: createdTokens,
+      fee: createdFee,
       ts: nowMS(),
     });
 
     STORE_CACHE = sanitizeStore(store);
     scheduleStoreWrite();
 
-    return res.json({ ok: true, coin });
+    return res.json({ ok: true, coin: createdCoin });
   } catch (e) {
     console.log("coin/create error:", e?.message || e);
     return res.status(500).json({ ok: false, error: String(e?.message || e) });

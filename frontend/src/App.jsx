@@ -1399,7 +1399,7 @@ function Pager({ pages, pageIndex, setPageIndex }) {
 // -------------------- API HELPERS (with timeout) --------------------
 async function apiGet(path) {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 12000);
+  const timer = setTimeout(() => controller.abort(), 30000);
 
   try {
     const base = String(API_BASE || "").replace(/\/$/, "");
