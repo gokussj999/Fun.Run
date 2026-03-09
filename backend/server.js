@@ -650,68 +650,105 @@ app.post("/api/referral/set", async (req, res) => {
   }
 });
 
-async function doTrade(req, res, side) {
+const COIN_TRADE_LOCKS = new Map();
+
+async function runCoinLocked(coinId, fn) {
+  const key = String(coinId || "");
+  const prev = COIN_TRADE_LOCKS.get(key) || Promise.resolve();
+
+  let release;
+  const next = new Promise((resolve) => {
+    release = resolve;
+  });
+
+  COIN_TRADE_LOCKS.set(key, prev.then(() => next));
+
   try {
-    const wallet = String(req.body?.wallet || "").trim();
-    const coinId = String(req.body?.coinId || "").trim();
-    const sol = Math.max(0, safeNum(req.body?.sol, 0));
-
-    if (!wallet || !coinId || sol <= 0) {
-      return res.json({ ok: false, error: "wallet/coinId/sol required" });
+    await prev;
+    return await fn();
+  } finally {
+    release();
+    if (COIN_TRADE_LOCKS.get(key) === next) {
+      COIN_TRADE_LOCKS.delete(key);
     }
+  }
+}
 
-    const store = await loadStoreOnce();
-    ensureProfile(store, wallet);
+async function doTrade(req, res, side) {
+  const wallet = String(req.body?.wallet || "").trim();
+  const coinId = String(req.body?.coinId || "").trim();
+  const sol = Math.max(0, safeNum(req.body?.sol, 0));
 
-    const idx = findCoinIndex(store, coinId);
-    if (idx < 0) return res.json({ ok: false, error: "token not found" });
+  if (!wallet || !coinId || sol <= 0) {
+    return res.json({ ok: false, error: "wallet/coinId/sol required" });
+  }
 
-    let coin = ensureCoin(store.coins[idx]);
-    let tradeResult = null;
+  try {
+    const result = await runCoinLocked(coinId, async () => {
+      const store = await loadStoreOnce();
+      ensureProfile(store, wallet);
 
-    if (String(side).toLowerCase() === "buy") {
-      tradeResult = ammBuy(coin, wallet, sol);
-      if (!tradeResult.ok) return res.json({ ok: false, error: tradeResult.error });
-    } else if (String(side).toLowerCase() === "sell") {
-      tradeResult = ammSellBySolOut(coin, wallet, sol);
-      if (!tradeResult.ok) return res.json({ ok: false, error: tradeResult.error });
-    } else {
-      return res.json({ ok: false, error: "invalid side" });
-    }
+      const idx = findCoinIndex(store, coinId);
+      if (idx < 0) {
+        return { ok: false, error: "token not found" };
+      }
 
-    distributeFee(store, coin, wallet, tradeResult.feeSol);
-    coin = recalcCoin(coin);
+      let coin = ensureCoin(store.coins[idx]);
+      let tradeResult = null;
+      const sideLower = String(side).toLowerCase();
 
-    store.coins[idx] = coin;
+      if (sideLower === "buy") {
+        tradeResult = ammBuy(coin, wallet, sol);
+        if (!tradeResult.ok) return { ok: false, error: tradeResult.error };
+      } else if (sideLower === "sell") {
+        tradeResult = ammSellBySolOut(coin, wallet, sol);
+        if (!tradeResult.ok) return { ok: false, error: tradeResult.error };
+      } else {
+        return { ok: false, error: "invalid side" };
+      }
 
-    pushLastTx(store, {
-      id: uid(),
-      type: String(side).toUpperCase(),
-      side: String(side).toUpperCase(),
-      coinId,
-      wallet,
-      sol,
-      tokens:
-        String(side).toLowerCase() === "buy"
-          ? Math.max(0, safeNum(tradeResult.tokensOut, 0))
-          : Math.max(0, safeNum(tradeResult.tokensIn, 0)),
-      fee: Math.max(0, safeNum(tradeResult.feeSol, 0)),
-      ts: nowMS(),
+      distributeFee(store, coin, wallet, tradeResult.feeSol);
+      coin = recalcCoin(coin);
+
+      store.coins[idx] = coin;
+
+      pushLastTx(store, {
+        id: uid(),
+        type: String(side).toUpperCase(),
+        side: String(side).toUpperCase(),
+        coinId,
+        wallet,
+        sol,
+        tokens:
+          sideLower === "buy"
+            ? Math.max(0, safeNum(tradeResult.tokensOut, 0))
+            : Math.max(0, safeNum(tradeResult.tokensIn, 0)),
+        fee: Math.max(0, safeNum(tradeResult.feeSol, 0)),
+        ts: nowMS(),
+      });
+
+      STORE_CACHE = sanitizeStore(store);
+
+      // trade ke baad delayed write nahi, turant flush
+      await flushStoreNow();
+
+      return {
+        ok: true,
+        coin,
+        tokens:
+          sideLower === "buy"
+            ? Math.max(0, safeNum(tradeResult.tokensOut, 0))
+            : Math.max(0, safeNum(tradeResult.tokensIn, 0)),
+        fee: Math.max(0, safeNum(tradeResult.feeSol, 0)),
+        netSol: Math.max(0, safeNum(tradeResult.netSol, 0)),
+      };
     });
 
-    STORE_CACHE = sanitizeStore(store);
-    scheduleStoreWrite();
+    if (!result?.ok) {
+      return res.json(result || { ok: false, error: "Trade failed" });
+    }
 
-    return res.json({
-      ok: true,
-      coin,
-      tokens:
-        String(side).toLowerCase() === "buy"
-          ? Math.max(0, safeNum(tradeResult.tokensOut, 0))
-          : Math.max(0, safeNum(tradeResult.tokensIn, 0)),
-      fee: Math.max(0, safeNum(tradeResult.feeSol, 0)),
-      netSol: Math.max(0, safeNum(tradeResult.netSol, 0)),
-    });
+    return res.json(result);
   } catch (e) {
     console.log("trade error:", e?.message || e);
     return res.status(500).json({ ok: false, error: String(e?.message || e) });
