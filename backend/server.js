@@ -568,26 +568,40 @@ function ammBuy(coin, wallet, solInGross) {
 function ammSellBySolOut(coin, wallet, solOutGross) {
   const gross = Math.max(0, safeNum(solOutGross, 0));
   if (gross <= 0) return { ok: false, error: "Invalid amount" };
-  if (coin.solReserve < gross) return { ok: false, error: "Pool has low SOL liquidity" };
 
   const { fee, net } = applyFee(gross);
+  if (net <= 0) return { ok: false, error: "Invalid amount" };
+  if (coin.solReserve < gross) return { ok: false, error: "Pool has low SOL liquidity" };
 
-  const x = coin.solReserve + coin.vSol;
-  const y = coin.tokenReserve + coin.vTokens;
+  const totalSupply = Math.max(1, safeNum(coin.totalSupply, TOTAL_SUPPLY));
+  const vSol = Math.max(1e-9, safeNum(coin.vSol, VIRTUAL_SOL));
+  const vTokens = Math.max(
+    1,
+    safeNum(coin.vTokens, (totalSupply * VIRTUAL_TOKEN_PCT) / 100)
+  );
+
+  coin.solReserve = Math.max(0, safeNum(coin.solReserve, 0));
+  coin.tokenReserve = Math.max(0, safeNum(coin.tokenReserve, 0));
+  coin.holders = asObj(coin.holders, {});
+
+  const x = coin.solReserve + vSol;
+  const y = coin.tokenReserve + vTokens;
   const k = x * y;
 
   const newX = Math.max(1e-9, x - gross);
   const newY = k / newX;
   const tokensIn = Math.max(0, newY - y);
 
-  const have = Math.max(0, safeNum(coin.holders?.[wallet], 0));
+  const have = Math.max(0, safeNum(coin.holders[wallet], 0));
   if (have < tokensIn) return { ok: false, error: "Not enough tokens" };
 
+  coin.vSol = vSol;
+  coin.vTokens = vTokens;
   coin.holders[wallet] = Math.max(0, have - tokensIn);
   if (coin.holders[wallet] <= 0.0000001) delete coin.holders[wallet];
 
-  coin.solReserve = Math.max(0, coin.solReserve - gross);
-  coin.tokenReserve = Math.min(coin.totalSupply, coin.tokenReserve + tokensIn);
+  coin.solReserve = Math.max(0, coin.solReserve - net);
+  coin.tokenReserve = Math.min(totalSupply, coin.tokenReserve + tokensIn);
   coin.volumeSol = Math.max(0, safeNum(coin.volumeSol, 0) + gross);
   coin.lastTradeAt = nowMS();
   coin.status = "LIVE";
