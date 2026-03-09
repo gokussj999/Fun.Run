@@ -133,16 +133,22 @@ function ensureProfile(store, wallet) {
 }
 
 function calcPricing({ totalSupply, solReserve, tokenReserve, vSol, vTokens }) {
-  const x = Math.max(0, safeNum(solReserve, 0)) + Math.max(0, safeNum(vSol, 0));
-  const y = Math.max(1e-9, Math.max(0, safeNum(tokenReserve, 0)) + Math.max(0, safeNum(vTokens, 0)));
+  const total = Math.max(1, safeNum(totalSupply, 0));
+  const reserveSol = Math.max(0, safeNum(solReserve, 0));
+  const reserveTokens = Math.max(0, safeNum(tokenReserve, 0));
+  const virtSol = Math.max(1e-9, safeNum(vSol, 0));
+  const virtTokens = Math.max(1, safeNum(vTokens, 0));
+
+  const x = reserveSol + virtSol;
+  const y = Math.max(1e-9, reserveTokens + virtTokens);
 
   const priceSol = x / y;
-  const priceUsd = priceSol * SOL_USD;
+  const priceUsd = Math.max(0, priceSol * SOL_USD);
 
-  const circulating = Math.max(0, safeNum(totalSupply, 0) - Math.max(0, safeNum(tokenReserve, 0)));
-  const mcUsd = priceUsd * circulating;
+  const circulating = Math.max(1, total - reserveTokens);
+  const mcUsd = Math.max(0, priceUsd * circulating);
 
-  return { priceSol, priceUsd, mcUsd };
+  return { priceSol, priceUsd, mcUsd, circulating };
 }
 
 async function uploadLogoToIPFS(dataUrl, fileName = "coin-logo.webp") {
@@ -226,12 +232,12 @@ function ensureCoin(input = {}) {
   const holders = asObj(input.holders, {});
   const chartInput = Array.isArray(input.chart) ? input.chart.filter((n) => Number.isFinite(Number(n))).map(Number) : [];
 
-  const mc = safeNum(input.mc, pricing.mcUsd);
-  const ath = Math.max(safeNum(input.ath, mc), mc);
-  const chart =
-    chartInput.length > 0
-      ? chartInput.slice(-120)
-      : [mc, mc, mc, mc, mc].map((n) => safeNum(n, 0));
+ const mc = pricing.mcUsd;
+const ath = Math.max(safeNum(input.ath, mc), mc);
+const chart =
+  chartInput.length > 0
+    ? chartInput.slice(-120)
+    : [mc, mc, mc, mc, mc].map((n) => safeNum(n, 0));
 
   return {
     id: String(input.id || uid()),
