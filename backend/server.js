@@ -145,6 +145,68 @@ function calcPricing({ totalSupply, solReserve, tokenReserve, vSol, vTokens }) {
   return { priceSol, priceUsd, mcUsd };
 }
 
+async function uploadLogoToIPFS(dataUrl, fileName = "coin-logo.webp") {
+  const m = String(dataUrl || "").match(/^data:(.+?);base64,(.+)$/);
+  if (!m) throw new Error("Invalid logo data");
+
+  const mimeType = m[1];
+  const base64Data = m[2];
+  const buffer = Buffer.from(base64Data, "base64");
+
+  const form = new FormData();
+  form.append("file", new Blob([buffer], { type: mimeType }), fileName);
+
+  const meta = JSON.stringify({
+    name: fileName,
+  });
+  form.append("pinataMetadata", meta);
+
+  const res = await fetch("https://api.pinata.cloud/pinning/pinFileToIPFS", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${process.env.PINATA_JWT}`,
+    },
+    body: form,
+  });
+
+  const json = await res.json().catch(() => ({}));
+
+  if (!res.ok || !json?.IpfsHash) {
+    throw new Error(json?.error?.reason || json?.message || "Logo IPFS upload failed");
+  }
+
+  return {
+    cid: json.IpfsHash,
+    url: `https://gateway.pinata.cloud/ipfs/${json.IpfsHash}`,
+    ipfs: `ipfs://${json.IpfsHash}`,
+  };
+}
+
+async function uploadMetadataToIPFS(metadata) {
+  const res = await fetch("https://api.pinata.cloud/pinning/pinJSONToIPFS", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${process.env.PINATA_JWT}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      pinataContent: metadata,
+    }),
+  });
+
+  const json = await res.json().catch(() => ({}));
+
+  if (!res.ok || !json?.IpfsHash) {
+    throw new Error(json?.error?.reason || json?.message || "Metadata IPFS upload failed");
+  }
+
+  return {
+    cid: json.IpfsHash,
+    url: `https://gateway.pinata.cloud/ipfs/${json.IpfsHash}`,
+    ipfs: `ipfs://${json.IpfsHash}`,
+  };
+}
+
 function ensureCoin(input = {}) {
   const totalSupply = safeNum(input.totalSupply, TOTAL_SUPPLY);
   const vTokens = safeNum(input.vTokens, (totalSupply * VIRTUAL_TOKEN_PCT) / 100);
@@ -564,6 +626,29 @@ app.post("/api/coin/create", async (req, res) => {
     const creatorWallet = String(req.body?.creatorWallet || "").trim();
     const initialSol = Math.max(0, safeNum(req.body?.initialSol, 0));
 
+    let finalLogo = logo;
+let imageUri = "";
+let metadataUri = "";
+
+if (logo && process.env.PINATA_JWT) {
+  const uploadedLogo = await uploadLogoToIPFS(
+    logo,
+    `${symbol || "coin"}-${Date.now()}.webp`
+  );
+
+  finalLogo = uploadedLogo.url;
+  imageUri = uploadedLogo.ipfs;
+
+  const uploadedMeta = await uploadMetadataToIPFS({
+    name,
+    symbol,
+    description: story || `${name} (${symbol})`,
+    image: uploadedLogo.ipfs,
+  });
+
+  metadataUri = uploadedMeta.ipfs;
+}
+
     if (!name || !symbol || !creatorWallet) {
       return res.json({ ok: false, error: "name/symbol/creatorWallet required" });
     }
@@ -580,7 +665,9 @@ app.post("/api/coin/create", async (req, res) => {
       name,
       symbol,
       story,
-      logo,
+      logo: finalLogo,
+imageUri,
+metadataUri,
       creatorWallet,
       owner: creatorWallet,
       createdAt: nowMS(),
