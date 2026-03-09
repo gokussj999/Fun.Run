@@ -607,7 +607,7 @@ app.get("/api/coin/list", async (req, res) => {
 
     return res.json({
       ok: true,
-      coins: coinsOut,
+      coins: coinsOut.slice(0, 100),
       cached: true,
       count: coinsOut.length,
     });

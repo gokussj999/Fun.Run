@@ -1404,7 +1404,7 @@ async function apiGet(path) {
   try {
     const base = String(API_BASE || "").replace(/\/$/, "");
     const p = String(path || "");
-    const withTs = p.includes("?") ? `${p}&ts=${Date.now()}` : `${p}?ts=${Date.now()}`;
+    const withTs = p;
 
     const r = await fetch(`${base}${withTs}`, {
       signal: controller.signal,
@@ -1954,6 +1954,7 @@ export default function App() {
   const [symbol, setSymbol] = useState("");
   const [story, setStory] = useState("");
   const [initialSol, setInitialSol] = useState("0.01");
+  const [totalSupply, setTotalSupply] = useState("1000000000");
   const [confirmOpen, setConfirmOpen] = useState(false);
 
   const [logoPreview, setLogoPreview] = useState("");
@@ -2038,7 +2039,7 @@ export default function App() {
  async function loadCoins() {
   setLoadingCoins(true);
   try {
-    const data = await apiGet(`/api/coin/list?t=${Date.now()}`);
+    const data = await apiGet(`/api/coin/list`);
     if (data?.ok) setCoins((data.coins || []).map(ensureCoinShape));
   } catch {}
   setLoadingCoins(false);
@@ -2082,9 +2083,9 @@ useEffect(() => {
 
   loadCoins();
 
-  const t = setInterval(() => {
-    loadCoins();
-  }, 20000);
+const t = setInterval(() => {
+  loadCoins();
+}, 5000 );
 
   return () => clearInterval(t);
 }, [screen, authenticated]);
@@ -2660,10 +2661,9 @@ useEffect(() => {
               </div>
             </div>
 
-           <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
-  <Pill>Supply: {Number(totalSupply || 0).toFixed(0)}</Pill>
+   <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
   <Pill tone="warn">Your: {Number(myHoldingForCoin || 0).toFixed(0)}</Pill>
-</div>
+</div> 
 
             <PriceChart
               points={c.chart}
@@ -2809,6 +2809,7 @@ useEffect(() => {
                 story: story.trim(),
                 logo: logoPreview,
                 initialSol: Number(initialSol || 0),
+                totalSupply: Number(totalSupply || 1000000000),
                 creatorWallet: solAddr,
               };
 
