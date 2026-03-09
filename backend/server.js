@@ -625,6 +625,7 @@ app.post("/api/coin/create", async (req, res) => {
     const logo = String(req.body?.logo || "");
     const creatorWallet = String(req.body?.creatorWallet || "").trim();
     const initialSol = Math.max(0, safeNum(req.body?.initialSol, 0));
+    
 
     let finalLogo = logo;
 let imageUri = "";
@@ -656,7 +657,8 @@ if (logo && process.env.PINATA_JWT) {
     const store = await loadStoreOnce();
     ensureProfile(store, creatorWallet);
 
-    const totalSupply = TOTAL_SUPPLY;
+    const requestedSupply = Math.floor(safeNum(req.body?.totalSupply, TOTAL_SUPPLY));
+const totalSupply = clampNum(requestedSupply, 1_000, 1_000_000_000_000);
     const vTokens = (totalSupply * VIRTUAL_TOKEN_PCT) / 100;
     const vSol = VIRTUAL_SOL;
 
