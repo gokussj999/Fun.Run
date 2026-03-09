@@ -1638,9 +1638,17 @@ const span = Math.max(1, max - min);
   const border = mode === "dark" ? "rgba(255,255,255,.10)" : "rgba(0,0,0,.10)";
   const text = mode === "dark" ? "rgba(255,255,255,.80)" : "rgba(0,0,0,.65)";
 
-  const last = Number(safePoints[safePoints.length - 1] ?? 0);
-  const prev = Number(safePoints[safePoints.length - 2] ?? last);
-  const isUp = last >= prev;
+  const last =
+  safePoints.length > 0
+    ? Number(safePoints[safePoints.length - 1])
+    : 0;
+
+const prev =
+  safePoints.length > 1
+    ? Number(safePoints[safePoints.length - 2])
+    : last;
+
+const isUp = last >= prev;
 
   const stroke = isUp ? "#16C784" : "#FF4D4D";
   const glow = isUp ? "rgba(22,199,132,.55)" : "rgba(255,77,77,.55)";
@@ -1683,7 +1691,10 @@ const safeLast = Math.max(0, Number(last) || 0);
 const safePrev = Math.max(0.0000001, Number(prev) || safeLast);
 
 const label = safeLast > 0 ? fmtUsd(safeLast) : "—";
-const pct = ((safeLast - safePrev) / safePrev) * 100;
+const pct =
+  safePrev > 0 && Number.isFinite(safePrev)
+    ? ((safeLast - safePrev) / safePrev) * 100
+    : 0;
   const gid = `areaFill_${mode}_${isUp ? "up" : "down"}`;
   const fid = `glow_${mode}_${isUp ? "up" : "down"}`;
   const pid = `pulse_${mode}_${isUp ? "up" : "down"}`;
