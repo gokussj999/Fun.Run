@@ -1679,9 +1679,11 @@ const span = Math.max(1, max - min);
     return { x, y, fill, shadow, id: t.id || `${idx}` };
   });
 
-  const label = Number(last || 0) ? fmtUsd(last) : "—";
-  const pct = prev && Number.isFinite(prev) && prev !== 0 ? ((last - prev) / prev) * 100 : 0;
+const safeLast = Math.max(0, Number(last) || 0);
+const safePrev = Math.max(0.0000001, Number(prev) || safeLast);
 
+const label = safeLast > 0 ? fmtUsd(safeLast) : "—";
+const pct = ((safeLast - safePrev) / safePrev) * 100;
   const gid = `areaFill_${mode}_${isUp ? "up" : "down"}`;
   const fid = `glow_${mode}_${isUp ? "up" : "down"}`;
   const pid = `pulse_${mode}_${isUp ? "up" : "down"}`;
