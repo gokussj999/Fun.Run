@@ -615,47 +615,83 @@ function ammSellBySolOut(coin, wallet, solOutGross) {
 
   const { fee, net } = applyFee(gross);
   if (net <= 0) return { ok: false, error: "Invalid amount" };
-  if (coin.solReserve < gross) return { ok: false, error: "Pool has low SOL liquidity" };
 
   const totalSupply = Math.max(1, safeNum(coin.totalSupply, TOTAL_SUPPLY));
+  const curveSupply = Math.max(1, safeNum(coin.curveSupply, totalSupply));
+  const curveSold = Math.max(0, safeNum(coin.curveSold, 0));
+
   const vSol = Math.max(1e-9, safeNum(coin.vSol, VIRTUAL_SOL));
   const vTokens = Math.max(
     1,
-    safeNum(coin.vTokens, (totalSupply * VIRTUAL_TOKEN_PCT) / 100)
+    safeNum(coin.vTokens, (curveSupply * VIRTUAL_TOKEN_PCT) / 100)
   );
 
   coin.solReserve = Math.max(0, safeNum(coin.solReserve, 0));
-  coin.tokenReserve = Math.max(0, safeNum(coin.tokenReserve, 0));
   coin.holders = asObj(coin.holders, {});
 
+  if (coin.solReserve < gross) {
+    return { ok: false, error: "Pool has low SOL liquidity" };
+  }
+
+  const have = Math.max(0, safeNum(coin.holders[wallet], 0));
+  if (have <= 0) return { ok: false, error: "Not enough tokens" };
+
+  // curve uses remaining allocation
+  const remainingBefore = Math.max(0, curveSupply - curveSold);
+
   const x = coin.solReserve + vSol;
-  const y = coin.tokenReserve + vTokens;
+  const y = remainingBefore + vTokens;
   const k = x * y;
 
   const newX = Math.max(1e-9, x - gross);
   const newY = k / newX;
-  const tokensIn = Math.max(0, newY - y);
 
-  const have = Math.max(0, safeNum(coin.holders[wallet], 0));
-  if (have < tokensIn) return { ok: false, error: "Not enough tokens" };
+  let tokensIn = Math.max(0, newY - y);
+  tokensIn = Math.min(tokensIn, have);
+
+  if (tokensIn <= 0.0000001) {
+    return { ok: false, error: "Trade too small" };
+  }
 
   coin.vSol = vSol;
   coin.vTokens = vTokens;
+
   coin.holders[wallet] = Math.max(0, have - tokensIn);
   if (coin.holders[wallet] <= 0.0000001) delete coin.holders[wallet];
 
   coin.solReserve = Math.max(0, coin.solReserve - net);
-  coin.tokenReserve = Math.min(totalSupply, coin.tokenReserve + tokensIn);
-  coin.curveSold = Math.max(0, (coin.curveSold || 0) - tokensIn);
+
+  coin.curveSupply = curveSupply;
+  coin.curveSold = Math.max(0, curveSold - tokensIn);
+
+  // keep for UI/backward compatibility
+  coin.tokenReserve = Math.max(0, curveSupply - coin.curveSold);
+
   coin.volumeSol = Math.max(0, safeNum(coin.volumeSol, 0) + gross);
   coin.lastTradeAt = nowMS();
   coin.status = "LIVE";
 
   coin.priceSol =
-  (safeNum(coin.vSol, VIRTUAL_SOL) / Math.max(1, safeNum(coin.curveSupply, totalSupply))) *
-  (1 + (safeNum(coin.curveSold, 0) / Math.max(1, safeNum(coin.curveSupply, totalSupply))) * 20);
+    (safeNum(coin.vSol, VIRTUAL_SOL) / Math.max(1, curveSupply)) *
+    (1 + (safeNum(coin.curveSold, 0) / Math.max(1, curveSupply)) * 20);
 
-  return { ok: true, tokensIn, feeSol: fee, netSol: net };
+  const solUsd = Math.max(0, safeNum(coin.solUsd, safeNum(globalThis?.SOL_USD, 0)));
+  coin.priceUsd = solUsd > 0 ? coin.priceSol * solUsd : 0;
+  coin.marketCapSol = coin.priceSol * totalSupply;
+  coin.marketCapUsd = coin.priceUsd * totalSupply;
+  coin.mc = coin.marketCapUsd || coin.marketCapSol || 0;
+  coin.ath = Math.max(safeNum(coin.ath, 0), safeNum(coin.mc, 0));
+
+  return {
+    ok: true,
+    tokensIn,
+    feeSol: fee,
+    netSol: net,
+    priceSol: coin.priceSol,
+    priceUsd: coin.priceUsd,
+    marketCapSol: coin.marketCapSol,
+    marketCapUsd: coin.marketCapUsd,
+  };
 }
 
 // -------------------- ROUTES --------------------
