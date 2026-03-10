@@ -37,7 +37,7 @@ const SOL_USD = clampNum(Number(process.env.SOL_USD || 80), 1, 100000);
 // amm
 const VIRTUAL_SOL = clampNum(Number(process.env.VIRTUAL_SOL || 30), 0, 1000000);
 const VIRTUAL_TOKEN_PCT = clampNum(Number(process.env.VIRTUAL_TOKEN_PCT || 2), 0.1, 95);
-const salePct = SALE_SUPPLY_PCT;
+const salePct = clampNum(Number(process.env.SALE_SUPPLY_PCT || 80), 1, 100);
 
 // limits
 const MAX_LAST_TX = 400;
