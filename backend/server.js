@@ -35,9 +35,9 @@ const CREATOR_PCT_OF_FEE = clampNum(Number(process.env.CREATOR_PCT_OF_FEE || 50)
 const SOL_USD = clampNum(Number(process.env.SOL_USD || 80), 1, 100000);
 
 // amm
-const VIRTUAL_SOL = clampNum(Number(process.env.VIRTUAL_SOL || 10), 0, 1000000);
-const VIRTUAL_TOKEN_PCT = clampNum(Number(process.env.VIRTUAL_TOKEN_PCT || 20), 1, 95);
-const TOTAL_SUPPLY = clampNum(Number(process.env.TOTAL_SUPPLY || 1_000_000_000), 1, 100_000_000_000);
+const VIRTUAL_SOL = clampNum(Number(process.env.VIRTUAL_SOL || 1.5), 0, 1000000);
+const VIRTUAL_TOKEN_PCT = clampNum(Number(process.env.VIRTUAL_TOKEN_PCT || 5), 1, 95);
+const TOTAL_SUPPLY = clampNum(Number(process.env.TOTAL_SUPPLY || 100_000_000), 1, 100_000_000_000);
 
 // limits
 const MAX_LAST_TX = 400;
@@ -708,21 +708,21 @@ app.post("/api/coin/create", async (req, res) => {
     const store = await loadStoreOnce();
     ensureProfile(store, creatorWallet);
 
-    const launchSol = Math.max(0, safeNum(req.body?.initialSol, 0));
+  const launchSol = Math.max(0, safeNum(req.body?.initialSol, 0));
 
-let totalSupply = 10_000_000;
+let totalSupply = 1_000_000;
 
-if (launchSol >= 0.01 && launchSol < 0.05) totalSupply = 100_000_000_000;
-else if (launchSol >= 0.05 && launchSol < 0.1) totalSupply = 50_000_000_000;
-else if (launchSol >= 0.1 && launchSol < 0.2) totalSupply = 10_000_000_000;
-else if (launchSol >= 0.2 && launchSol < 0.5) totalSupply = 5_000_000_000;
-else if (launchSol >= 0.5 && launchSol < 1) totalSupply = 800_000_000;
-else if (launchSol >= 1 && launchSol < 2) totalSupply = 500_000_000;
-else if (launchSol >= 2 && launchSol < 5) totalSupply = 200_000_000;
-else if (launchSol >= 5 && launchSol < 10) totalSupply = 100_000_000;
-else if (launchSol >= 10 && launchSol < 20) totalSupply = 50_000_000;
-else if (launchSol >= 20 && launchSol < 50) totalSupply = 20_000_000;
-else if (launchSol >= 50) totalSupply = 10_000_000;
+if (launchSol >= 0.01 && launchSol < 0.05) totalSupply = 10_000_000_000;
+else if (launchSol >= 0.05 && launchSol < 0.1) totalSupply = 5_000_000_000;
+else if (launchSol >= 0.1 && launchSol < 0.2) totalSupply = 2_000_000_000;
+else if (launchSol >= 0.2 && launchSol < 0.5) totalSupply = 1_000_000_000;
+else if (launchSol >= 0.5 && launchSol < 1) totalSupply = 500_000_000;
+else if (launchSol >= 1 && launchSol < 2) totalSupply = 200_000_000;
+else if (launchSol >= 2 && launchSol < 5) totalSupply = 100_000_000;
+else if (launchSol >= 5 && launchSol < 10) totalSupply = 50_000_000;
+else if (launchSol >= 10 && launchSol < 20) totalSupply = 20_000_000;
+else if (launchSol >= 20 && launchSol < 50) totalSupply = 10_000_000;
+else if (launchSol >= 50) totalSupply = 5_000_000;
 
 const vTokens = (totalSupply * VIRTUAL_TOKEN_PCT) / 100;
 const vSol = VIRTUAL_SOL;

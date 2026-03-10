@@ -453,8 +453,9 @@ function ScreenShell({ children, fullBleed = false, allowYScroll = false }) {
       <div
         className={`fadeIn ${allowYScroll ? "noScrollbar" : ""}`}
         style={{
-          width: 520,
-          maxWidth: "92vw",
+          width: "100%",
+maxWidth: "100%",
+          
           padding: fullBleed ? 12 : 18,
           background: `
             linear-gradient(180deg, rgba(255,255,255,.07), rgba(255,255,255,.02)),
@@ -1177,8 +1178,9 @@ function Modal({ open, title, children, onClose, onConfirm, confirmText = "Confi
         onClick={(e) => e.stopPropagation()}
         className="fadeIn"
         style={{
-          width: 520,
-          maxWidth: "92vw",
+          width: "100%",
+maxWidth: "100%",
+      
           borderRadius: 22,
           border: "1px solid var(--border)",
           background: "var(--card)",
@@ -1551,8 +1553,15 @@ function shortWallet(w) {
 }
 function fmtUsd(n) {
   const x = Number(n || 0);
-  return `$${Math.round(x).toLocaleString()}`;
+
+  if (x >= 1000) return `$${Math.round(x).toLocaleString()}`;
+  if (x >= 1) return `$${x.toFixed(2)}`;
+  if (x >= 0.01) return `$${x.toFixed(4)}`;
+  if (x >= 0.0001) return `$${x.toFixed(6)}`;
+
+  return `$${x.toExponential(2)}`;
 }
+
 function safeOrigin() {
   try {
     return window.location.origin;
@@ -1625,171 +1634,327 @@ function CoinMiniCard({ c, subtitle, onOpen }) {
 
 function PriceChart({ points, txMarkers, mode, onToggleMode }) {
   const W = 1000;
-  const H = typeof window !== "undefined" && window.innerWidth < 520 ? 240 : 380;
-  const PAD = typeof window !== "undefined" && window.innerWidth < 520 ? 16 : 22;
+  const isMobile = typeof window !== "undefined" && window.innerWidth < 520;
+  const H = isMobile ? 240 : 380;
+  const PAD = isMobile ? 16 : 22;
 
-  const safePoints = Array.isArray(points) && points.length ? points : [0, 0, 0, 0, 0];
+  const text = mode === "dark" ? "rgba(255,255,255,.72)" : "rgba(0,0,0,.62)";
 
-const min = Math.min(...safePoints);
-const max = Math.max(...safePoints);
-const span = Math.max(1, max - min);
+  function fmtUsdLocal(n) {
+    const x = Number(n || 0);
 
-  const bg = mode === "dark" ? "#070B12" : "#FFFFFF";
-  const border = mode === "dark" ? "rgba(255,255,255,.10)" : "rgba(0,0,0,.10)";
-  const text = mode === "dark" ? "rgba(255,255,255,.80)" : "rgba(0,0,0,.65)";
+    if (!Number.isFinite(x) || x <= 0) return "$0";
+    if (x >= 1000) return `$${Math.round(x).toLocaleString()}`;
+    if (x >= 1) return `$${x.toFixed(2)}`;
+    if (x >= 0.01) return `$${x.toFixed(4)}`;
+    if (x >= 0.0001) return `$${x.toFixed(6)}`;
+    return `$${x.toExponential(2)}`;
+  }
 
-  const last =
-  safePoints.length > 0
-    ? Number(safePoints[safePoints.length - 1])
-    : 0;
+  // points can be:
+  // [1,2,3]
+  // [{price:...}, {value:...}, {close:...}, {mc:...}]
+  const raw = Array.isArray(points) ? points : [];
 
-const prev =
-  safePoints.length > 1
-    ? Number(safePoints[safePoints.length - 2])
-    : last;
+  const safePoints = raw
+    .map((p) => {
+      if (typeof p === "number") return p;
+      if (p && typeof p === "object") {
+        return Number(
+          p.price ??
+            p.value ??
+            p.close ??
+            p.last ??
+            p.marketCap ??
+            p.mc ??
+            p.y ??
+            0
+        );
+      }
+      return Number(p || 0);
+    })
+    .filter((n) => Number.isFinite(n) && n >= 0);
 
-const isUp = last >= prev;
+  const series = safePoints.length ? safePoints : [0, 0, 0, 0, 0];
 
-  const stroke = isUp ? "#16C784" : "#FF4D4D";
-  const glow = isUp ? "rgba(22,199,132,.55)" : "rgba(255,77,77,.55)";
-  const areaTop = isUp ? "rgba(22,199,132,.20)" : "rgba(255,77,77,.16)";
-
-  const xFor = (i) => PAD + (i * (W - PAD * 2)) / Math.max(1, safePoints.length - 1);
-
-  const yFor = (v) => {
-    const t = (Number(v) - min) / span;
-    return PAD + (1 - t) * (H - PAD * 2);
-  };
-
-  let d = "";
-  safePoints.forEach((v, i) => {
-    const x = xFor(i);
-    const y = yFor(v);
-    d += i === 0 ? `M ${x} ${y}` : ` L ${x} ${y}`;
-  });
-
-  const area = d + ` L ${xFor(safePoints.length - 1)} ${H - PAD} L ${xFor(0)} ${H - PAD} Z`;
-
-  const gridLines = 5;
-  const grid = Array.from({ length: gridLines }, (_, i) => PAD + (i * (H - PAD * 2)) / (gridLines - 1));
-
-  const lx = xFor(safePoints.length - 1);
-  const ly = yFor(last);
-
-  const dots = Array.isArray(txMarkers) ? txMarkers.slice(0, 30) : [];
-  const dotItems = dots.map((t, idx) => {
-    const i = Math.max(0, safePoints.length - 1 - idx * 2);
-    const x = xFor(i);
-    const y = yFor(safePoints[i]);
-    const side = String(t.side || "").toUpperCase();
-    const fill = side === "SELL" ? "#FF4D4D" : "#16C784";
-    const shadow = side === "SELL" ? "rgba(255,77,77,.45)" : "rgba(22,199,132,.45)";
-    return { x, y, fill, shadow, id: t.id || `${idx}` };
-  });
+  const last = Number(series[series.length - 1] ?? 0);
+const prev = Number(series[series.length - 2] ?? last);
+const first = Number(series[0] ?? last);
 
 const safeLast = Math.max(0, Number(last) || 0);
-const safePrev = Math.max(0.0000001, Number(prev) || safeLast);
+const safePrev = Math.max(0, Number(prev) || 0);
+const safeFirst = Math.max(0, Number(first) || safeLast);
 
-const label = safeLast > 0 ? fmtUsd(safeLast) : "—";
+// % ko previous tick se nahi, visible chart ke first point se nikalo
 const pct =
-  safePrev > 0 && Number.isFinite(safePrev)
-    ? ((safeLast - safePrev) / safePrev) * 100
+  safeFirst > 0 && Number.isFinite(safeFirst)
+    ? ((safeLast - safeFirst) / safeFirst) * 100
     : 0;
+
+const isUp = pct >= 0;
+
+  const stroke = isUp
+    ? mode === "dark"
+      ? "#8BFFB7"
+      : "#16A34A"
+    : mode === "dark"
+    ? "#FF7A7A"
+    : "#DC2626";
+
+  const glow = isUp
+    ? mode === "dark"
+      ? "rgba(139,255,183,.30)"
+      : "rgba(34,197,94,.22)"
+    : mode === "dark"
+    ? "rgba(255,122,122,.28)"
+    : "rgba(220,38,38,.18)";
+
+  const areaTop = isUp
+    ? mode === "dark"
+      ? "rgba(139,255,183,.24)"
+      : "rgba(34,197,94,.16)"
+    : mode === "dark"
+    ? "rgba(255,122,122,.18)"
+    : "rgba(220,38,38,.12)";
+
+  const label = safeLast > 0 ? fmtUsdLocal(safeLast) : "—";
+
+  const minRaw = Math.min(...series);
+  const maxRaw = Math.max(...series);
+
+  // IMPORTANT: flat chart se bachne ke liye dynamic zoom
+  const baseRange = maxRaw - minRaw;
+ const ref = Math.max(Math.abs(maxRaw), Math.abs(minRaw), 0.0000000001);
+  const visualPad = Math.max(baseRange * 0.18, ref * 0.01);
+  const min = minRaw - visualPad;
+  const max = maxRaw + visualPad;
+  const span = Math.max(0.0000000001, max - min);
+
+  const xAt = (i) =>
+    PAD + (i * (W - PAD * 2)) / Math.max(1, series.length - 1);
+
+  const yAt = (v) =>
+    H - PAD - ((v - min) / span) * (H - PAD * 2);
+
+  const coords = series.map((v, i) => ({
+    x: xAt(i),
+    y: yAt(v),
+    v,
+    i,
+  }));
+
+  console.log("PriceChart points raw:", points);
+console.log("PriceChart series:", series);
+
+  function buildSmoothPath(list) {
+    if (!list.length) return "";
+    if (list.length === 1) return `M ${list[0].x} ${list[0].y}`;
+
+    let path = `M ${list[0].x} ${list[0].y}`;
+
+    for (let i = 0; i < list.length - 1; i++) {
+      const p0 = list[i - 1] || list[i];
+      const p1 = list[i];
+      const p2 = list[i + 1];
+      const p3 = list[i + 2] || p2;
+
+      const cp1x = p1.x + (p2.x - p0.x) / 6;
+      const cp1y = p1.y + (p2.y - p0.y) / 6;
+      const cp2x = p2.x - (p3.x - p1.x) / 6;
+      const cp2y = p2.y - (p3.y - p1.y) / 6;
+
+      path += ` C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${p2.x} ${p2.y}`;
+    }
+
+    return path;
+  }
+
+  const d = buildSmoothPath(coords);
+
+  const area = coords.length
+    ? `${d} L ${coords[coords.length - 1].x} ${H - PAD} L ${coords[0].x} ${H - PAD} Z`
+    : "";
+
+  const lx = coords.length ? coords[coords.length - 1].x : W - PAD;
+  const ly = coords.length ? coords[coords.length - 1].y : H / 2;
+
   const gid = `areaFill_${mode}_${isUp ? "up" : "down"}`;
   const fid = `glow_${mode}_${isUp ? "up" : "down"}`;
   const pid = `pulse_${mode}_${isUp ? "up" : "down"}`;
 
+  const grid = [0.2, 0.4, 0.6, 0.8].map((r) => PAD + (H - PAD * 2) * r);
+
+  const dotItems = (Array.isArray(txMarkers) ? txMarkers : [])
+    .map((m, idx) => {
+      const rawIndex = Number(m?.index ?? m?.i ?? m?.pointIndex ?? idx);
+      if (!Number.isFinite(rawIndex) || !coords.length) return null;
+
+      const index = Math.max(0, Math.min(coords.length - 1, rawIndex));
+      const p = coords[index];
+      if (!p) return null;
+
+      const buyish = String(m?.side || m?.type || "")
+        .toLowerCase()
+        .includes("buy");
+
+      return {
+        id: m?.id || `dot-${idx}-${index}`,
+        x: p.x,
+        y: p.y,
+        fill: buyish
+          ? mode === "dark"
+            ? "#A7FFC8"
+            : "#16A34A"
+          : mode === "dark"
+          ? "#FFB0B0"
+          : "#DC2626",
+        shadow: buyish
+          ? "rgba(34,197,94,.18)"
+          : "rgba(220,38,38,.16)",
+      };
+    })
+    .filter(Boolean)
+    .slice(-8);
+
   return (
     <div
       style={{
-        borderRadius: 18,
+        borderRadius: 22,
+        border:
+          mode === "dark"
+            ? "1px solid rgba(255,255,255,.08)"
+            : "1px solid rgba(0,0,0,.08)",
+        background:
+          mode === "dark"
+            ? "linear-gradient(180deg, #0B1016 0%, #0A0F14 100%)"
+            : "linear-gradient(180deg, #FFFFFF 0%, #F6F8FA 100%)",
+        boxShadow:
+          mode === "dark"
+            ? "0 12px 40px rgba(0,0,0,.28)"
+            : "0 10px 30px rgba(0,0,0,.08)",
+        padding: isMobile ? 12 : 14,
         overflow: "hidden",
-        border: `1px solid ${border}`,
-        background: bg,
-        boxShadow: mode === "dark" ? "0 22px 70px rgba(0,0,0,.55)" : "0 18px 55px rgba(0,0,0,.12)",
       }}
     >
       <div
         style={{
-          padding: 10,
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
           gap: 10,
-          borderBottom: `1px solid ${border}`,
-          background:
-            mode === "dark"
-              ? "linear-gradient(180deg, rgba(255,255,255,.06), rgba(0,0,0,.10))"
-              : "linear-gradient(180deg, rgba(0,0,0,.03), rgba(0,0,0,.00))",
+          marginBottom: 10,
+          flexWrap: "wrap",
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <div style={{ fontSize: 12, color: text, fontWeight: 950 }}>
-            Price: <span style={{ color: mode === "dark" ? "#fff" : "#000" }}>{label}</span>
+            Price:{" "}
+            <span style={{ color: mode === "dark" ? "#fff" : "#000" }}>
+              {label}
+            </span>
           </div>
 
           <div
             style={{
               padding: "6px 10px",
               borderRadius: 999,
-              border: `1px solid ${isUp ? "rgba(22,199,132,.30)" : "rgba(255,77,77,.30)"}`,
-              background: isUp ? "rgba(22,199,132,.10)" : "rgba(255,77,77,.10)",
+              border: `1px solid ${
+                isUp ? "rgba(22,199,132,.30)" : "rgba(255,77,77,.30)"
+              }`,
+              background: isUp
+                ? "rgba(22,199,132,.10)"
+                : "rgba(255,77,77,.10)",
               color: isUp ? "#16C784" : "#FF4D4D",
               fontWeight: 950,
               fontSize: 12,
             }}
           >
-            {isUp ? "▲" : "▼"} {Math.abs(pct).toFixed(2)}%
+            {isUp ? "▲" : "▼"}{" "}
+            {Number.isFinite(pct) ? Math.abs(pct).toFixed(2) : "0.00"}%
           </div>
         </div>
 
-        <button
-          onClick={onToggleMode}
-          style={{
-            padding: "8px 10px",
-            borderRadius: 999,
-            border: `1px solid ${border}`,
-            background: mode === "dark" ? "rgba(255,255,255,.06)" : "rgba(0,0,0,.04)",
-            color: mode === "dark" ? "rgba(255,255,255,.85)" : "rgba(0,0,0,.75)",
-            cursor: "pointer",
-            fontWeight: 950,
-            fontSize: 12,
-          }}
-          title="Toggle chart theme"
-        >
-          {mode === "dark" ? "Dark" : "Light"} ▾
-        </button>
+        {typeof onToggleMode === "function" ? (
+          <button
+            onClick={onToggleMode}
+            style={{
+              border:
+                mode === "dark"
+                  ? "1px solid rgba(255,255,255,.10)"
+                  : "1px solid rgba(0,0,0,.08)",
+              background:
+                mode === "dark"
+                  ? "rgba(255,255,255,.04)"
+                  : "rgba(0,0,0,.03)",
+              color: mode === "dark" ? "#fff" : "#000",
+              borderRadius: 999,
+              padding: "7px 12px",
+              fontWeight: 900,
+              fontSize: 12,
+              cursor: "pointer",
+            }}
+          >
+            {mode === "dark" ? "Light" : "Dark"}
+          </button>
+        ) : null}
       </div>
 
-      <svg viewBox={`0 0 ${W} ${H}`} width="100%" height="340" style={{ display: "block" }}>
+      <svg
+        viewBox={`0 0 ${W} ${H}`}
+        width="100%"
+        height={isMobile ? "240" : "340"}
+        style={{
+          display: "block",
+          overflow: "visible",
+          borderRadius: 18,
+        }}
+      >
         <defs>
           <linearGradient id={gid} x1="0" x2="0" y1="0" y2="1">
             <stop offset="0%" stopColor={areaTop} />
+            <stop offset="55%" stopColor={areaTop} stopOpacity="0.45" />
             <stop offset="100%" stopColor="rgba(0,0,0,0)" />
           </linearGradient>
 
           <filter id={fid} x="-50%" y="-50%" width="200%" height="200%">
-            <feGaussianBlur stdDeviation="7" result="blur" />
+            <feGaussianBlur stdDeviation="10" result="blur1" />
+            <feGaussianBlur in="SourceGraphic" stdDeviation="4" result="blur2" />
             <feMerge>
-              <feMergeNode in="blur" />
+              <feMergeNode in="blur1" />
+              <feMergeNode in="blur2" />
               <feMergeNode in="SourceGraphic" />
             </feMerge>
           </filter>
 
           <radialGradient id={pid} cx="50%" cy="50%" r="50%">
-            <stop offset="0%" stopColor={glow} />
+            <stop
+              offset="0%"
+              stopColor={
+                isUp ? "rgba(124,255,184,.95)" : "rgba(255,122,122,.90)"
+              }
+            />
+            <stop
+              offset="45%"
+              stopColor={
+                isUp ? "rgba(124,255,184,.35)" : "rgba(255,122,122,.30)"
+              }
+            />
             <stop offset="100%" stopColor="rgba(0,0,0,0)" />
           </radialGradient>
         </defs>
 
         {grid.map((y, i) => (
           <line
-            key={i}
+            key={`grid-${i}`}
             x1={PAD}
             x2={W - PAD}
             y1={y}
             y2={y}
-            stroke={mode === "dark" ? "rgba(255,255,255,.06)" : "rgba(0,0,0,.05)"}
+            stroke={
+              mode === "dark"
+                ? "rgba(255,255,255,.045)"
+                : "rgba(0,0,0,.05)"
+            }
             strokeWidth="1"
           />
         ))}
@@ -1799,28 +1964,79 @@ const pct =
         <path
           d={d}
           fill="none"
-          stroke={glow}
+          stroke={stroke}
           strokeWidth="8"
           strokeLinejoin="round"
           strokeLinecap="round"
           filter={`url(#${fid})`}
-          opacity="0.9"
+          opacity="0.35"
         />
 
-        <path d={d} fill="none" stroke={stroke} strokeWidth="2.8" strokeLinejoin="round" strokeLinecap="round" />
+        <path
+          d={d}
+          fill="none"
+          stroke={stroke}
+          strokeWidth="3"
+          strokeLinejoin="round"
+          strokeLinecap="round"
+        />
 
         {dotItems.map((p) => (
-          <g key={p.id}>
-            <circle cx={p.x} cy={p.y} r="9" fill={p.shadow} opacity="0.55" />
-            <circle cx={p.x} cy={p.y} r="6" fill={p.fill} opacity="0.95" />
+          <g key={p.id} opacity="0.9">
+            <circle cx={p.x} cy={p.y} r="8" fill={p.shadow} />
+            <circle cx={p.x} cy={p.y} r="3.5" fill={p.fill} />
           </g>
         ))}
 
-        {/* ✅ STOP PULSE ANIMATION (static last point) */}
+        <line
+          x1={PAD}
+          x2={W - PAD}
+          y1={ly}
+          y2={ly}
+          stroke={
+            isUp ? "rgba(124,255,184,.28)" : "rgba(255,122,122,.22)"
+          }
+          strokeWidth="1"
+          strokeDasharray="4 6"
+        />
+
         <g>
-          <circle cx={lx} cy={ly} r="22" fill={`url(#${pid})`} opacity="0.65" />
-          <circle cx={lx} cy={ly} r="7" fill={stroke} opacity="0.95" />
-          <circle cx={lx} cy={ly} r="4" fill={mode === "dark" ? "#0A0F14" : "#FFFFFF"} opacity="0.9" />
+          <circle cx={lx} cy={ly} r="26" fill={`url(#${pid})`} opacity="0.9" />
+          <circle cx={lx} cy={ly} r="8" fill={stroke} />
+          <circle
+            cx={lx}
+            cy={ly}
+            r="4.2"
+            fill={mode === "dark" ? "#081017" : "#FFFFFF"}
+          />
+        </g>
+
+        <g
+          transform={`translate(${Math.min(W - 92, lx + 10)}, ${Math.max(
+            24,
+            ly - 16
+          )})`}
+        >
+          <rect
+            x="0"
+            y="0"
+            rx="10"
+            ry="10"
+            width="82"
+            height="24"
+            fill={isUp ? "#86EFAC" : "#FCA5A5"}
+          />
+          <text
+            x="41"
+            y="16"
+            textAnchor="middle"
+            fontSize="11"
+            fontWeight="800"
+            fill="#0B0F14"
+            style={{ letterSpacing: ".2px" }}
+          >
+            {label}
+          </text>
         </g>
       </svg>
     </div>
@@ -1952,6 +2168,7 @@ export default function App() {
   const [theme, setTheme] = useState(() => localStorage.getItem(LS_THEME) || "calm");
   const [screen, setScreen] = useState("HOME");
   const [selectedCoinId, setSelectedCoinId] = useState(null);
+  const [creatorProfileId, setCreatorProfileId] = useState("");
   const [homePage, setHomePage] = useState(0);
 
   const [balance, setBalance] = useState("—");
@@ -2553,7 +2770,7 @@ const t = setInterval(() => {
                 <CoinMiniCard
                   key={c.id}
                   c={c}
-                  subtitle={`24h Move • +${pct.toFixed(2)}%`}
+                  subtitle={`24h Move • ${pct >= 0 ? "+" : ""}${pct.toFixed(2)}%`}
                   onOpen={() => {
                     setSelectedCoinId(c.id);
                     setScreen("COIN");
@@ -2635,6 +2852,137 @@ const t = setInterval(() => {
       );
     }
 
+    if (screen === "CREATOR") {
+  const creatorId = creatorProfileId || "";
+  const creatorCoins = (coins || []).filter((x) => x.creatorWallet === creatorId);
+
+ const creatorRewards = creatorCoins.reduce(
+  (sum, coin) =>
+    sum + Number(coin?.creatorRewardsSol || coin?.creatorRewardAccrued || coin?.creatorRewards || 0),
+  0
+);
+
+  const creatorHoldings = creatorCoins
+    .map((coin) => {
+      const amt = Number(coin?.holders?.[creatorId] || 0);
+      const supply = Number(coin?.totalSupply || 0);
+      const pct = supply > 0 ? (amt / supply) * 100 : 0;
+      return { coin, amt, pct };
+    })
+    .filter((x) => x.amt > 0);
+
+  content = (
+    <ScreenShell>
+      <Title
+        sub={
+          <span style={{ color: "var(--muted2)" }}>
+            Coin Creator Profile
+          </span>
+        }
+        right={
+          <MiniBtn onClick={() => setScreen("COIN")}>
+            Back
+          </MiniBtn>
+        }
+      >
+        <span style={{ fontWeight: 950 }}>{shortWallet(creatorId)}</span>
+      </Title>
+
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 12 }}>
+        <Pill>{shortWallet(creatorId)}</Pill>
+        <Pill tone="warn">Coins: {creatorCoins.length}</Pill>
+        <Pill tone="good">Creator Reward: {Number(creatorRewards || 0).toFixed(6)} SOL</Pill>
+      </div>
+
+      <Card>
+        <SectionHeader title="Created Coins" right={<Pill>{creatorCoins.length}</Pill>} />
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {creatorCoins.length === 0 ? (
+            <div style={{ color: "var(--muted2)", fontSize: 13 }}>No created coins yet.</div>
+          ) : (
+            creatorCoins.map((coin) => (
+              <button
+                key={coin.id}
+                onClick={() => {
+                  setSelectedCoinId(coin.id);
+                  setScreen("COIN");
+                }}
+                style={{
+                  width: "100%",
+                  padding: 12,
+                  borderRadius: 14,
+                  border: "1px solid var(--border)",
+                  background: "var(--card2)",
+                  color: "var(--text)",
+                  textAlign: "left",
+                  cursor: "pointer",
+                }}
+              >
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
+                  <div>
+                    <div style={{ fontWeight: 900 }}>{coin.symbol || "—"}</div>
+                    <div style={{ fontSize: 12, color: "var(--muted2)" }}>
+                      {coin.name || "Unnamed coin"}
+                    </div>
+                  </div>
+                  <div style={{ textAlign: "right" }}>
+                    <div style={{ fontWeight: 900 }}>{fmtUsd(Number(coin.mc || 0))}</div>
+                    <div style={{ fontSize: 12, color: "var(--muted2)" }}>MC</div>
+                  </div>
+                </div>
+              </button>
+            ))
+          )}
+        </div>
+      </Card>
+
+      <div style={{ height: 12 }} />
+
+      <Card>
+        <SectionHeader title="Creator Holdings" right={<Pill>{creatorHoldings.length}</Pill>} />
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {creatorHoldings.length === 0 ? (
+            <div style={{ color: "var(--muted2)", fontSize: 13 }}>No holdings found.</div>
+          ) : (
+            creatorHoldings.map(({ coin, amt, pct }) => (
+              <button
+                key={coin.id}
+                onClick={() => {
+                  setSelectedCoinId(coin.id);
+                  setScreen("COIN");
+                }}
+                style={{
+                  width: "100%",
+                  padding: 12,
+                  borderRadius: 14,
+                  border: "1px solid var(--border)",
+                  background: "var(--card2)",
+                  color: "var(--text)",
+                  textAlign: "left",
+                  cursor: "pointer",
+                }}
+              >
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
+                  <div>
+                    <div style={{ fontWeight: 900 }}>{coin.symbol || "—"}</div>
+                    <div style={{ fontSize: 12, color: "var(--muted2)" }}>
+                      {Number(amt || 0).toFixed(2)} held
+                    </div>
+                  </div>
+                  <div style={{ textAlign: "right" }}>
+                    <div style={{ fontWeight: 900 }}>{pct.toFixed(2)}%</div>
+                    <div style={{ fontSize: 12, color: "var(--muted2)" }}>of supply</div>
+                  </div>
+                </div>
+              </button>
+            ))
+          )}
+        </div>
+      </Card>
+    </ScreenShell>
+  );
+}
+
     if (screen === "COIN") {
       if (!selectedCoin) {
         content = (
@@ -2645,6 +2993,13 @@ const t = setInterval(() => {
         );
       } else {
         const c = selectedCoin;
+        const creatorId = c.creatorWallet || "";
+const creatorCoins = (coins || []).filter((x) => x.creatorWallet === creatorId);
+const creatorHoldingEntries = Object.entries((creatorCoins || []).reduce((acc, coin) => {
+  const amt = Number(coin?.holders?.[creatorId] || 0);
+  if (amt > 0) acc[coin.id] = { coin, amt };
+  return acc;
+}, {}));
         const isLiveNow = c.status === "LIVE";
         const txMarkers = myTxList.filter((t) => t.coinId === c.id).slice(0, 20);
         const myHoldingForCoin = c?.holders?.[solAddr] || 0;
@@ -2686,6 +3041,40 @@ const t = setInterval(() => {
    <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
   <Pill tone="warn">Your: {Number(myHoldingForCoin || 0).toFixed(0)}</Pill>
 </div> 
+
+<Card>
+  <SectionHeader title="Coin Creator" />
+
+  <div
+    onClick={() => {
+      setCreatorProfileId(c.creatorWallet);
+      setScreen("CREATOR");
+    }}
+    style={{
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "center",
+      padding: 12,
+      borderRadius: 14,
+      border: "1px solid var(--border)",
+      background: "var(--card2)",
+      cursor: "pointer",
+    }}
+  >
+    <div>
+      <div style={{ fontWeight: 900 }}>
+        {shortWallet(c.creatorWallet)}
+      </div>
+      <div style={{ fontSize: 12, color: "var(--muted2)" }}>
+        Coin Creator
+      </div>
+    </div>
+
+    <MiniBtn tone="primary">
+      View Profile
+    </MiniBtn>
+  </div>
+</Card>
 
             <PriceChart
               points={c.chart}
