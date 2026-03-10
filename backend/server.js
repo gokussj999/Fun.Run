@@ -36,7 +36,7 @@ const SOL_USD = clampNum(Number(process.env.SOL_USD || 80), 1, 100000);
 
 // amm
 const VIRTUAL_SOL = clampNum(Number(process.env.VIRTUAL_SOL || 1.5), 0, 1000000);
-const VIRTUAL_TOKEN_PCT = clampNum(Number(process.env.VIRTUAL_TOKEN_PCT || 5), 1, 95);
+const VIRTUAL_TOKEN_PCT = clampNum(Number(process.env.VIRTUAL_TOKEN_PCT || 12), 1, 95);
 const TOTAL_SUPPLY = clampNum(Number(process.env.TOTAL_SUPPLY || 100_000_000), 1, 100_000_000_000);
 
 // limits
