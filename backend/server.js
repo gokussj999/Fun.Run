@@ -36,8 +36,8 @@ const SOL_USD = clampNum(Number(process.env.SOL_USD || 80), 1, 100000);
 
 // amm
 const VIRTUAL_SOL = clampNum(Number(process.env.VIRTUAL_SOL || 1.5), 0, 1000000);
-const VIRTUAL_TOKEN_PCT = clampNum(Number(process.env.VIRTUAL_TOKEN_PCT || 12), 1, 95);
-const TOTAL_SUPPLY = clampNum(Number(process.env.TOTAL_SUPPLY || 100_000_000), 1, 100_000_000_000);
+const VIRTUAL_TOKEN_PCT = clampNum(Number(process.env.VIRTUAL_TOKEN_PCT || 2), 0.1, 95);
+const salePct = SALE_SUPPLY_PCT;
 
 // limits
 const MAX_LAST_TX = 400;
@@ -532,14 +532,23 @@ function ammBuy(coin, wallet, solInGross) {
   if (net <= 0) return { ok: false, error: "Invalid amount" };
 
   const totalSupply = Math.max(1, safeNum(coin.totalSupply, TOTAL_SUPPLY));
+
+  // kitni supply actual pool/sale ke liye use hogi
+  const salePct = clampNum(Number(process.env.SALE_SUPPLY_PCT || 80), 1, 100);
+  const saleSupply = Math.max(1, (totalSupply * salePct) / 100);
+
   const vSol = Math.max(1e-9, safeNum(coin.vSol, VIRTUAL_SOL));
+
+  // virtual token reserve ko total supply ke bajaye SALE supply se derive karo
   const vTokens = Math.max(
     1,
-    safeNum(coin.vTokens, (totalSupply * VIRTUAL_TOKEN_PCT) / 100)
+    safeNum(coin.vTokens, (saleSupply * VIRTUAL_TOKEN_PCT) / 100)
   );
 
   coin.solReserve = Math.max(0, safeNum(coin.solReserve, 0));
-  coin.tokenReserve = Math.max(0, safeNum(coin.tokenReserve, totalSupply));
+
+  // start me poori total supply nahi, sirf saleSupply pool me rakho
+  coin.tokenReserve = Math.max(0, safeNum(coin.tokenReserve, saleSupply));
 
   const x = coin.solReserve + vSol;
   const y = coin.tokenReserve + vTokens;
@@ -547,6 +556,7 @@ function ammBuy(coin, wallet, solInGross) {
 
   const newX = x + net;
   const newY = k / Math.max(1e-9, newX);
+
   const tokensOutRaw = Math.max(0, y - newY);
   const tokensOut = Math.min(tokensOutRaw, coin.tokenReserve);
 
@@ -554,15 +564,43 @@ function ammBuy(coin, wallet, solInGross) {
 
   coin.vSol = vSol;
   coin.vTokens = vTokens;
+
   coin.solReserve = coin.solReserve + net;
   coin.tokenReserve = Math.max(0, coin.tokenReserve - tokensOut);
+
   coin.holders = asObj(coin.holders, {});
-  coin.holders[wallet] = Math.max(0, safeNum(coin.holders[wallet], 0) + tokensOut);
+  coin.holders[wallet] = Math.max(
+    0,
+    safeNum(coin.holders[wallet], 0) + tokensOut
+  );
+
   coin.volumeSol = Math.max(0, safeNum(coin.volumeSol, 0) + solInGross);
   coin.lastTradeAt = nowMS();
   coin.status = "LIVE";
 
-  return { ok: true, tokensOut, feeSol: fee, netSol: net };
+  // ✅ reserve-based live price
+  const spotX = coin.solReserve + coin.vSol;
+  const spotY = coin.tokenReserve + coin.vTokens;
+  coin.priceSol = spotY > 0 ? spotX / spotY : 0;
+
+  // ✅ USD price agar SOL price available ho
+  const solUsd = Math.max(0, safeNum(coin.solUsd, safeNum(globalThis?.SOL_USD, 0)));
+  coin.priceUsd = solUsd > 0 ? coin.priceSol * solUsd : 0;
+
+  // ✅ market cap
+  coin.marketCapSol = coin.priceSol * totalSupply;
+  coin.marketCapUsd = coin.priceUsd * totalSupply;
+
+  return {
+    ok: true,
+    tokensOut,
+    feeSol: fee,
+    netSol: net,
+    priceSol: coin.priceSol,
+    priceUsd: coin.priceUsd,
+    marketCapSol: coin.marketCapSol,
+    marketCapUsd: coin.marketCapUsd,
+  };
 }
 
 function ammSellBySolOut(coin, wallet, solOutGross) {
