@@ -729,23 +729,49 @@ app.get("/api/balance/:wallet", async (req, res) => {
 
 app.get("/api/coin/list", async (req, res) => {
   try {
-    const store = STORE_CACHE || (await loadStoreOnce());
+    let coins = [];
 
-    const coinsOut = (store.coins || [])
-      .map(ensureCoin)
-      .sort((a, b) => {
-        const aLive = a.status === "LIVE" ? 1 : 0;
-        const bLive = b.status === "LIVE" ? 1 : 0;
-        if (aLive !== bLive) return bLive - aLive;
-        return safeNum(b.createdAt, 0) - safeNum(a.createdAt, 0);
-      })
-      .slice(0, 100);
+    // Supabase mode
+    if (DB_MODE === "supabase") {
+      const { data } = await supabase
+        .from("coins")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(100);
+
+      coins = (data || []).map((r) =>
+        ensureCoin({
+          id: r.id,
+          name: r.name,
+          symbol: r.symbol,
+          story: r.story || "",
+          logo: r.logo || "",
+          creatorWallet: r.creator_wallet || "",
+          owner: r.creator_wallet || "",
+          status: "LIVE",
+          createdAt: r.created_at
+            ? new Date(r.created_at).getTime()
+            : Date.now(),
+          holders: r.holders || {},
+          volumeSol: r.volume_sol || 0,
+          lastTradeAt: r.last_trade_at || 0,
+          totalSupply: r.total_supply || TOTAL_SUPPLY,
+          solReserve: r.reserve_sol || 0,
+          tokenReserve: r.reserve_token || TOTAL_SUPPLY,
+          mc: r.market_cap || 0,
+          ath: r.ath_market_cap || 0,
+          priceSol: r.last_price || 0,
+        })
+      );
+    } else {
+      const store = STORE_CACHE || (await loadStoreOnce());
+      coins = (store.coins || []).map(ensureCoin);
+    }
 
     return res.json({
       ok: true,
-      coins: coinsOut,
-      cached: true,
-      count: coinsOut.length,
+      coins,
+      count: coins.length,
     });
   } catch (e) {
     console.log("coin/list error:", e?.message || e);

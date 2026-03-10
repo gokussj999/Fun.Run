@@ -2291,6 +2291,7 @@ let loadCoinsInFlight = false;
     if (data?.ok) {
       const nextCoins = (data.coins || []).map(ensureCoinShape);
       setCoins(nextCoins);
+      console.log("coins loaded:", nextCoins);
 
       try {
         localStorage.setItem("coins_cache_v1", JSON.stringify(nextCoins));
@@ -2331,10 +2332,7 @@ let loadCoinsInFlight = false;
     return () => clearTimeout(t);
   }, [authenticated, solAddr]);
 
-  useEffect(() => {
-  loadCoins();
-}, []);
-
+ 
 useEffect(() => {
   if (!authenticated) return;
   if (!(screen === "HOME" || screen === "LATEST")) return;
@@ -2343,7 +2341,7 @@ useEffect(() => {
 
 const t = setInterval(() => {
   loadCoins();
-}, 5000 );
+}, 12000);
 
   return () => clearInterval(t);
 }, [screen, authenticated]);
