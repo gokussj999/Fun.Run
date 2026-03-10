@@ -2268,21 +2268,40 @@ export default function App() {
 
 let loadCoinsInFlight = false;
 
-async function loadCoins() {
+  async function loadCoins() {
   if (loadCoinsInFlight) return;
 
   loadCoinsInFlight = true;
   setLoadingCoins(true);
 
   try {
+    // 1) pehle cached coins foran dikhao
+    try {
+      const cachedRaw = localStorage.getItem("coins_cache_v1");
+      if (cachedRaw) {
+        const cached = JSON.parse(cachedRaw);
+        if (Array.isArray(cached) && cached.length) {
+          setCoins(cached.map(ensureCoinShape));
+        }
+      }
+    } catch {}
+
+    // 2) phir fresh data background me lao
     const data = await apiGet(`/api/coin/list`);
-    if (data?.ok) setCoins((data.coins || []).map(ensureCoinShape));
+    if (data?.ok) {
+      const nextCoins = (data.coins || []).map(ensureCoinShape);
+      setCoins(nextCoins);
+
+      try {
+        localStorage.setItem("coins_cache_v1", JSON.stringify(nextCoins));
+      } catch {}
+    }
   } catch {
   } finally {
     setLoadingCoins(false);
     loadCoinsInFlight = false;
   }
-}
+}                                                                                                       
 
   async function loadProfile() {
   if (!solAddr) return;
@@ -2592,6 +2611,10 @@ const t = setInterval(() => {
                   subtitle={`Volume • ${Number(c.volumeSol || 0).toFixed(2)} SOL`}
                   onOpen={() => {
                     setSelectedCoinId(c.id);
+
+try {
+  localStorage.setItem("last_open_coin", JSON.stringify(c));
+} catch {}
                     setScreen("COIN");
                   }}
                 />
@@ -2632,6 +2655,10 @@ const t = setInterval(() => {
                     key={c.id}
                     onClick={() => {
                       setSelectedCoinId(c.id);
+
+try {
+  localStorage.setItem("last_open_coin", JSON.stringify(c));
+} catch {}
                       setScreen("COIN");
                     }}
                     style={{
@@ -2747,6 +2774,10 @@ const t = setInterval(() => {
                   c={c}
                   onOpen={() => {
                     setSelectedCoinId(c.id);
+
+try {
+  localStorage.setItem("last_open_coin", JSON.stringify(c));
+} catch {}
                     setScreen("COIN");
                   }}
                 />
@@ -2760,6 +2791,10 @@ const t = setInterval(() => {
                   subtitle={`Volume • ${Number(c.volumeSol || 0).toFixed(2)} SOL`}
                   onOpen={() => {
                     setSelectedCoinId(c.id);
+
+try {
+  localStorage.setItem("last_open_coin", JSON.stringify(c));
+} catch {}
                     setScreen("COIN");
                   }}
                 />
@@ -2773,6 +2808,10 @@ const t = setInterval(() => {
                   subtitle={`24h Move • ${pct >= 0 ? "+" : ""}${pct.toFixed(2)}%`}
                   onOpen={() => {
                     setSelectedCoinId(c.id);
+
+try {
+  localStorage.setItem("last_open_coin", JSON.stringify(c));
+} catch {}
                     setScreen("COIN");
                   }}
                 />
@@ -2840,6 +2879,10 @@ const t = setInterval(() => {
                       c={c}
                       onOpen={() => {
                         setSelectedCoinId(c.id);
+
+try {
+  localStorage.setItem("last_open_coin", JSON.stringify(c));
+} catch {}
                         setScreen("COIN");
                       }}
                     />
@@ -3414,6 +3457,10 @@ const creatorHoldingEntries = Object.entries((creatorCoins || []).reduce((acc, c
                       key={c.id}
                       onClick={() => {
                         setSelectedCoinId(c.id);
+
+try {
+  localStorage.setItem("last_open_coin", JSON.stringify(c));
+} catch {}
                         setScreen("COIN");
                       }}
                       style={{
