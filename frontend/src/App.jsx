@@ -2176,6 +2176,35 @@ export default function App() {
 
   const [coins, setCoins] = useState([]);
   const [loadingCoins, setLoadingCoins] = useState(false);
+  const [coinsPage, setCoinsPage] = useState(0);
+const [coinsHasMore, setCoinsHasMore] = useState(true);
+const coinsLoadMoreRef = useRef(null);
+
+useEffect(() => {
+  if (screen !== "HOME") return;
+  if (!coinsHasMore) return;
+  if (loadingCoins) return;
+
+  const el = coinsLoadMoreRef.current;
+  if (!el) return;
+
+  const obs = new IntersectionObserver(
+    (entries) => {
+      const first = entries[0];
+      if (!first?.isIntersecting) return;
+      if (loadCoinsInFlight) return;
+      loadCoins(coinsPage + 1, true);
+    },
+    {
+      root: null,
+      rootMargin: "200px",
+      threshold: 0.1,
+    }
+  );
+
+  obs.observe(el);
+  return () => obs.disconnect();
+}, [screen, coinsPage, coinsHasMore, loadingCoins]);
 
   const [searchQ, setSearchQ] = useState("");
   const [searchMode, setSearchMode] = useState("SEARCH");
@@ -2268,34 +2297,47 @@ export default function App() {
 
 let loadCoinsInFlight = false;
 
-  async function loadCoins() {
+async function loadCoins(page = 0, append = false) {
   if (loadCoinsInFlight) return;
 
   loadCoinsInFlight = true;
   setLoadingCoins(true);
 
   try {
-    // 1) pehle cached coins foran dikhao
-    try {
-      const cachedRaw = localStorage.getItem("coins_cache_v1");
-      if (cachedRaw) {
-        const cached = JSON.parse(cachedRaw);
-        if (Array.isArray(cached) && cached.length) {
-          setCoins(cached.map(ensureCoinShape));
+    // page 0 par cache foran dikhao
+    if (page === 0 && !append) {
+      try {
+        const cachedRaw = localStorage.getItem("coins_cache_v1");
+        if (cachedRaw) {
+          const cached = JSON.parse(cachedRaw);
+          if (Array.isArray(cached) && cached.length) {
+            setCoins(cached.map(ensureCoinShape));
+          }
         }
-      }
-    } catch {}
+      } catch {}
+    }
 
-    // 2) phir fresh data background me lao
-    const data = await apiGet(`/api/coin/list`);
+    const data = await apiGet(`/api/coin/list?page=${page}`);
+
     if (data?.ok) {
       const nextCoins = (data.coins || []).map(ensureCoinShape);
-      setCoins(nextCoins);
-      console.log("coins loaded:", nextCoins);
 
-      try {
-        localStorage.setItem("coins_cache_v1", JSON.stringify(nextCoins));
-      } catch {}
+      if (append) {
+        setCoins((prev) => {
+          const map = new Map();
+          [...prev, ...nextCoins].forEach((c) => map.set(c.id, c));
+          return Array.from(map.values());
+        });
+      } else {
+        setCoins(nextCoins);
+
+        try {
+          localStorage.setItem("coins_cache_v1", JSON.stringify(nextCoins));
+        } catch {}
+      }
+
+      setCoinsPage(page);
+      setCoinsHasMore(nextCoins.length === 100);
     }
   } catch {
   } finally {
@@ -2602,7 +2644,7 @@ const t = setInterval(() => {
                 paddingRight: 6,
               }}
             >
-              {(coins || []).slice(0, 100).map((c) => (
+              {(coins || []).map((c) => (
                 <CoinMiniCard
                   key={c.id}
                   c={c}
@@ -2617,6 +2659,36 @@ try {
                   }}
                 />
               ))}
+
+              <div
+  ref={coinsLoadMoreRef}
+  style={{
+    height: 20,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 8,
+    color: "var(--muted)",
+    fontSize: 12,
+  }}
+>
+  {loadingCoins ? "Loading..." : coinsHasMore ? "Scroll for more" : "No more coins"}
+</div>
+
+<div style={{ marginTop: 12, display: "flex", justifyContent: "center" }}>
+  {coinsHasMore ? (
+    <MiniBtn
+      onClick={() => loadCoins(coinsPage + 1, true)}
+      disabled={loadingCoins}
+      tone="good"
+    >
+      {loadingCoins ? "Loading..." : "More"}
+    </MiniBtn>
+  ) : (
+    <div style={{ color: "var(--muted)", fontSize: 12 }}>No more coins</div>
+  )}
+</div>
+
             </div>
           </Card>
         </div>
@@ -3023,6 +3095,8 @@ try {
     </ScreenShell>
   );
 }
+
+
 
     if (screen === "COIN") {
       if (!selectedCoin) {

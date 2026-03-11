@@ -745,6 +745,7 @@ app.get("/api/coin/list", async (req, res) => {
     }
 
     console.log("DB_MODE:", DB_MODE, "supabase rows:", data?.length);
+    console.log("coin/list ids:", (data || []).map((x) => x.id));
 
     coins = (data || []).map((r) =>
       ensureCoin({
@@ -1058,11 +1059,14 @@ app.get("/api/profile/:wallet", async (req, res) => {
 // Supabase mode
 if (DB_MODE === "supabase") {
 
+  const page = Math.max(0, Number(req.query.page || 0));
+const PAGE_SIZE = 100;
+
   const { data, error } = await supabase
     .from("coins")
     .select("*")
     .order("created_at", { ascending: false })
-    .limit(100);
+    .range(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE - 1);
 
   if (error) {
     console.log("Supabase query error:", error);
