@@ -39,6 +39,8 @@ const VIRTUAL_SOL = clampNum(Number(process.env.VIRTUAL_SOL || 30), 0, 1000000);
 const VIRTUAL_TOKEN_PCT = clampNum(Number(process.env.VIRTUAL_TOKEN_PCT || 2), 0.1, 95);
 const salePct = clampNum(Number(process.env.SALE_SUPPLY_PCT || 80), 1, 100);
 
+const TOTAL_SUPPLY = Number(process.env.TOTAL_SUPPLY || 1000000000);
+
 // limits
 const MAX_LAST_TX = 400;
 const MAX_COINS = 5000;
@@ -731,48 +733,48 @@ app.get("/api/coin/list", async (req, res) => {
   try {
     let coins = [];
 
-    // Supabase mode
-    if (DB_MODE === "supabase") {
-      const { data } = await supabase
-        .from("coins")
-        .select("*")
-        .order("created_at", { ascending: false })
-        .limit(100);
+    const { data, error } = await supabase
+      .from("coins")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .limit(100);
 
-      coins = (data || []).map((r) =>
-        ensureCoin({
-          id: r.id,
-          name: r.name,
-          symbol: r.symbol,
-          story: r.story || "",
-          logo: r.logo || "",
-          creatorWallet: r.creator_wallet || "",
-          owner: r.creator_wallet || "",
-          status: "LIVE",
-          createdAt: r.created_at
-            ? new Date(r.created_at).getTime()
-            : Date.now(),
-          holders: r.holders || {},
-          volumeSol: r.volume_sol || 0,
-          lastTradeAt: r.last_trade_at || 0,
-          totalSupply: r.total_supply || TOTAL_SUPPLY,
-          solReserve: r.reserve_sol || 0,
-          tokenReserve: r.reserve_token || TOTAL_SUPPLY,
-          mc: r.market_cap || 0,
-          ath: r.ath_market_cap || 0,
-          priceSol: r.last_price || 0,
-        })
-      );
-    } else {
-      const store = STORE_CACHE || (await loadStoreOnce());
-      coins = (store.coins || []).map(ensureCoin);
+    if (error) {
+      console.log("Supabase query error:", error);
+      throw error;
     }
+
+    console.log("DB_MODE:", DB_MODE, "supabase rows:", data?.length);
+
+    coins = (data || []).map((r) =>
+      ensureCoin({
+        id: r.id,
+        name: r.name,
+        symbol: r.symbol,
+        story: r.story || "",
+        logo: r.logo || "",
+        creatorWallet: r.creator_wallet || "",
+        owner: r.creator_wallet || "",
+        status: "LIVE",
+        createdAt: r.created_at ? new Date(r.created_at).getTime() : Date.now(),
+        holders: r.holders || {},
+        volumeSol: r.volume_sol || 0,
+        lastTradeAt: r.last_trade_at || 0,
+        totalSupply: r.total_supply || TOTAL_SUPPLY,
+        solReserve: r.reserve_sol || 0,
+        tokenReserve: r.reserve_token || TOTAL_SUPPLY,
+        mc: r.market_cap || 0,
+        ath: r.ath_market_cap || 0,
+        priceSol: r.last_price || 0,
+      })
+    );
 
     return res.json({
       ok: true,
       coins,
       count: coins.length,
     });
+
   } catch (e) {
     console.log("coin/list error:", e?.message || e);
     return res.status(500).json({ ok: false, error: String(e?.message || e) });
@@ -1053,41 +1055,45 @@ app.get("/api/profile/:wallet", async (req, res) => {
 
     let coins = (store.coins || []).map(ensureCoin);
 
-// Supabase mode me coins table se bhi fresh load karo
+// Supabase mode
 if (DB_MODE === "supabase") {
-  try {
-    const { data } = await supabase
-      .from("coins")
-      .select("*")
-      .order("created_at", { ascending: false });
 
-    if (Array.isArray(data) && data.length) {
-      coins = data.map((r) =>
-        ensureCoin({
-          id: r.id,
-          name: r.name,
-          symbol: r.symbol,
-          story: r.story || "",
-          logo: r.logo || "",
-          creatorWallet: r.creator_wallet || "",
-          owner: r.creator_wallet || "",
-          status: "LIVE",
-          createdAt: r.created_at ? new Date(r.created_at).getTime() : Date.now(),
-          holders: r.holders || {},
-          volumeSol: r.volume_sol || 0,
-          lastTradeAt: r.last_trade_at || 0,
-          totalSupply: r.total_supply || TOTAL_SUPPLY,
-          solReserve: r.reserve_sol || 0,
-          tokenReserve: r.reserve_token || TOTAL_SUPPLY,
-          mc: r.market_cap || 0,
-          ath: r.ath_market_cap || 0,
-          priceSol: r.last_price || 0,
-        })
-      );
-    }
-  } catch (e) {
-    console.log("profile coin load error:", e?.message || e);
+  const { data, error } = await supabase
+    .from("coins")
+    .select("*")
+    .order("created_at", { ascending: false })
+    .limit(100);
+
+  if (error) {
+    console.log("Supabase query error:", error);
+    throw error;
   }
+
+  console.log("DB_MODE:", DB_MODE, "supabase rows:", data?.length);
+
+  coins = (data || []).map((r) =>
+    ensureCoin({
+      id: r.id,
+      name: r.name,
+      symbol: r.symbol,
+      story: r.story || "",
+      logo: r.logo || "",
+      creatorWallet: r.creator_wallet || "",
+      owner: r.creator_wallet || "",
+      status: "LIVE",
+      createdAt: r.created_at ? new Date(r.created_at).getTime() : Date.now(),
+      holders: r.holders || {},
+      volumeSol: r.volume_sol || 0,
+      lastTradeAt: r.last_trade_at || 0,
+      totalSupply: r.total_supply || TOTAL_SUPPLY,
+      solReserve: r.reserve_sol || 0,
+      tokenReserve: r.reserve_token || TOTAL_SUPPLY,
+      mc: r.market_cap || 0,
+      ath: r.ath_market_cap || 0,
+      priceSol: r.last_price || 0,
+    })
+  );
+
 }
 
     const myCreations = coins
