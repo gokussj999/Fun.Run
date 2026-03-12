@@ -903,7 +903,7 @@ tokenReserve: totalSupply,
       ts: nowMS(),
     });
 
-    await supabase.from("coins").upsert({
+   const { error: coinUpsertError } = await supabase.from("coins").upsert({
   id: createdCoin.id,
   name: createdCoin.name,
   symbol: createdCoin.symbol,
@@ -921,6 +921,12 @@ tokenReserve: totalSupply,
   ath_market_cap: createdCoin.ath || 0,
   last_price: createdCoin.priceSol || 0,
 });
+
+if (coinUpsertError) {
+  console.log("SUPABASE CREATE UPSERT ERROR:", coinUpsertError);
+}
+
+console.log("SUPABASE CREATE UPSERT OK:", createdCoin.id, createdCoin.symbol);
 
     STORE_CACHE = sanitizeStore(store);
     scheduleStoreWrite();
@@ -1125,9 +1131,44 @@ const PAGE_SIZE = 100;
 
 }
 
-    const myCreations = coins
-      .filter((c) => String(c.creatorWallet || c.owner || "").trim() === wallet)
-      .sort((a, b) => safeNum(b.createdAt, 0) - safeNum(a.createdAt, 0));
+    let myCreations = coins
+  .filter((c) => String(c.creatorWallet || c.owner || "").trim() === wallet)
+  .sort((a, b) => safeNum(b.createdAt, 0) - safeNum(a.createdAt, 0));
+
+if (DB_MODE === "supabase") {
+  const { data: myCoinsRows, error: myCoinsError } = await supabase
+    .from("coins")
+    .select("*")
+    .eq("creator_wallet", wallet)
+    .order("created_at", { ascending: false });
+
+  if (myCoinsError) {
+    console.log("Supabase myCreations error:", myCoinsError);
+  } else {
+    myCreations = (myCoinsRows || []).map((r) =>
+      ensureCoin({
+        id: r.id,
+        name: r.name,
+        symbol: r.symbol,
+        story: r.story || "",
+        logo: r.logo || "",
+        creatorWallet: r.creator_wallet || "",
+        owner: r.creator_wallet || "",
+        status: "LIVE",
+        createdAt: r.created_at ? new Date(r.created_at).getTime() : Date.now(),
+        holders: r.holders || {},
+        volumeSol: r.volume_sol || 0,
+        lastTradeAt: r.last_trade_at || 0,
+        totalSupply: r.total_supply || TOTAL_SUPPLY,
+        solReserve: r.reserve_sol || 0,
+        tokenReserve: r.reserve_token || TOTAL_SUPPLY,
+        mc: r.market_cap || 0,
+        ath: r.ath_market_cap || 0,
+        priceSol: r.last_price || 0,
+      })
+    );
+  }
+}
 
     const holdings = coins
       .map((c) => {
