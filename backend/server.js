@@ -438,6 +438,31 @@ async function flushStoreNow() {
 
   const { error } = await supabase.from(SUPABASE_TABLE).upsert(payload, { onConflict: "id" });
   if (error) throw error;
+  if (Array.isArray(store.coins) && store.coins.length) {
+  const coinRows = store.coins.map((c) => ({
+    id: c.id,
+    name: c.name || "",
+    symbol: c.symbol || "",
+    story: c.story || "",
+    logo: c.logo || "",
+    creator_wallet: c.creatorWallet || c.owner || "",
+    created_at: new Date(c.createdAt || Date.now()).toISOString(),
+    holders: c.holders || {},
+    volume_sol: c.volumeSol || 0,
+    last_trade_at: c.lastTradeAt || 0,
+    total_supply: c.totalSupply || TOTAL_SUPPLY,
+    reserve_sol: c.solReserve || 0,
+    reserve_token: c.tokenReserve || c.totalSupply || TOTAL_SUPPLY,
+    market_cap: c.mc || 0,
+    last_price: c.priceSol || 0,
+  }));
+
+  const { error: coinsSyncError } = await supabase
+    .from("coins")
+    .upsert(coinRows, { onConflict: "id" });
+
+  if (coinsSyncError) throw coinsSyncError;
+}
 }
 
 function scheduleStoreWrite() {
