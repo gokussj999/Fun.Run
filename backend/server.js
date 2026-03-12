@@ -903,23 +903,32 @@ tokenReserve: totalSupply,
       ts: nowMS(),
     });
 
-   const { error: coinUpsertError } = await supabase.from("coins").upsert({
-  id: createdCoin.id,
-  name: createdCoin.name,
-  symbol: createdCoin.symbol,
-  story: createdCoin.story || "",
-  logo: createdCoin.logo || "",
-  creator_wallet: createdCoin.creatorWallet || "",
-  created_at: new Date(createdCoin.createdAt || Date.now()).toISOString(),
-  holders: createdCoin.holders || {},
-  volume_sol: createdCoin.volumeSol || 0,
-  last_trade_at: createdCoin.lastTradeAt || 0,
-  total_supply: createdCoin.totalSupply || TOTAL_SUPPLY,
-  reserve_sol: createdCoin.solReserve || 0,
-  reserve_token: createdCoin.tokenReserve || createdCoin.totalSupply || TOTAL_SUPPLY,
-  market_cap: createdCoin.mc || 0,
-  last_price: createdCoin.priceSol || 0,
-});
+   const { data: upsertRow, error: coinUpsertError } = await supabase
+  .from("coins")
+  .upsert({
+    id: createdCoin.id,
+    name: createdCoin.name,
+    symbol: createdCoin.symbol,
+    story: createdCoin.story || "",
+    logo: createdCoin.logo || "",
+    creator_wallet: createdCoin.creatorWallet || "",
+    created_at: new Date(createdCoin.createdAt || Date.now()).toISOString(),
+    holders: createdCoin.holders || {},
+    volume_sol: createdCoin.volumeSol || 0,
+    last_trade_at: createdCoin.lastTradeAt || 0,
+    total_supply: createdCoin.totalSupply || TOTAL_SUPPLY,
+    reserve_sol: createdCoin.solReserve || 0,
+    reserve_token: createdCoin.tokenReserve || createdCoin.totalSupply || TOTAL_SUPPLY,
+    market_cap: createdCoin.mc || 0,
+    last_price: createdCoin.priceSol || 0,
+  })
+  .select();
+
+if (coinUpsertError) {
+  console.log("SUPABASE CREATE UPSERT ERROR:", coinUpsertError);
+}
+
+console.log("SUPABASE CREATE UPSERT RESULT:", upsertRow);
 
 if (coinUpsertError) {
   console.log("SUPABASE CREATE UPSERT ERROR:", coinUpsertError);
