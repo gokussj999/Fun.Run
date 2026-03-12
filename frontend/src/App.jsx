@@ -2441,6 +2441,10 @@ const t = setInterval(() => {
     trySetReferral();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authenticated, solAddr]);
+  useEffect(() => {
+  if (screen !== "HOME") return;
+  loadCoins(0, false);
+}, [screen]);
 
   const myHoldingsList = useMemo(() => {
     const arr = Array.isArray(profile?.holdings) ? profile.holdings : [];
@@ -2659,6 +2663,21 @@ try {
                   }}
                 />
               ))}
+
+              <div
+  ref={coinsLoadMoreRef}
+  style={{
+    height: 20,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 8,
+    color: "var(--muted)",
+    fontSize: 12,
+  }}
+>
+  {loadingCoins ? "Loading..." : coinsHasMore ? "Scroll for more" : "No more coins"}
+</div>
 
               <div
   ref={coinsLoadMoreRef}

@@ -731,20 +731,25 @@ app.get("/api/balance/:wallet", async (req, res) => {
 
 app.get("/api/coin/list", async (req, res) => {
   try {
+    const page = Math.max(0, Number(req.query?.page || 0));
+    const pageSize = 100;
+    const from = page * pageSize;
+    const to = from + pageSize - 1;
+
     let coins = [];
 
     const { data, error } = await supabase
       .from("coins")
       .select("*")
       .order("created_at", { ascending: false })
-      .limit(100);
+      .range(from, to);
 
     if (error) {
       console.log("Supabase query error:", error);
       throw error;
     }
 
-    console.log("DB_MODE:", DB_MODE, "supabase rows:", data?.length);
+    console.log("DB_MODE:", DB_MODE, "page:", page, "supabase rows:", data?.length);
     console.log("coin/list ids:", (data || []).map((x) => x.id));
 
     coins = (data || []).map((r) =>
@@ -774,8 +779,9 @@ app.get("/api/coin/list", async (req, res) => {
       ok: true,
       coins,
       count: coins.length,
+      page,
+      pageSize,
     });
-
   } catch (e) {
     console.log("coin/list error:", e?.message || e);
     return res.status(500).json({ ok: false, error: String(e?.message || e) });
