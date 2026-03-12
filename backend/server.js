@@ -934,7 +934,7 @@ if (coinUpsertError) {
   console.log("SUPABASE CREATE UPSERT ERROR:", coinUpsertError);
 }
 
-console.log("SUPABASE CREATE UPSERT OK:", createdCoin.id, createdCoin.symbol);
+console.log("SUPABASE CREATE UPSERT RESULT:", createdCoin.id, createdCoin.symbol);
 
     STORE_CACHE = sanitizeStore(store);
     scheduleStoreWrite();
