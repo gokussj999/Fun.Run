@@ -918,7 +918,6 @@ tokenReserve: totalSupply,
   reserve_sol: createdCoin.solReserve || 0,
   reserve_token: createdCoin.tokenReserve || createdCoin.totalSupply || TOTAL_SUPPLY,
   market_cap: createdCoin.mc || 0,
-  ath_market_cap: createdCoin.ath || 0,
   last_price: createdCoin.priceSol || 0,
 });
 
