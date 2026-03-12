@@ -813,6 +813,48 @@ app.get("/api/coin/list", async (req, res) => {
     return res.status(500).json({ ok: false, error: String(e?.message || e) });
   }
 });
+
+app.get("/api/migrate-coins", async (req, res) => {
+  try {
+    const store = await loadStoreOnce();
+    const coins = Array.isArray(store.coins) ? store.coins : [];
+
+    const rows = coins.map((c) => ({
+      id: c.id,
+      name: c.name || "",
+      symbol: c.symbol || "",
+      story: c.story || "",
+      logo: c.logo || "",
+      creator_wallet: c.creatorWallet || c.owner || "",
+      created_at: new Date(c.createdAt || Date.now()).toISOString(),
+      holders: c.holders || {},
+      volume_sol: c.volumeSol || 0,
+      last_trade_at: c.lastTradeAt || 0,
+      total_supply: c.totalSupply || 0,
+      reserve_sol: c.solReserve || 0,
+      reserve_token: c.tokenReserve || 0,
+      market_cap: c.mc || 0,
+      last_price: c.priceSol || 0,
+    }));
+
+    const { error } = await supabase
+      .from("coins")
+      .upsert(rows, { onConflict: "id" });
+
+    if (error) {
+      console.log("Migration error:", error);
+      return res.json({ ok: false, error });
+    }
+
+    return res.json({
+      ok: true,
+      migrated: rows.length,
+    });
+  } catch (e) {
+    console.log("Migration exception:", e);
+    return res.json({ ok: false, error: String(e) });
+  }
+});
   
 
 app.post("/api/coin/create", async (req, res) => {
