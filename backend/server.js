@@ -410,6 +410,7 @@ async function loadStoreOnce() {
 
     const base = sanitizeStore(data?.data || defaultStore());
     STORE_CACHE = await loadLegacyCoinsIfNeeded(base);
+    await flushStoreNow();
 
     if (!data?.data && STORE_CACHE) {
       await flushStoreNow();
