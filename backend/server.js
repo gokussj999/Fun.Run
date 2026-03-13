@@ -350,40 +350,70 @@ let WRITE_IN_FLIGHT = false;
 let WRITE_AGAIN = false;
 
 async function loadLegacyCoinsIfNeeded(store) {
-  if (!supabase) return store;
-  if (Array.isArray(store.coins) && store.coins.length > 0) return store;
+  if (!supabase) return sanitizeStore(store);
 
   try {
+    const baseCoins = Array.isArray(store?.coins) ? store.coins.map(ensureCoin) : [];
+
     const { data, error } = await supabase
       .from("coins")
       .select("*")
       .order("created_at", { ascending: false });
 
-    if (error || !Array.isArray(data) || data.length === 0) return store;
+    if (error || !Array.isArray(data)) {
+      return sanitizeStore(store);
+    }
 
-    const importedCoins = data.map((r) =>
+    const tableCoins = data.map((r) =>
       ensureCoin({
         id: r.id,
-        name: r.name,
-        symbol: r.symbol,
+        name: r.name || "",
+        symbol: r.symbol || "",
         story: r.story || "",
         logo: r.logo || "",
         creatorWallet: r.creator_wallet || "",
         owner: r.creator_wallet || "",
         createdAt: r.created_at ? new Date(r.created_at).getTime() : nowMS(),
         status: "LIVE",
+        holders: r.holders || {},
+        volumeSol: r.volume_sol || 0,
+        lastTradeAt: r.last_trade_at || 0,
+        totalSupply: r.total_supply || TOTAL_SUPPLY,
+        solReserve: r.reserve_sol || 0,
+        tokenReserve: r.reserve_token || TOTAL_SUPPLY,
+        mc: r.market_cap || 0,
+        priceSol: r.last_price || 0,
       })
     );
 
-    const next = sanitizeStore({
-      ...store,
-      coins: importedCoins,
-    });
+    const merged = new Map();
 
-    return next;
+    for (const c of tableCoins) {
+      if (c?.id) merged.set(c.id, c);
+    }
+
+    for (const c of baseCoins) {
+      if (!c?.id) continue;
+      const prev = merged.get(c.id) || {};
+      merged.set(c.id, {
+        ...prev,
+        ...c,
+        holders:
+          c.holders && Object.keys(c.holders).length
+            ? c.holders
+            : (prev.holders || {}),
+      });
+    }
+
+    return sanitizeStore({
+      ...store,
+      coins: Array.from(merged.values()).sort(
+        (a, b) => Number(b.createdAt || 0) - Number(a.createdAt || 0)
+      ),
+    });
   } catch (e) {
-    console.log("Legacy coins fallback failed:", e?.message || e);
-    return store;
+    console.log("Legacy coins merge failed:", e?.message || e);
+    return sanitizeStore(store);
   }
 }
 
