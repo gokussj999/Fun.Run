@@ -768,6 +768,7 @@ app.get("/api/coin/list", async (req, res) => {
       .select("*")
       .order("created_at", { ascending: false })
       .range(from, to);
+      console.log("RAW SUPABASE DATA:", data);
 
     if (error) {
       console.log("Supabase query error:", error);

@@ -2193,6 +2193,7 @@ useEffect(() => {
       const first = entries[0];
       if (!first?.isIntersecting) return;
       if (loadCoinsInFlight) return;
+      console.log("LOAD COINS PAGE:", coinsPage);
       loadCoins(coinsPage + 1, true);
     },
     {
@@ -2318,6 +2319,7 @@ async function loadCoins(page = 0, append = false) {
     }
 
     const data = await apiGet(`/api/coin/list?page=${page}`);
+    console.log("API DATA:", data);
 
     if (data?.ok) {
       const nextCoins = (data.coins || []).map(ensureCoinShape);
@@ -2329,6 +2331,7 @@ async function loadCoins(page = 0, append = false) {
           return Array.from(map.values());
         });
       } else {
+        console.log("NEXT COINS:", nextCoins);
         setCoins(nextCoins);
 
         try {
@@ -2634,8 +2637,9 @@ const t = setInterval(() => {
 
           <div style={{ height: 12 }} />
 
-          <Card>
-            <SectionHeader title="Top 100 Coins" right={<Pill tone="good">LIVE</Pill>} />
+         
+              <Card>
+            <SectionHeader title={`Top ${coins.length} Coins`} right={<Pill tone="good">LIVE</Pill>} />
             <div
               className="miniScroll"
               style={{
@@ -2646,8 +2650,11 @@ const t = setInterval(() => {
                 overflowY: "auto",
                 overflowX: "hidden",
                 paddingRight: 6,
-              }}
+                }}
             >
+
+
+            
               {(coins || []).map((c) => (
                 <CoinMiniCard
                   key={c.id}
