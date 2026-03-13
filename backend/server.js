@@ -761,28 +761,65 @@ app.get("/api/coin/list", async (req, res) => {
     const from = page * pageSize;
     const to = from + pageSize - 1;
 
-    let coins = [];
-
-    const { data, error } = await supabase
+    // 1) coins table se lao
+    const { data: tableRows, error: tableError } = await supabase
       .from("coins")
       .select("*")
       .order("created_at", { ascending: false })
-      .range(from, to);
-      console.log("RAW SUPABASE DATA:", data);
+      .range(0, 999);
 
-    if (error) {
-      console.log("Supabase query error:", error);
-      throw error;
+    if (tableError) {
+      console.log("Supabase coins table error:", tableError);
+      throw tableError;
     }
 
-    console.log("DB_MODE:", DB_MODE, "page:", page, "supabase rows:", data?.length);
-    console.log("coin/list ids:", (data || []).map((x) => x.id));
+    // 2) main store blob se bhi coins lao
+    let storeCoins = [];
+    try {
+      const { data: storeRow, error: storeError } = await supabase
+        .from(SUPABASE_TABLE)
+        .select("data")
+        .eq("id", "main")
+        .maybeSingle();
 
-    coins = (data || []).map((r) =>
+      if (storeError) {
+        console.log("Supabase main store read error:", storeError);
+      } else {
+        const rawStoreCoins = Array.isArray(storeRow?.data?.coins) ? storeRow.data.coins : [];
+        storeCoins = rawStoreCoins.map((c) =>
+          ensureCoin({
+            ...c,
+            id: c.id,
+            name: c.name || "",
+            symbol: c.symbol || "",
+            story: c.story || "",
+            logo: c.logo || "",
+            creatorWallet: c.creatorWallet || c.owner || "",
+            owner: c.owner || c.creatorWallet || "",
+            status: c.status || "LIVE",
+            createdAt: c.createdAt || Date.now(),
+            holders: c.holders || {},
+            volumeSol: Number(c.volumeSol || 0),
+            lastTradeAt: Number(c.lastTradeAt || 0),
+            totalSupply: Number(c.totalSupply || TOTAL_SUPPLY),
+            solReserve: Number(c.solReserve || c.reserve_sol || 0),
+            tokenReserve: Number(c.tokenReserve || c.reserve_token || TOTAL_SUPPLY),
+            mc: Number(c.mc || c.market_cap || 0),
+            ath: Number(c.ath || c.ath_market_cap || 0),
+            priceSol: Number(c.priceSol || c.last_price || 0),
+          })
+        );
+      }
+    } catch (e) {
+      console.log("Main store merge read failed:", e?.message || e);
+    }
+
+    // 3) table rows ko same shape men lao
+    const tableCoins = (tableRows || []).map((r) =>
       ensureCoin({
         id: r.id,
-        name: r.name,
-        symbol: r.symbol,
+        name: r.name || "",
+        symbol: r.symbol || "",
         story: r.story || "",
         logo: r.logo || "",
         creatorWallet: r.creator_wallet || "",
@@ -790,21 +827,47 @@ app.get("/api/coin/list", async (req, res) => {
         status: "LIVE",
         createdAt: r.created_at ? new Date(r.created_at).getTime() : Date.now(),
         holders: r.holders || {},
-        volumeSol: r.volume_sol || 0,
-        lastTradeAt: r.last_trade_at || 0,
-        totalSupply: r.total_supply || TOTAL_SUPPLY,
-        solReserve: r.reserve_sol || 0,
-        tokenReserve: r.reserve_token || TOTAL_SUPPLY,
-        mc: r.market_cap || 0,
-        ath: r.ath_market_cap || 0,
-        priceSol: r.last_price || 0,
+        volumeSol: Number(r.volume_sol || 0),
+        lastTradeAt: Number(r.last_trade_at || 0),
+        totalSupply: Number(r.total_supply || TOTAL_SUPPLY),
+        solReserve: Number(r.reserve_sol || 0),
+        tokenReserve: Number(r.reserve_token || TOTAL_SUPPLY),
+        mc: Number(r.market_cap || 0),
+        ath: Number(r.ath_market_cap || 0),
+        priceSol: Number(r.last_price || 0),
       })
     );
+
+    // 4) dono sources merge karo by id
+    const mergedMap = new Map();
+
+    for (const c of storeCoins) {
+      if (c?.id) mergedMap.set(c.id, c);
+    }
+
+    for (const c of tableCoins) {
+      if (!c?.id) continue;
+      const prev = mergedMap.get(c.id) || {};
+      mergedMap.set(c.id, {
+        ...prev,
+        ...c,
+        holders: c.holders && Object.keys(c.holders).length ? c.holders : (prev.holders || {}),
+      });
+    }
+
+    // 5) sort + paginate
+    const allCoins = Array.from(mergedMap.values()).sort(
+      (a, b) => Number(b.createdAt || 0) - Number(a.createdAt || 0)
+    );
+
+    const coins = allCoins.slice(from, to + 1);
+
+    console.log("coin/list merged total:", allCoins.length, "page:", page, "returning:", coins.length);
 
     return res.json({
       ok: true,
       coins,
-      count: coins.length,
+      count: allCoins.length,
       page,
       pageSize,
     });
