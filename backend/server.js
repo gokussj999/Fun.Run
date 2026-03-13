@@ -994,20 +994,16 @@ tokenReserve: totalSupply,
 
 if (coinUpsertError) {
   console.log("SUPABASE CREATE UPSERT ERROR:", coinUpsertError);
+  throw new Error(`Coin save failed: ${coinUpsertError.message || coinUpsertError}`);
 }
 
-console.log("SUPABASE CREATE UPSERT RESULT:", upsertRow);
+STORE_CACHE = sanitizeStore(store);
+await flushStoreNow();
 
-if (coinUpsertError) {
-  console.log("SUPABASE CREATE UPSERT ERROR:", coinUpsertError);
-}
+return res.json({ ok: true, coin: createdCoin });
 
-console.log("SUPABASE CREATE UPSERT RESULT:", createdCoin.id, createdCoin.symbol);
 
-    STORE_CACHE = sanitizeStore(store);
-    scheduleStoreWrite();
 
-    return res.json({ ok: true, coin: createdCoin });
   } catch (e) {
     console.log("coin/create error:", e?.message || e);
     return res.status(500).json({ ok: false, error: String(e?.message || e) });
