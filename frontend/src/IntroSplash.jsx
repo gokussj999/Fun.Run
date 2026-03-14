@@ -241,14 +241,15 @@ export default function IntroSplash({ durationMs = 5000, onDone, logoUrl = "/log
         }
 
         .frHeroContent{
-          position:relative;
-          z-index:2;
-          height:100%;
-          min-height:min(720px, 92vh);
-          display:flex;
-          flex-direction:column;
-          padding:28px;
-        }
+  position:relative;
+  z-index:2;
+  height:100%;
+  min-height:min(720px, 92vh);
+  display:flex;
+  flex-direction:column;
+  justify-content:flex-start;
+  padding:20px 22px 28px;
+}
 
         .frHeroTop{
           display:flex;
@@ -278,12 +279,12 @@ export default function IntroSplash({ durationMs = 5000, onDone, logoUrl = "/log
         }
 
         .frHeroMain{
-          flex:1;
-          display:grid;
-          grid-template-columns: 1.08fr 0.92fr;
-          gap:26px;
-          align-items:center;
-        }
+  flex:1;
+  display:grid;
+  grid-template-columns: 1.08fr 0.92fr;
+  gap:20px;
+  align-items:flex-start;
+}
 
         .frHeroLeft{
           padding:10px 6px 10px 2px;
@@ -343,7 +344,7 @@ export default function IntroSplash({ durationMs = 5000, onDone, logoUrl = "/log
         .frMachinePanel{
           position:relative;
           width:100%;
-          max-width:420px;
+          max-width:460px;
           border-radius:26px;
           padding:18px;
           border:1px solid rgba(255,255,255,0.10);
