@@ -995,7 +995,7 @@ tokenReserve: totalSupply,
       ts: nowMS(),
     });
 
-   const { data: upsertRow, error: coinUpsertError } = await supabase
+   const { error: coinUpsertError } = await supabase
   .from("coins")
   .upsert({
     id: createdCoin.id,
@@ -1004,6 +1004,7 @@ tokenReserve: totalSupply,
     story: createdCoin.story || "",
     logo: createdCoin.logo || "",
     creator_wallet: createdCoin.creatorWallet || "",
+    status: createdCoin.status || "LIVE",
     created_at: new Date(createdCoin.createdAt || Date.now()).toISOString(),
     holders: createdCoin.holders || {},
     volume_sol: createdCoin.volumeSol || 0,
@@ -1012,9 +1013,9 @@ tokenReserve: totalSupply,
     reserve_sol: createdCoin.solReserve || 0,
     reserve_token: createdCoin.tokenReserve || createdCoin.totalSupply || TOTAL_SUPPLY,
     market_cap: createdCoin.mc || 0,
+    ath_market_cap: createdCoin.ath || createdCoin.mc || 0,
     last_price: createdCoin.priceSol || 0,
-  })
-  .select();
+  }, { onConflict: "id" });
 
 if (coinUpsertError) {
   console.log("SUPABASE CREATE UPSERT ERROR:", coinUpsertError);
