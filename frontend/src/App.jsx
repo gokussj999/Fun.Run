@@ -1656,24 +1656,41 @@ function PriceChart({ points, txMarkers, mode, onToggleMode }) {
   // [{price:...}, {value:...}, {close:...}, {mc:...}]
   const raw = Array.isArray(points) ? points : [];
 
-  const safePoints = raw
-    .map((p) => {
-      if (typeof p === "number") return p;
-      if (p && typeof p === "object") {
-        return Number(
-          p.price ??
-            p.value ??
-            p.close ??
-            p.last ??
-            p.marketCap ??
-            p.mc ??
-            p.y ??
-            0
-        );
-      }
-      return Number(p || 0);
-    })
-    .filter((n) => Number.isFinite(n) && n >= 0);
+  const normalized = raw
+  .map((p) => {
+    if (typeof p === "number") return p;
+    if (p && typeof p === "object") {
+      return Number(
+        p.price ??
+        p.value ??
+        p.close ??
+        p.last ??
+        p.marketCap ??
+        p.mc ??
+        p.y ??
+        0
+      );
+    }
+    return Number(p || 0);
+  })
+  .filter((n) => Number.isFinite(n) && n >= 0);
+
+const safePoints = normalized.filter((n, i, arr) => {
+  if (i === 0) return true;
+
+  const prev = Number(arr[i - 1] || 0);
+  if (prev <= 0) return true;
+
+  const ratio = n / prev;
+
+  // absurd spikes remove
+  if (ratio > 20 || ratio < 0.05) return false;
+
+  return true;
+});
+
+
+    
 
   const series = safePoints.length ? safePoints : [0, 0, 0, 0, 0];
 
@@ -1747,27 +1764,16 @@ const isUp = pct >= 0;
 console.log("PriceChart series:", series);
 
   function buildSmoothPath(list) {
-    if (!list.length) return "";
-    if (list.length === 1) return `M ${list[0].x} ${list[0].y}`;
+  if (!list.length) return "";
 
-    let path = `M ${list[0].x} ${list[0].y}`;
+  let path = `M ${list[0].x} ${list[0].y}`;
 
-    for (let i = 0; i < list.length - 1; i++) {
-      const p0 = list[i - 1] || list[i];
-      const p1 = list[i];
-      const p2 = list[i + 1];
-      const p3 = list[i + 2] || p2;
-
-      const cp1x = p1.x + (p2.x - p0.x) / 6;
-      const cp1y = p1.y + (p2.y - p0.y) / 6;
-      const cp2x = p2.x - (p3.x - p1.x) / 6;
-      const cp2y = p2.y - (p3.y - p1.y) / 6;
-
-      path += ` C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${p2.x} ${p2.y}`;
-    }
-
-    return path;
+  for (let i = 1; i < list.length; i++) {
+    path += ` L ${list[i].x} ${list[i].y}`;
   }
+
+  return path;
+}
 
   const d = buildSmoothPath(coords);
 
@@ -2529,6 +2535,9 @@ const t = setInterval(() => {
         coinId: coin.id,
         sol: s,
       });
+
+      console.log("TRADE RESPONSE:", res); 
+      console.log("TRADE CHART:", res?.coin?.chart);
 
       if (!res?.ok) {
         showToast(res?.error || "Trade failed");
