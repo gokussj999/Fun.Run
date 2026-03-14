@@ -70,6 +70,13 @@ export default function IntroSplash({ durationMs = 8000, onDone }) {
                   </div>
                 </div>
 
+                {/* GEARS */}
+<div className="gearRow">
+  <div className="gear">⚙️</div>
+  <div className="gear gear2">⚙️</div>
+  <div className="gear gear3">⚙️</div>
+</div>
+
                 {/* FACTORY / CONVEYOR: single line coins minting */}
                 <div className="mintLine">
                   <div className="mintLabel">
@@ -292,6 +299,37 @@ export default function IntroSplash({ durationMs = 8000, onDone }) {
         }
         .headerText .h1{ color: rgba(255,255,255,0.92); font-weight: 800; font-size: 16px; }
         .headerText .h2{ color: rgba(255,255,255,0.60); font-size: 12px; margin-top:2px; }
+
+
+        .gearRow{
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  gap:12px;
+  margin-top:14px;
+  margin-bottom:6px;
+}
+
+.gear{
+  font-size:22px;
+  animation:gearSpin 4s linear infinite;
+  opacity:.9;
+}
+
+.gear2{
+  font-size:26px;
+  animation-duration:5s;
+}
+
+.gear3{
+  font-size:20px;
+  animation-duration:3.5s;
+}
+
+@keyframes gearSpin{
+  from{ transform: rotate(0deg); }
+  to{ transform: rotate(360deg); }
+}
 
         /* Mint line (factory conveyor) */
         .mintLine{

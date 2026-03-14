@@ -1151,7 +1151,20 @@ function CoinLogo({ c, size = 46 }) {
       }}
     >
       {has ? (
-        <img src={src} alt="logo" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+        <img
+  src={src}
+  alt="logo"
+  loading="lazy"
+  onError={(e) => {
+    e.currentTarget.src = "/logo.png";
+  }}
+  style={{
+  width: "100%",
+  height: "100%",
+  objectFit: "cover",
+  display: "block"
+}}
+/>
       ) : (
         <span style={{ color: "var(--muted)", fontSize: 12 }}>{(c?.symbol || "•").slice(0, 2)}</span>
       )}
@@ -3388,9 +3401,14 @@ const creatorHoldingEntries = Object.entries((creatorCoins || []).reduce((acc, c
               setLogoError("");
 
               setSelectedCoinId(created.id);
-              setScreen("COIN");
-              showToast("Coin created ✅");
-              loadProfile();
+setScreen("COIN");
+showToast("Coin created ✅");
+
+await loadProfile();
+await loadCoins(0, false);
+              
+              
+              
             }}
             confirmText="Create"
           >
