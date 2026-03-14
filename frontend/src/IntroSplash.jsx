@@ -53,12 +53,10 @@ export default function IntroSplash({ durationMs = 5000, onDone, logoUrl = "/log
               <div className="frBrandName">Fun.Run</div>
 
               <h1 className="frIntroTitle">
-                Create.
-                <br />
-                Launch.
-                <br />
-                Discover.
-              </h1>
+  Create. Launch.
+  <br />
+  Discover.
+</h1>
 
               <p className="frIntroSub">Creator-first meme coin launchpad</p>
 
@@ -299,14 +297,15 @@ export default function IntroSplash({ durationMs = 5000, onDone, logoUrl = "/log
         }
 
         .frIntroTitle{
-          margin:12px 0 10px;
-          font-size: clamp(42px, 7vw, 82px);
-          line-height: .98;
-          font-weight: 950;
-          background: linear-gradient(90deg, rgba(0,255,204,1), rgba(160,255,110,1) 58%, rgba(255,170,0,1));
-          -webkit-background-clip: text;
-          -webkit-text-fill-color: transparent;
-        }
+  margin:10px 0 8px;
+  font-size: clamp(34px, 5.3vw, 64px);
+  line-height: 1.02;
+  font-weight: 800;
+  letter-spacing: -0.8px;
+  background: linear-gradient(90deg, rgba(0,255,204,1), rgba(160,255,110,1) 58%, rgba(255,170,0,1));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
 
         .frIntroSub{
           margin: 0 0 18px;
@@ -658,147 +657,153 @@ export default function IntroSplash({ durationMs = 5000, onDone, logoUrl = "/log
         }
 
         @media (max-width: 899px){
-          .frIntroRoot{
-            align-items:flex-start;
-            overflow-y:auto;
-            padding:12px;
-          }
+  .frIntroRoot{
+    align-items:flex-start;
+    overflow-y:auto;
+    padding:10px;
+  }
 
-          .frIntroGlow{
-            animation:none;
-          }
+  .frIntroGlow{
+    animation:none;
+  }
 
-          .frHeroShell{
-            width:100%;
-            min-height:auto;
-            border-radius:26px;
-          }
+  .frHeroShell{
+    width:100%;
+    min-height:auto;
+    border-radius:24px;
+  }
 
-          .frHeroContent{
-            min-height:auto;
-            padding:16px;
-          }
+  .frHeroContent{
+    min-height:auto;
+    padding:12px 12px 14px;
+  }
 
-          .frHeroTop{
-            margin-bottom:10px;
-            justify-content:center;
-          }
+  .frHeroTop{
+    margin-bottom:6px;
+    justify-content:center;
+  }
 
-          .frHeroMain{
-            grid-template-columns:1fr;
-            gap:14px;
-          }
+  .frHeroMain{
+    grid-template-columns:1fr;
+    gap:10px;
+  }
 
-          .frHeroLeft{
-            text-align:center;
-            padding:2px 2px 0;
-          }
+  .frHeroLeft{
+    text-align:center;
+    padding:0;
+    margin-top:-2px;
+  }
 
-          .frBrandName{
-            margin-top:6px;
-            font-size:30px;
-          }
+  .frBrandName{
+    margin-top:4px;
+    font-size:24px;
+  }
 
-          .frIntroTitle{
-            margin:8px 0 8px;
-            font-size: clamp(34px, 11vw, 52px);
-            line-height:.96;
-          }
+  .frIntroTitle{
+    margin:6px 0 6px;
+    font-size: clamp(28px, 8.2vw, 40px);
+    line-height:1.04;
+    font-weight:800;
+    letter-spacing:-0.6px;
+  }
 
-          .frIntroSub{
-            margin:0 0 12px;
-            font-size:14px;
-          }
+  .frIntroSub{
+    margin:0 0 10px;
+    font-size:13px;
+  }
 
-          .frIntroBadges{
-            justify-content:center;
-            gap:8px;
-          }
+  .frIntroBadges{
+    justify-content:center;
+    gap:8px;
+  }
 
-          .frBadge{
-            font-size:11px;
-            padding:7px 10px;
-          }
+  .frBadge{
+    font-size:11px;
+    padding:6px 10px;
+  }
 
-          .frHeroRight{
-            width:100%;
-          }
+  .frHeroRight{
+    width:100%;
+    margin-top:-2px;
+  }
 
-          .frMachinePanel{
-            max-width:none;
-            width:100%;
-            border-radius:22px;
-            padding:14px;
-          }
+  .frMachinePanel{
+    max-width:none;
+    width:100%;
+    border-radius:22px;
+    padding:15px;
+    transform: translateY(-2px) scale(1.03);
+    transform-origin: top center;
+  }
 
-          .frHeaderText .frH1{
-            font-size:16px;
-          }
+  .frHeaderText .frH1{
+    font-size:16px;
+  }
 
-          .frHeaderText .frH2{
-            font-size:11px;
-          }
+  .frHeaderText .frH2{
+    font-size:11px;
+  }
 
-          .frGearRow{
-            margin-top:10px;
-            margin-bottom:6px;
-          }
+  .frGearRow{
+    margin-top:8px;
+    margin-bottom:6px;
+  }
 
-          .frGear1{ font-size:20px; }
-          .frGear2{ font-size:28px; }
-          .frGear3{ font-size:20px; }
+  .frGear1{ font-size:22px; }
+  .frGear2{ font-size:30px; }
+  .frGear3{ font-size:22px; }
 
-          .frMintLine{
-            margin-top:4px;
-          }
+  .frMintLine{
+    margin-top:4px;
+  }
 
-          .frConveyor{
-            height:44px;
-            border-radius:14px;
-          }
+  .frConveyor{
+    height:48px;
+    border-radius:14px;
+  }
 
-          .frTrack{
-            gap:10px;
-            padding:0 10px;
-          }
+  .frTrack{
+    gap:10px;
+    padding:0 10px;
+  }
 
-          .frMemeChip{
-            width:24px;
-            height:24px;
-          }
+  .frMemeChip{
+    width:25px;
+    height:25px;
+  }
 
-          .frProgress{
-            margin-top:10px;
-          }
+  .frProgress{
+    margin-top:10px;
+  }
 
-          .frBar{
-            padding:10px;
-            gap:5px;
-          }
+  .frBar{
+    padding:10px;
+    gap:5px;
+  }
 
-          .frBar span{
-            height:13px;
-          }
+  .frBar span{
+    height:13px;
+  }
 
-          .frLaunchRow{
-            margin-top:10px;
-            padding:10px;
-          }
+  .frLaunchRow{
+    margin-top:10px;
+    padding:10px;
+  }
 
-          .frRocket{
-            width:30px;
-            height:30px;
-          }
+  .frRocket{
+    width:30px;
+    height:30px;
+  }
 
-          .frBottomPillWrap{
-            margin-top:12px;
-          }
+  .frBottomPillWrap{
+    margin-top:10px;
+  }
 
-          .frFooterPill{
-            font-size:12px;
-            padding:9px 12px;
-          }
-        }
+  .frFooterPill{
+    font-size:12px;
+    padding:9px 12px;
+  }
+}
 
         @media (prefers-reduced-motion: reduce){
           .frIntroGlow,
