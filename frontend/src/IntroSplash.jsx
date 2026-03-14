@@ -36,50 +36,47 @@ export default function IntroSplash({ durationMs = 5000, onDone, logoUrl = "/log
     <div className={`frIntroRoot ${leaving ? "frIntroLeave" : ""}`}>
       <div className="frIntroGlow" />
 
-      <div className="frIntroWrap">
-        <div className="frIntroLeft">
-          <div className="frBrandPill">
-            <span className="frDot" />
-            <span>LIVE</span>
+      <div className="frHeroShell">
+        <div className="frHeroBg" />
+        <div className="frHeroScan" />
+
+        <div className="frHeroContent">
+          <div className="frHeroTop">
+            <div className="frBrandPill">
+              <span className="frDot" />
+              <span>LIVE</span>
+            </div>
           </div>
 
-          <div className="frBrandName">Fun.Run</div>
+          <div className="frHeroMain">
+            <div className="frHeroLeft">
+              <div className="frBrandName">Fun.Run</div>
 
-          <h1 className="frIntroTitle">
-            Create.
-            <br />
-            Launch.
-            <br />
-            Discover.
-          </h1>
+              <h1 className="frIntroTitle">
+                Create.
+                <br />
+                Launch.
+                <br />
+                Discover.
+              </h1>
 
-          <p className="frIntroSub">Creator-first meme coin launchpad</p>
+              <p className="frIntroSub">Creator-first meme coin launchpad</p>
 
-          <div className="frIntroBadges">
-            <span className="frBadge">Referral 20%</span>
-            <span className="frBadge frBadgeGold">Factory Mode</span>
-          </div>
-        </div>
-
-        <div className="frIntroRight">
-          <div className="frPhoneStage">
-            <div className="frPhone">
-              <div className="frPhoneTop">
-                <div className="frCam" />
-                <div className="frSpeaker" />
+              <div className="frIntroBadges">
+                <span className="frBadge">Referral 20%</span>
+                <span className="frBadge frBadgeGold">Factory Mode</span>
               </div>
+            </div>
 
-              <div className="frScreen">
-                <div className="frMachineBg" />
-                <div className="frScanLines" />
-
+            <div className="frHeroRight">
+              <div className="frMachinePanel">
                 <div className="frScreenHeader">
                   <div className="frLogoBubble">
                     {logoUrl ? (
                       <img
                         src={logoUrl}
                         alt="logo"
-                        style={{ width: 24, height: 24, objectFit: "contain", display: "block" }}
+                        style={{ width: 26, height: 26, objectFit: "contain", display: "block" }}
                       />
                     ) : (
                       "🧪"
@@ -147,14 +144,12 @@ export default function IntroSplash({ durationMs = 5000, onDone, logoUrl = "/log
                   <div className="frRocket">🚀</div>
                   <div className="frHint">launchpad warming up</div>
                 </div>
-
-                <div className="frScreenFooter">
-                  <div className="frFooterPill">Fun.Run • Creator-first launchpad</div>
-                </div>
               </div>
             </div>
+          </div>
 
-            <div className="frStageShadow" />
+          <div className="frBottomPillWrap">
+            <div className="frFooterPill">Fun.Run • Creator-first launchpad</div>
           </div>
         </div>
       </div>
@@ -174,6 +169,7 @@ export default function IntroSplash({ durationMs = 5000, onDone, logoUrl = "/log
             linear-gradient(180deg, rgba(0,0,0,0.82), rgba(0,0,0,0.95));
           transition: opacity .35s ease, transform .35s ease;
         }
+
         .frIntroLeave{
           opacity:0;
           transform: scale(1.02);
@@ -191,60 +187,74 @@ export default function IntroSplash({ durationMs = 5000, onDone, logoUrl = "/log
           opacity:.9;
           pointer-events:none;
         }
+
         @keyframes frGlowMove{
           from{ transform: translate3d(-10px,-10px,0); }
           to{ transform: translate3d(14px,10px,0); }
         }
 
-        .frIntroWrap{
+        .frHeroShell{
           position:relative;
-          width:min(1080px, 100%);
-          display:grid;
-          grid-template-columns: 1fr;
-          gap:18px;
-          align-items:center;
+          width:min(1120px, 100%);
+          min-height:min(720px, 92vh);
+          border-radius:32px;
+          overflow:hidden;
+          border:1px solid rgba(255,255,255,0.10);
+          background:
+            linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02));
+          box-shadow:
+            0 30px 80px rgba(0,0,0,0.45),
+            inset 0 1px 0 rgba(255,255,255,0.06);
+          backdrop-filter: blur(14px);
         }
-        @media (min-width: 900px){
-          .frIntroWrap{
-            grid-template-columns: 1.05fr 0.95fr;
-            gap:28px;
-          }
+
+        .frHeroBg{
+          position:absolute;
+          inset:-60px;
+          background:
+            radial-gradient(700px 420px at 18% 35%, rgba(0,255,204,0.13), transparent 60%),
+            radial-gradient(700px 420px at 82% 72%, rgba(255,170,0,0.11), transparent 60%),
+            radial-gradient(500px 280px at 55% 18%, rgba(0,255,204,0.08), transparent 60%);
+          opacity:.95;
+          animation: frBgDrift 4s ease-in-out infinite alternate;
+          pointer-events:none;
         }
 
-        .frIntroLeft{
-          background: rgba(255,255,255,0.03);
-          border: 1px solid rgba(255,255,255,0.08);
-          border-radius: 24px;
-          padding: 18px;
-          backdrop-filter: blur(10px);
-          box-shadow: 0 20px 50px rgba(0,0,0,0.35);
+        @keyframes frBgDrift{
+          from{ transform: translate3d(-8px,-6px,0); }
+          to{ transform: translate3d(10px,8px,0); }
         }
-      @media (max-width: 899px){
-  .frIntroWrap{
-    display:flex;
-    flex-direction:column;
-    justify-content:flex-start;
-    align-items:center;
-    gap:10px;
 
-    
-  }
+        .frHeroScan{
+          position:absolute;
+          inset:0;
+          background: repeating-linear-gradient(
+            180deg,
+            rgba(255,255,255,0.025) 0px,
+            rgba(255,255,255,0.025) 1px,
+            transparent 2px,
+            transparent 6px
+          );
+          opacity:.08;
+          mix-blend-mode: overlay;
+          pointer-events:none;
+        }
 
-  .frIntroLeft{
-    order:1;
-    width:min(360px, 92vw);
-    text-align:center;
-    padding:14px 14px 10px;
-  }
+        .frHeroContent{
+          position:relative;
+          z-index:2;
+          height:100%;
+          min-height:min(720px, 92vh);
+          display:flex;
+          flex-direction:column;
+          padding:28px;
+        }
 
-  .frIntroRight{
-    order:2;
-  }
-
-  .frPhoneStage{
-    width:min(360px, 92vw);
-  }
-}
+        .frHeroTop{
+          display:flex;
+          justify-content:flex-start;
+          margin-bottom:14px;
+        }
 
         .frBrandPill{
           display:inline-flex;
@@ -258,6 +268,7 @@ export default function IntroSplash({ durationMs = 5000, onDone, logoUrl = "/log
           font-size: 12px;
           letter-spacing: .4px;
         }
+
         .frDot{
           width:8px;
           height:8px;
@@ -266,39 +277,46 @@ export default function IntroSplash({ durationMs = 5000, onDone, logoUrl = "/log
           box-shadow: 0 0 12px rgba(0,255,204,0.7);
         }
 
+        .frHeroMain{
+          flex:1;
+          display:grid;
+          grid-template-columns: 1.08fr 0.92fr;
+          gap:26px;
+          align-items:center;
+        }
+
+        .frHeroLeft{
+          padding:10px 6px 10px 2px;
+        }
+
         .frBrandName{
-          margin-top:14px;
+          margin-top:8px;
           color: rgba(255,255,255,0.98);
-          font-size: clamp(22px, 4vw, 34px);
+          font-size: clamp(26px, 4vw, 40px);
           font-weight: 950;
           letter-spacing: .2px;
         }
 
         .frIntroTitle{
-          margin:10px 0 8px;
-          font-size: clamp(30px, 6vw, 54px);
-          line-height: 1.02;
+          margin:12px 0 10px;
+          font-size: clamp(42px, 7vw, 82px);
+          line-height: .98;
           font-weight: 950;
-          background: linear-gradient(90deg, rgba(0,255,204,1), rgba(255,170,0,1));
+          background: linear-gradient(90deg, rgba(0,255,204,1), rgba(160,255,110,1) 58%, rgba(255,170,0,1));
           -webkit-background-clip: text;
           -webkit-text-fill-color: transparent;
         }
 
         .frIntroSub{
-          margin: 0 0 14px;
-          color: rgba(255,255,255,0.75);
-          font-size: 14px;
+          margin: 0 0 18px;
+          color: rgba(255,255,255,0.76);
+          font-size: 18px;
         }
 
         .frIntroBadges{
           display:flex;
           gap:10px;
           flex-wrap:wrap;
-        }
-        @media (max-width: 899px){
-          .frIntroBadges{
-            justify-content:center;
-          }
         }
 
         .frBadge{
@@ -309,108 +327,41 @@ export default function IntroSplash({ durationMs = 5000, onDone, logoUrl = "/log
           background: rgba(255,255,255,0.04);
           color: rgba(255,255,255,0.85);
         }
+
         .frBadgeGold{
           border-color: rgba(255,170,0,0.30);
           background: rgba(255,170,0,0.10);
           color: rgba(255,220,170,0.95);
         }
 
-        .frIntroRight{
+        .frHeroRight{
           display:flex;
           justify-content:center;
           align-items:center;
         }
 
-        .frPhoneStage{
+        .frMachinePanel{
           position:relative;
-          width:min(380px, 94vw);
-          aspect-ratio: 9 / 16;
-          display:flex;
-          align-items:center;
-          justify-content:center;
-          perspective: 1100px;
-        }
-
-        .frPhone{
           width:100%;
-          height:100%;
-          border-radius: 28px;
-          background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02));
-          border: 1px solid rgba(255,255,255,0.10);
-          box-shadow: 0 28px 70px rgba(0,0,0,0.45);
+          max-width:420px;
+          border-radius:26px;
+          padding:18px;
+          border:1px solid rgba(255,255,255,0.10);
+          background:
+            linear-gradient(180deg, rgba(12,18,20,0.82), rgba(7,10,12,0.90));
+          box-shadow:
+            0 24px 60px rgba(0,0,0,0.30),
+            inset 0 1px 0 rgba(255,255,255,0.06);
           overflow:hidden;
-          position:relative;
-          transform: rotateY(-8deg) rotateX(5deg);
-        }
-        @media (max-width: 899px){
-          .frPhone{
-            transform:none;
-          }
         }
 
-        .frPhoneTop{
-          position:absolute;
-          top:10px;
-          left:50%;
-          transform: translateX(-50%);
-          display:flex;
-          align-items:center;
-          gap:10px;
-          opacity:.8;
-          z-index:5;
-        }
-        .frCam{
-          width:10px;
-          height:10px;
-          border-radius:50%;
-          background: rgba(0,0,0,0.6);
-          border:1px solid rgba(255,255,255,0.08);
-        }
-        .frSpeaker{
-          width:44px;
-          height:6px;
-          border-radius:999px;
-          background: rgba(0,0,0,0.5);
-          border:1px solid rgba(255,255,255,0.07);
-        }
-
-        .frScreen{
+        .frMachinePanel::before{
+          content:"";
           position:absolute;
           inset:0;
-          padding: 18px 14px;
           background:
-            radial-gradient(700px 420px at 60% 20%, rgba(0,255,204,0.14), transparent 60%),
-            radial-gradient(700px 420px at 30% 70%, rgba(255,170,0,0.10), transparent 60%),
-            linear-gradient(180deg, rgba(10,14,18,0.92), rgba(6,8,10,0.97));
-        }
-
-        .frMachineBg{
-          position:absolute;
-          inset:-40px;
-          background:
-            radial-gradient(600px 360px at 20% 30%, rgba(0,255,204,0.10), transparent 55%),
-            radial-gradient(600px 360px at 80% 70%, rgba(255,170,0,0.08), transparent 55%);
-          opacity:.75;
-          animation: frBgDrift 3.6s ease-in-out infinite alternate;
-          pointer-events:none;
-        }
-        @keyframes frBgDrift{
-          from{ transform: translate3d(-8px,-6px,0); }
-          to{ transform: translate3d(10px,8px,0); }
-        }
-
-        .frScanLines{
-          position:absolute;
-          inset:0;
-          background: repeating-linear-gradient(
-            180deg,
-            rgba(255,255,255,0.03) 0px,
-            rgba(255,255,255,0.03) 1px,
-            transparent 2px,
-            transparent 6px
-          );
-          opacity:.09;
-          mix-blend-mode: overlay;
+            radial-gradient(180px 90px at 20% 22%, rgba(0,255,204,0.10), transparent 60%),
+            radial-gradient(180px 90px at 82% 78%, rgba(255,170,0,0.08), transparent 60%);
           pointer-events:none;
         }
 
@@ -419,13 +370,12 @@ export default function IntroSplash({ durationMs = 5000, onDone, logoUrl = "/log
           display:flex;
           gap:12px;
           align-items:center;
-          margin-top:18px;
           z-index:2;
         }
 
         .frLogoBubble{
-          width:42px;
-          height:42px;
+          width:44px;
+          height:44px;
           border-radius:14px;
           display:flex;
           align-items:center;
@@ -438,10 +388,11 @@ export default function IntroSplash({ durationMs = 5000, onDone, logoUrl = "/log
         }
 
         .frHeaderText .frH1{
-          color: rgba(255,255,255,0.92);
-          font-weight: 800;
-          font-size: 16px;
+          color: rgba(255,255,255,0.94);
+          font-weight: 850;
+          font-size: 18px;
         }
+
         .frHeaderText .frH2{
           color: rgba(255,255,255,0.60);
           font-size: 12px;
@@ -452,9 +403,9 @@ export default function IntroSplash({ durationMs = 5000, onDone, logoUrl = "/log
           display:flex;
           justify-content:center;
           align-items:center;
-          gap:10px;
-          margin-top:14px;
-          margin-bottom:8px;
+          gap:12px;
+          margin-top:16px;
+          margin-bottom:10px;
           position:relative;
           z-index:2;
         }
@@ -464,12 +415,13 @@ export default function IntroSplash({ durationMs = 5000, onDone, logoUrl = "/log
           align-items:center;
           justify-content:center;
           filter: drop-shadow(0 0 10px rgba(255,255,255,0.08));
-          opacity:.95;
+          opacity:.96;
           animation: frGearSpin 4s linear infinite;
         }
+
         .frGear1{ font-size:24px; }
-        .frGear2{ font-size:32px; animation-duration: 5.4s; }
-        .frGear3{ font-size:22px; animation-duration: 3.2s; }
+        .frGear2{ font-size:34px; animation-duration: 5.4s; }
+        .frGear3{ font-size:24px; animation-duration: 3.2s; }
 
         @keyframes frGearSpin{
           from{ transform: rotate(0deg); }
@@ -478,7 +430,7 @@ export default function IntroSplash({ durationMs = 5000, onDone, logoUrl = "/log
 
         .frMintLine{
           position:relative;
-          margin-top: 8px;
+          margin-top:8px;
           z-index:2;
         }
 
@@ -505,6 +457,7 @@ export default function IntroSplash({ durationMs = 5000, onDone, logoUrl = "/log
           box-shadow: 0 0 12px rgba(0,255,204,0.65);
           animation: frPulse 1.1s ease-in-out infinite;
         }
+
         @keyframes frPulse{
           0%,100%{ transform: scale(1); opacity:.9; }
           50%{ transform: scale(1.35); opacity:1; }
@@ -512,7 +465,7 @@ export default function IntroSplash({ durationMs = 5000, onDone, logoUrl = "/log
 
         .frConveyor{
           position:relative;
-          height:46px;
+          height:54px;
           border-radius:16px;
           border: 1px solid rgba(255,255,255,0.10);
           background: linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02));
@@ -550,6 +503,7 @@ export default function IntroSplash({ durationMs = 5000, onDone, logoUrl = "/log
           from{ transform: translate3d(0, -50%, 0); }
           to{ transform: translate3d(-50%, -50%, 0); }
         }
+
         @keyframes frConveyorMove2{
           from{ transform: translate3d(50%, -50%, 0); }
           to{ transform: translate3d(0, -50%, 0); }
@@ -593,6 +547,7 @@ export default function IntroSplash({ durationMs = 5000, onDone, logoUrl = "/log
           pointer-events:none;
           opacity:.6;
         }
+
         @keyframes frShine{
           0%{ transform: translateX(-40%); }
           100%{ transform: translateX(40%); }
@@ -630,6 +585,7 @@ export default function IntroSplash({ durationMs = 5000, onDone, logoUrl = "/log
           transform: translateX(-120%);
           animation: frShimmer 1.1s ease-in-out infinite;
         }
+
         .frBar span:nth-child(2):after{ animation-delay:.05s; }
         .frBar span:nth-child(3):after{ animation-delay:.1s; }
         .frBar span:nth-child(4):after{ animation-delay:.15s; }
@@ -674,15 +630,10 @@ export default function IntroSplash({ durationMs = 5000, onDone, logoUrl = "/log
           font-size: 12px;
         }
 
-        .frScreenFooter{
-          position:absolute;
-          left:0;
-          right:0;
-          bottom:18px;
+        .frBottomPillWrap{
           display:flex;
           justify-content:center;
-          z-index:2;
-          pointer-events:none;
+          margin-top:18px;
         }
 
         .frFooterPill{
@@ -705,63 +656,159 @@ export default function IntroSplash({ durationMs = 5000, onDone, logoUrl = "/log
           text-overflow: ellipsis;
         }
 
-        .frStageShadow{
-          position:absolute;
-          bottom:-18px;
-          left:12%;
-          width:76%;
-          height:34px;
-          background: radial-gradient(closest-side, rgba(0,0,0,0.55), transparent 70%);
-          filter: blur(6px);
-          opacity:.8;
-          transform: rotateX(70deg);
-        }
-
         @media (max-width: 899px){
-          .frIntroGlow{ animation:none; }
+          .frIntroRoot{
+            align-items:flex-start;
+            overflow-y:auto;
+            padding:12px;
+          }
 
-          .frIntroWrap{
+          .frIntroGlow{
+            animation:none;
+          }
+
+          .frHeroShell{
+            width:100%;
+            min-height:auto;
+            border-radius:26px;
+          }
+
+          .frHeroContent{
+            min-height:auto;
+            padding:16px;
+          }
+
+          .frHeroTop{
+            margin-bottom:10px;
+            justify-content:center;
+          }
+
+          .frHeroMain{
+            grid-template-columns:1fr;
             gap:14px;
           }
 
-          .frPhoneStage{
-            width:min(360px, 92vw);
-          }
-
-          .frScreen{
-            padding:16px 12px;
-          }
-
-          .frScreenHeader{
-            margin-top:14px;
+          .frHeroLeft{
+            text-align:center;
+            padding:2px 2px 0;
           }
 
           .frBrandName{
-            margin-top:12px;
+            margin-top:6px;
+            font-size:30px;
           }
 
           .frIntroTitle{
-            font-size: clamp(28px, 9vw, 42px);
+            margin:8px 0 8px;
+            font-size: clamp(34px, 11vw, 52px);
+            line-height:.96;
           }
 
           .frIntroSub{
-            font-size:13px;
+            margin:0 0 12px;
+            font-size:14px;
+          }
+
+          .frIntroBadges{
+            justify-content:center;
+            gap:8px;
+          }
+
+          .frBadge{
+            font-size:11px;
+            padding:7px 10px;
+          }
+
+          .frHeroRight{
+            width:100%;
+          }
+
+          .frMachinePanel{
+            max-width:none;
+            width:100%;
+            border-radius:22px;
+            padding:14px;
+          }
+
+          .frHeaderText .frH1{
+            font-size:16px;
+          }
+
+          .frHeaderText .frH2{
+            font-size:11px;
+          }
+
+          .frGearRow{
+            margin-top:10px;
+            margin-bottom:6px;
+          }
+
+          .frGear1{ font-size:20px; }
+          .frGear2{ font-size:28px; }
+          .frGear3{ font-size:20px; }
+
+          .frMintLine{
+            margin-top:4px;
+          }
+
+          .frConveyor{
+            height:44px;
+            border-radius:14px;
+          }
+
+          .frTrack{
+            gap:10px;
+            padding:0 10px;
+          }
+
+          .frMemeChip{
+            width:24px;
+            height:24px;
+          }
+
+          .frProgress{
+            margin-top:10px;
+          }
+
+          .frBar{
+            padding:10px;
+            gap:5px;
+          }
+
+          .frBar span{
+            height:13px;
+          }
+
+          .frLaunchRow{
+            margin-top:10px;
+            padding:10px;
+          }
+
+          .frRocket{
+            width:30px;
+            height:30px;
+          }
+
+          .frBottomPillWrap{
+            margin-top:12px;
           }
 
           .frFooterPill{
             font-size:12px;
+            padding:9px 12px;
           }
         }
 
         @media (prefers-reduced-motion: reduce){
           .frIntroGlow,
-          .frMachineBg,
+          .frHeroBg,
           .frGear,
           .frTrackA,
           .frTrackB,
           .frConveyorShine{
             animation:none !important;
           }
+
           .frBar span:after{
             animation-duration:.7s;
           }
