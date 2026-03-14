@@ -3770,7 +3770,20 @@ try {
       <ThemeStyles />
 
       {/* ✅ Show intro overlay (auto hides after 5s) */}
-      {showIntro ? <SplashIntro logoUrl={APP_LOGO_URL} /> : null}
+
+    
+      {showIntro ? (
+  <IntroSplash
+    logoUrl={APP_LOGO_URL}
+    durationMs={5000}
+    onDone={() => {
+      try {
+        sessionStorage.setItem("introSeen", "1");
+      } catch {}
+      setShowIntro(false);
+    }}
+  />
+) : null}
 
       {content}
       {ready && authenticated ? <BottomNav screen={screen} setScreen={setScreen} /> : null}

@@ -1,30 +1,16 @@
 import React, { useEffect, useMemo, useState } from "react";
 
-/**
- * IntroSplash (Mobile-first)
- * ✅ Factory feel: "machine/conveyor" inside phone
- * ✅ Meme coins mint in ONE LINE and move like conveyor (no flying to user)
- * ✅ Bottom text inside phone screen (glass)
- * - 5s splash
- * - silent
- * - Call onDone() when finished
- */
-export default function IntroSplash({ durationMs = 8000, onDone }) {
+export default function IntroSplash({ durationMs = 5000, onDone, logoUrl = "/logo.png" }) {
   const [leaving, setLeaving] = useState(false);
 
-  // ONE LINE "meme coins" (emoji placeholders for now, can swap with real logos later)
   const mintRow = useMemo(() => {
-    const icons = ["🐶", "🐸", "🪙", "💎", "🚀", "🔥", "😂", "😈", "👑", "💀", "🧠", "🦴"];
-    // repeat to make a long conveyor loop
-    const list = [];
-    for (let i = 0; i < 24; i++) {
-      const icon = icons[i % icons.length];
-      // slight variety in size/brightness but still "clean"
-      const size = 16 + ((i % 3) * 2); // 16/18/20
-      const glow = i % 4 === 0 ? 1 : 0;
-      list.push({ id: i, icon, size, glow });
-    }
-    return list;
+    const icons = ["🐶", "🐸", "🪙", "💎", "🚀", "🔥", "😂", "👑", "🍌", "🧠"];
+    return Array.from({ length: 20 }).map((_, i) => ({
+      id: i,
+      icon: icons[i % icons.length],
+      size: 16 + ((i % 3) * 2),
+      glow: i % 4 === 0,
+    }));
   }, []);
 
   useEffect(() => {
@@ -36,7 +22,9 @@ export default function IntroSplash({ durationMs = 8000, onDone }) {
     const total = reduce ? 1200 : durationMs;
 
     const t1 = setTimeout(() => setLeaving(true), Math.max(0, total - 350));
-    const t2 = setTimeout(() => onDone && onDone(), total);
+    const t2 = setTimeout(() => {
+      if (onDone) onDone();
+    }, total);
 
     return () => {
       clearTimeout(t1);
@@ -45,52 +33,83 @@ export default function IntroSplash({ durationMs = 8000, onDone }) {
   }, [durationMs, onDone]);
 
   return (
-    <div className={`introRoot ${leaving ? "introLeave" : ""}`}>
-      <div className="introGlow" />
+    <div className={`frIntroRoot ${leaving ? "frIntroLeave" : ""}`}>
+      <div className="frIntroGlow" />
 
-      <div className="introWrap">
-        <div className="introCenter">
-          <div className="phoneStage">
-            <div className="phone">
-              <div className="phoneTop">
-                <div className="cam" />
-                <div className="speaker" />
+      <div className="frIntroWrap">
+        <div className="frIntroLeft">
+          <div className="frBrandPill">
+            <span className="frDot" />
+            <span>LIVE</span>
+          </div>
+
+          <div className="frBrandName">Fun.Run</div>
+
+          <h1 className="frIntroTitle">
+            Create.
+            <br />
+            Launch.
+            <br />
+            Discover.
+          </h1>
+
+          <p className="frIntroSub">Creator-first meme coin launchpad</p>
+
+          <div className="frIntroBadges">
+            <span className="frBadge">Referral 20%</span>
+            <span className="frBadge frBadgeGold">Factory Mode</span>
+          </div>
+        </div>
+
+        <div className="frIntroRight">
+          <div className="frPhoneStage">
+            <div className="frPhone">
+              <div className="frPhoneTop">
+                <div className="frCam" />
+                <div className="frSpeaker" />
               </div>
 
-              <div className="screen">
-                {/* subtle machine background (moving) */}
-                <div className="machineBg" aria-hidden="true" />
-                <div className="scanLines" aria-hidden="true" />
+              <div className="frScreen">
+                <div className="frMachineBg" />
+                <div className="frScanLines" />
 
-                <div className="screenHeader">
-                  <div className="logoBubble">🧪</div>
-                  <div className="headerText">
-                    <div className="h1">Cooking memes…</div>
-                    <div className="h2">chains running • coins printing</div>
+                <div className="frScreenHeader">
+                  <div className="frLogoBubble">
+                    {logoUrl ? (
+                      <img
+                        src={logoUrl}
+                        alt="logo"
+                        style={{ width: 24, height: 24, objectFit: "contain", display: "block" }}
+                      />
+                    ) : (
+                      "🧪"
+                    )}
+                  </div>
+
+                  <div className="frHeaderText">
+                    <div className="frH1">Cooking memes…</div>
+                    <div className="frH2">factory running • coins printing</div>
                   </div>
                 </div>
 
-                {/* GEARS */}
-<div className="gearRow">
-  <div className="gear">⚙️</div>
-  <div className="gear gear2">⚙️</div>
-  <div className="gear gear3">⚙️</div>
-</div>
+                <div className="frGearRow">
+                  <div className="frGear frGear1">⚙️</div>
+                  <div className="frGear frGear2">⚙️</div>
+                  <div className="frGear frGear3">⚙️</div>
+                </div>
 
-                {/* FACTORY / CONVEYOR: single line coins minting */}
-                <div className="mintLine">
-                  <div className="mintLabel">
-                    <span className="pulseDot" />
+                <div className="frMintLine">
+                  <div className="frMintLabel">
+                    <span className="frPulseDot" />
                     minting line
                   </div>
 
-                  <div className="conveyor">
-                    {/* two tracks for seamless loop */}
-                    <div className="track trackA" aria-hidden="true">
+                  <div className="frConveyor">
+                    <div className="frTrack frTrackA" aria-hidden="true">
                       {mintRow.map((c) => (
                         <div
                           key={`a-${c.id}`}
-                          className={`memeChip ${c.glow ? "glow" : ""}`}
+                          className={`frMemeChip ${c.glow ? "frGlowChip" : ""}`}
                           style={{ fontSize: c.size }}
                           title="meme coin"
                         >
@@ -98,11 +117,12 @@ export default function IntroSplash({ durationMs = 8000, onDone }) {
                         </div>
                       ))}
                     </div>
-                    <div className="track trackB" aria-hidden="true">
+
+                    <div className="frTrack frTrackB" aria-hidden="true">
                       {mintRow.map((c) => (
                         <div
                           key={`b-${c.id}`}
-                          className={`memeChip ${c.glow ? "glow" : ""}`}
+                          className={`frMemeChip ${c.glow ? "frGlowChip" : ""}`}
                           style={{ fontSize: c.size }}
                           title="meme coin"
                         >
@@ -111,166 +131,258 @@ export default function IntroSplash({ durationMs = 8000, onDone }) {
                       ))}
                     </div>
 
-                    {/* conveyor edges shine */}
-                    <div className="conveyorShine" aria-hidden="true" />
+                    <div className="frConveyorShine" />
                   </div>
                 </div>
 
-                <div className="progress">
-                  <div className="bar">
-                    <span />
-                    <span />
-                    <span />
-                    <span />
-                    <span />
-                    <span />
-                    <span />
-                    <span />
-                    <span />
-                    <span />
+                <div className="frProgress">
+                  <div className="frBar">
+                    {Array.from({ length: 10 }).map((_, idx) => (
+                      <span key={idx} />
+                    ))}
                   </div>
                 </div>
 
-                <div className="launchRow">
-                  <div className="rocket">🚀</div>
-                  <div className="hint">launchpad warming up</div>
+                <div className="frLaunchRow">
+                  <div className="frRocket">🚀</div>
+                  <div className="frHint">launchpad warming up</div>
                 </div>
 
-                {/* Bottom text INSIDE phone screen */}
-                <div className="screenFooter">
-                  <div className="footerPill">
-                    enjoy you time with memes and fun.run
-                  </div>
+                <div className="frScreenFooter">
+                  <div className="frFooterPill">Fun.Run • Creator-first launchpad</div>
                 </div>
               </div>
             </div>
 
-            <div className="stageShadow" />
+            <div className="frStageShadow" />
           </div>
         </div>
       </div>
 
       <style>{`
-        .introRoot{
-          position:fixed; inset:0;
-          z-index:9999;
+        .frIntroRoot{
+          position:fixed;
+          inset:0;
+          z-index:999999;
           display:flex;
           align-items:center;
           justify-content:center;
+          overflow:hidden;
+          padding:14px;
           background:
             radial-gradient(1200px 700px at 70% 40%, rgba(0,255,204,0.10), rgba(0,0,0,0.95) 60%),
             linear-gradient(180deg, rgba(0,0,0,0.82), rgba(0,0,0,0.95));
-          overflow:hidden;
-          padding:16px;
           transition: opacity .35s ease, transform .35s ease;
         }
-        .introLeave{ opacity:0; transform: scale(1.02); pointer-events:none; }
+        .frIntroLeave{
+          opacity:0;
+          transform: scale(1.02);
+          pointer-events:none;
+        }
 
-        .introGlow{
-          position:absolute; inset:-40%;
+        .frIntroGlow{
+          position:absolute;
+          inset:-40%;
           background:
             radial-gradient(circle at 35% 40%, rgba(255,170,0,0.10), transparent 55%),
             radial-gradient(circle at 70% 55%, rgba(0,255,204,0.10), transparent 55%);
-          filter: blur(20px);
-          animation: glowMove 4s ease-in-out infinite alternate;
-          opacity: .9;
+          filter: blur(22px);
+          animation: frGlowMove 4s ease-in-out infinite alternate;
+          opacity:.9;
           pointer-events:none;
         }
-        @keyframes glowMove {
-          from{ transform: translate3d(-10px,-10px,0)}
-          to { transform: translate3d(14px,10px,0)}
+        @keyframes frGlowMove{
+          from{ transform: translate3d(-10px,-10px,0); }
+          to{ transform: translate3d(14px,10px,0); }
         }
 
-        .introWrap{
+        .frIntroWrap{
           position:relative;
-          width:min(980px, 100%);
+          width:min(1080px, 100%);
+          display:grid;
+          grid-template-columns: 1fr;
+          gap:18px;
+          align-items:center;
+        }
+        @media (min-width: 900px){
+          .frIntroWrap{
+            grid-template-columns: 1.05fr 0.95fr;
+            gap:28px;
+          }
+        }
+
+        .frIntroLeft{
+          background: rgba(255,255,255,0.03);
+          border: 1px solid rgba(255,255,255,0.08);
+          border-radius: 24px;
+          padding: 18px;
+          backdrop-filter: blur(10px);
+          box-shadow: 0 20px 50px rgba(0,0,0,0.35);
+        }
+        @media (max-width: 899px){
+          .frIntroLeft{
+            order:2;
+            text-align:center;
+            padding:16px;
+          }
+        }
+
+        .frBrandPill{
+          display:inline-flex;
+          align-items:center;
+          gap:8px;
+          border:1px solid rgba(0,255,204,0.30);
+          background: rgba(0,255,204,0.08);
+          color: rgba(210,255,245,0.95);
+          padding: 6px 10px;
+          border-radius: 999px;
+          font-size: 12px;
+          letter-spacing: .4px;
+        }
+        .frDot{
+          width:8px;
+          height:8px;
+          border-radius:50%;
+          background: rgba(0,255,204,0.95);
+          box-shadow: 0 0 12px rgba(0,255,204,0.7);
+        }
+
+        .frBrandName{
+          margin-top:14px;
+          color: rgba(255,255,255,0.98);
+          font-size: clamp(22px, 4vw, 34px);
+          font-weight: 950;
+          letter-spacing: .2px;
+        }
+
+        .frIntroTitle{
+          margin:10px 0 8px;
+          font-size: clamp(30px, 6vw, 54px);
+          line-height: 1.02;
+          font-weight: 950;
+          background: linear-gradient(90deg, rgba(0,255,204,1), rgba(255,170,0,1));
+          -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent;
+        }
+
+        .frIntroSub{
+          margin: 0 0 14px;
+          color: rgba(255,255,255,0.75);
+          font-size: 14px;
+        }
+
+        .frIntroBadges{
+          display:flex;
+          gap:10px;
+          flex-wrap:wrap;
+        }
+        @media (max-width: 899px){
+          .frIntroBadges{
+            justify-content:center;
+          }
+        }
+
+        .frBadge{
+          padding: 8px 12px;
+          border-radius: 999px;
+          font-size: 12px;
+          border: 1px solid rgba(255,255,255,0.10);
+          background: rgba(255,255,255,0.04);
+          color: rgba(255,255,255,0.85);
+        }
+        .frBadgeGold{
+          border-color: rgba(255,170,0,0.30);
+          background: rgba(255,170,0,0.10);
+          color: rgba(255,220,170,0.95);
+        }
+
+        .frIntroRight{
           display:flex;
           justify-content:center;
           align-items:center;
         }
 
-        .introCenter{
-          display:flex;
-          flex-direction:column;
-          align-items:center;
-          width:100%;
-        }
-
-        .phoneStage{
+        .frPhoneStage{
           position:relative;
-          width: min(420px, 96vw);
+          width:min(380px, 94vw);
           aspect-ratio: 9 / 16;
           display:flex;
           align-items:center;
           justify-content:center;
-          perspective: 1200px;
+          perspective: 1100px;
         }
 
-        .phone{
-          width: 100%;
-          height: 100%;
+        .frPhone{
+          width:100%;
+          height:100%;
           border-radius: 28px;
           background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02));
           border: 1px solid rgba(255,255,255,0.10);
           box-shadow: 0 28px 70px rgba(0,0,0,0.45);
-          transform: none;
           overflow:hidden;
           position:relative;
-          z-index: 20;
-          animation: phoneIn .55s ease-out both;
+          transform: rotateY(-8deg) rotateX(5deg);
         }
-        @keyframes phoneIn{
-          from{ opacity:0; transform: translateY(16px) scale(.98); }
-          to{ opacity:1; transform: translateY(0) scale(1); }
+        @media (max-width: 899px){
+          .frPhone{
+            transform:none;
+          }
         }
 
-        .phoneTop{
-          position:absolute; top:10px; left:50%;
+        .frPhoneTop{
+          position:absolute;
+          top:10px;
+          left:50%;
           transform: translateX(-50%);
-          display:flex; align-items:center; gap:10px;
+          display:flex;
+          align-items:center;
+          gap:10px;
           opacity:.8;
-          z-index: 25;
+          z-index:5;
         }
-        .cam{
-          width:10px; height:10px; border-radius:50%;
+        .frCam{
+          width:10px;
+          height:10px;
+          border-radius:50%;
           background: rgba(0,0,0,0.6);
           border:1px solid rgba(255,255,255,0.08);
         }
-        .speaker{
-          width:44px; height:6px; border-radius:999px;
+        .frSpeaker{
+          width:44px;
+          height:6px;
+          border-radius:999px;
           background: rgba(0,0,0,0.5);
           border:1px solid rgba(255,255,255,0.07);
         }
 
-        .screen{
-          position:absolute; inset:0;
+        .frScreen{
+          position:absolute;
+          inset:0;
           padding: 18px 14px;
           background:
             radial-gradient(700px 420px at 60% 20%, rgba(0,255,204,0.14), transparent 60%),
             radial-gradient(700px 420px at 30% 70%, rgba(255,170,0,0.10), transparent 60%),
-            linear-gradient(180deg, rgba(10,14,18,0.9), rgba(6,8,10,0.95));
+            linear-gradient(180deg, rgba(10,14,18,0.92), rgba(6,8,10,0.97));
         }
 
-        /* Machine background movement */
-        .machineBg{
-          position:absolute; inset:-40px;
+        .frMachineBg{
+          position:absolute;
+          inset:-40px;
           background:
             radial-gradient(600px 360px at 20% 30%, rgba(0,255,204,0.10), transparent 55%),
-            radial-gradient(600px 360px at 80% 70%, rgba(255,170,0,0.08), transparent 55%),
-            linear-gradient(120deg, rgba(255,255,255,0.02), rgba(0,0,0,0) 40%, rgba(255,255,255,0.02) 70%, rgba(0,0,0,0));
-          opacity: .75;
-          filter: blur(0px);
-          animation: bgDrift 3.6s ease-in-out infinite alternate;
+            radial-gradient(600px 360px at 80% 70%, rgba(255,170,0,0.08), transparent 55%);
+          opacity:.75;
+          animation: frBgDrift 3.6s ease-in-out infinite alternate;
           pointer-events:none;
         }
-        @keyframes bgDrift{
+        @keyframes frBgDrift{
           from{ transform: translate3d(-8px,-6px,0); }
           to{ transform: translate3d(10px,8px,0); }
         }
 
-        /* Subtle scan lines */
-        .scanLines{
-          position:absolute; inset:0;
+        .frScanLines{
+          position:absolute;
+          inset:0;
           background: repeating-linear-gradient(
             180deg,
             rgba(255,255,255,0.03) 0px,
@@ -278,69 +390,84 @@ export default function IntroSplash({ durationMs = 8000, onDone }) {
             transparent 2px,
             transparent 6px
           );
-          opacity: .09;
+          opacity:.09;
           mix-blend-mode: overlay;
           pointer-events:none;
         }
 
-        .screenHeader{
+        .frScreenHeader{
           position:relative;
-          display:flex; gap:12px; align-items:center;
-          margin-top: 18px;
-          z-index: 2;
+          display:flex;
+          gap:12px;
+          align-items:center;
+          margin-top:18px;
+          z-index:2;
         }
-        .logoBubble{
-          width:42px; height:42px; border-radius:14px;
-          display:flex; align-items:center; justify-content:center;
+
+        .frLogoBubble{
+          width:42px;
+          height:42px;
+          border-radius:14px;
+          display:flex;
+          align-items:center;
+          justify-content:center;
           background: rgba(255,255,255,0.05);
           border: 1px solid rgba(255,255,255,0.10);
           box-shadow: 0 0 20px rgba(0,255,204,0.08);
-          font-size: 18px;
+          overflow:hidden;
+          flex-shrink:0;
         }
-        .headerText .h1{ color: rgba(255,255,255,0.92); font-weight: 800; font-size: 16px; }
-        .headerText .h2{ color: rgba(255,255,255,0.60); font-size: 12px; margin-top:2px; }
 
+        .frHeaderText .frH1{
+          color: rgba(255,255,255,0.92);
+          font-weight: 800;
+          font-size: 16px;
+        }
+        .frHeaderText .frH2{
+          color: rgba(255,255,255,0.60);
+          font-size: 12px;
+          margin-top:2px;
+        }
 
-        .gearRow{
-  display:flex;
-  justify-content:center;
-  align-items:center;
-  gap:12px;
-  margin-top:14px;
-  margin-bottom:6px;
-}
-
-.gear{
-  font-size:22px;
-  animation:gearSpin 4s linear infinite;
-  opacity:.9;
-}
-
-.gear2{
-  font-size:26px;
-  animation-duration:5s;
-}
-
-.gear3{
-  font-size:20px;
-  animation-duration:3.5s;
-}
-
-@keyframes gearSpin{
-  from{ transform: rotate(0deg); }
-  to{ transform: rotate(360deg); }
-}
-
-        /* Mint line (factory conveyor) */
-        .mintLine{
+        .frGearRow{
+          display:flex;
+          justify-content:center;
+          align-items:center;
+          gap:10px;
+          margin-top:14px;
+          margin-bottom:8px;
           position:relative;
-          margin-top: 14px;
-          z-index: 2;
+          z-index:2;
         }
 
-        .mintLabel{
-          display:flex; align-items:center; gap:8px;
-          width: fit-content;
+        .frGear{
+          display:flex;
+          align-items:center;
+          justify-content:center;
+          filter: drop-shadow(0 0 10px rgba(255,255,255,0.08));
+          opacity:.95;
+          animation: frGearSpin 4s linear infinite;
+        }
+        .frGear1{ font-size:24px; }
+        .frGear2{ font-size:32px; animation-duration: 5.4s; }
+        .frGear3{ font-size:22px; animation-duration: 3.2s; }
+
+        @keyframes frGearSpin{
+          from{ transform: rotate(0deg); }
+          to{ transform: rotate(360deg); }
+        }
+
+        .frMintLine{
+          position:relative;
+          margin-top: 8px;
+          z-index:2;
+        }
+
+        .frMintLabel{
+          display:flex;
+          align-items:center;
+          gap:8px;
+          width:fit-content;
           padding: 6px 10px;
           border-radius: 999px;
           border: 1px solid rgba(0,255,204,0.18);
@@ -350,167 +477,196 @@ export default function IntroSplash({ durationMs = 8000, onDone }) {
           letter-spacing: .25px;
           margin-bottom: 8px;
         }
-        .pulseDot{
-          width:7px; height:7px; border-radius:50%;
+
+        .frPulseDot{
+          width:7px;
+          height:7px;
+          border-radius:50%;
           background: rgba(0,255,204,0.95);
           box-shadow: 0 0 12px rgba(0,255,204,0.65);
-          animation: pulse 1.1s ease-in-out infinite;
+          animation: frPulse 1.1s ease-in-out infinite;
         }
-        @keyframes pulse{
-          0%,100%{ transform: scale(1); opacity: .9; }
-          50%{ transform: scale(1.35); opacity: 1; }
+        @keyframes frPulse{
+          0%,100%{ transform: scale(1); opacity:.9; }
+          50%{ transform: scale(1.35); opacity:1; }
         }
 
-        .conveyor{
+        .frConveyor{
           position:relative;
-          height: 46px;
-          border-radius: 16px;
+          height:46px;
+          border-radius:16px;
           border: 1px solid rgba(255,255,255,0.10);
-          background:
-            linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02));
-          overflow:hidden; /* IMPORTANT: keep inside phone */
+          background: linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02));
+          overflow:hidden;
           box-shadow: inset 0 1px 0 rgba(255,255,255,0.06);
         }
 
-        .conveyor:before{
+        .frConveyor:before{
           content:"";
-          position:absolute; inset:0;
+          position:absolute;
+          inset:0;
           background:
             radial-gradient(120px 60px at 18% 50%, rgba(0,255,204,0.10), transparent 60%),
             radial-gradient(120px 60px at 82% 50%, rgba(255,170,0,0.08), transparent 60%);
-          opacity: .9;
+          opacity:.9;
           pointer-events:none;
         }
 
-        .track{
+        .frTrack{
           position:absolute;
-          top: 50%;
+          top:50%;
           transform: translateY(-50%);
           display:flex;
           align-items:center;
-          gap: 12px;
-          padding: 0 12px;
-          white-space: nowrap;
+          gap:12px;
+          padding:0 12px;
+          white-space:nowrap;
           will-change: transform;
         }
 
-        .trackA{ animation: conveyorMove 5.2s linear infinite; }
-        .trackB{ animation: conveyorMove2 5.2s linear infinite; }
+        .frTrackA{ animation: frConveyorMove 5.4s linear infinite; }
+        .frTrackB{ animation: frConveyorMove2 5.4s linear infinite; }
 
-        @keyframes conveyorMove{
+        @keyframes frConveyorMove{
           from{ transform: translate3d(0, -50%, 0); }
           to{ transform: translate3d(-50%, -50%, 0); }
         }
-        @keyframes conveyorMove2{
+        @keyframes frConveyorMove2{
           from{ transform: translate3d(50%, -50%, 0); }
           to{ transform: translate3d(0, -50%, 0); }
         }
 
-        .memeChip{
-          width: 28px;
-          height: 28px;
+        .frMemeChip{
+          width:28px;
+          height:28px;
           display:flex;
           align-items:center;
           justify-content:center;
-          border-radius: 999px;
+          border-radius:999px;
           border: 1px solid rgba(255,255,255,0.10);
           background: rgba(0,0,0,0.18);
           box-shadow: 0 10px 18px rgba(0,0,0,0.25);
-          opacity: .92;
-          transform: translateZ(0);
+          opacity:.92;
           position:relative;
-          filter: saturate(1.1);
         }
-        .memeChip:after{
+
+        .frMemeChip:after{
           content:"";
-          position:absolute; inset:0;
+          position:absolute;
+          inset:0;
           border-radius:999px;
           background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.20), transparent 60%);
           pointer-events:none;
         }
-        .memeChip.glow{
+
+        .frGlowChip{
           box-shadow:
             0 10px 18px rgba(0,0,0,0.25),
             0 0 18px rgba(0,255,204,0.18);
         }
 
-        .conveyorShine{
-          position:absolute; inset:-30% -10%;
+        .frConveyorShine{
+          position:absolute;
+          inset:-30% -10%;
           background: linear-gradient(90deg, transparent, rgba(255,255,255,0.10), transparent);
           transform: translateX(-40%);
-          animation: shine 1.6s ease-in-out infinite;
+          animation: frShine 1.6s ease-in-out infinite;
           pointer-events:none;
-          opacity: .6;
+          opacity:.6;
         }
-        @keyframes shine{
+        @keyframes frShine{
           0%{ transform: translateX(-40%); }
           100%{ transform: translateX(40%); }
         }
 
-        .progress{ margin-top: 14px; position:relative; z-index:2; }
-        .bar{
-          display:flex; gap:6px;
-          padding: 12px;
-          border-radius: 16px;
+        .frProgress{
+          margin-top:14px;
+          position:relative;
+          z-index:2;
+        }
+
+        .frBar{
+          display:flex;
+          gap:6px;
+          padding:12px;
+          border-radius:16px;
           border: 1px solid rgba(255,255,255,0.10);
           background: rgba(255,255,255,0.03);
         }
-        .bar span{
+
+        .frBar span{
           flex:1;
-          height: 16px;
-          border-radius: 8px;
+          height:16px;
+          border-radius:8px;
           background: rgba(255,255,255,0.06);
           overflow:hidden;
           position:relative;
         }
-        .bar span:after{
+
+        .frBar span:after{
           content:"";
-          position:absolute; inset:-2px;
+          position:absolute;
+          inset:-2px;
           background: linear-gradient(90deg, transparent, rgba(0,255,204,0.35), transparent);
           transform: translateX(-120%);
-          animation: shimmer 1.1s ease-in-out infinite;
+          animation: frShimmer 1.1s ease-in-out infinite;
         }
-        .bar span:nth-child(2):after{ animation-delay: .05s;}
-        .bar span:nth-child(3):after{ animation-delay: .1s;}
-        .bar span:nth-child(4):after{ animation-delay: .15s;}
-        .bar span:nth-child(5):after{ animation-delay: .2s;}
-        .bar span:nth-child(6):after{ animation-delay: .25s;}
-        .bar span:nth-child(7):after{ animation-delay: .3s;}
-        .bar span:nth-child(8):after{ animation-delay: .35s;}
-        .bar span:nth-child(9):after{ animation-delay: .4s;}
-        .bar span:nth-child(10):after{ animation-delay: .45s;}
-        @keyframes shimmer { to { transform: translateX(120%); } }
+        .frBar span:nth-child(2):after{ animation-delay:.05s; }
+        .frBar span:nth-child(3):after{ animation-delay:.1s; }
+        .frBar span:nth-child(4):after{ animation-delay:.15s; }
+        .frBar span:nth-child(5):after{ animation-delay:.2s; }
+        .frBar span:nth-child(6):after{ animation-delay:.25s; }
+        .frBar span:nth-child(7):after{ animation-delay:.3s; }
+        .frBar span:nth-child(8):after{ animation-delay:.35s; }
+        .frBar span:nth-child(9):after{ animation-delay:.4s; }
+        .frBar span:nth-child(10):after{ animation-delay:.45s; }
 
-        .launchRow{
-          margin-top: 14px;
-          display:flex; align-items:center; gap:10px;
-          padding: 12px;
-          border-radius: 16px;
+        @keyframes frShimmer{
+          to{ transform: translateX(120%); }
+        }
+
+        .frLaunchRow{
+          margin-top:14px;
+          display:flex;
+          align-items:center;
+          gap:10px;
+          padding:12px;
+          border-radius:16px;
           border: 1px solid rgba(255,255,255,0.10);
           background: rgba(255,255,255,0.03);
           position:relative;
           z-index:2;
         }
-        .rocket{
-          width:34px; height:34px;
-          border-radius: 12px;
-          display:flex; align-items:center; justify-content:center;
+
+        .frRocket{
+          width:34px;
+          height:34px;
+          border-radius:12px;
+          display:flex;
+          align-items:center;
+          justify-content:center;
           background: rgba(255,170,0,0.10);
           border: 1px solid rgba(255,170,0,0.18);
           box-shadow: 0 0 20px rgba(255,170,0,0.10);
         }
-        .hint{ color: rgba(255,255,255,0.68); font-size: 12px; }
 
-        .screenFooter{
+        .frHint{
+          color: rgba(255,255,255,0.68);
+          font-size: 12px;
+        }
+
+        .frScreenFooter{
           position:absolute;
-          left: 0; right: 0;
-          bottom: 18px;
+          left:0;
+          right:0;
+          bottom:18px;
           display:flex;
           justify-content:center;
+          z-index:2;
           pointer-events:none;
-          z-index: 2;
         }
-        .footerPill{
+
+        .frFooterPill{
           padding: 10px 14px;
           border-radius: 999px;
           font-size: 13px;
@@ -526,30 +682,70 @@ export default function IntroSplash({ durationMs = 8000, onDone }) {
           max-width: calc(100% - 28px);
           text-align:center;
           white-space: nowrap;
-          overflow: hidden;
+          overflow:hidden;
           text-overflow: ellipsis;
         }
 
-        .stageShadow{
-          position:absolute; bottom:-18px; left: 12%;
-          width: 76%; height: 34px;
+        .frStageShadow{
+          position:absolute;
+          bottom:-18px;
+          left:12%;
+          width:76%;
+          height:34px;
           background: radial-gradient(closest-side, rgba(0,0,0,0.55), transparent 70%);
           filter: blur(6px);
-          opacity: .8;
+          opacity:.8;
           transform: rotateX(70deg);
-          z-index: 10;
+        }
+
+        @media (max-width: 899px){
+          .frIntroGlow{ animation:none; }
+
+          .frIntroWrap{
+            gap:14px;
+          }
+
+          .frPhoneStage{
+            width:min(360px, 92vw);
+          }
+
+          .frScreen{
+            padding:16px 12px;
+          }
+
+          .frScreenHeader{
+            margin-top:14px;
+          }
+
+          .frBrandName{
+            margin-top:12px;
+          }
+
+          .frIntroTitle{
+            font-size: clamp(28px, 9vw, 42px);
+          }
+
+          .frIntroSub{
+            font-size:13px;
+          }
+
+          .frFooterPill{
+            font-size:12px;
+          }
         }
 
         @media (prefers-reduced-motion: reduce){
-          .introGlow{ animation:none; }
-          .machineBg{ animation:none; }
-          .trackA, .trackB{ animation-duration: 9s; }
-          .bar span:after{ animation-duration: .7s; }
-          .conveyorShine{ animation:none; }
-        }
-
-        @media (max-width: 859px){
-          .introGlow{ animation:none; }
+          .frIntroGlow,
+          .frMachineBg,
+          .frGear,
+          .frTrackA,
+          .frTrackB,
+          .frConveyorShine{
+            animation:none !important;
+          }
+          .frBar span:after{
+            animation-duration:.7s;
+          }
         }
       `}</style>
     </div>
