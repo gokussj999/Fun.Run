@@ -219,13 +219,30 @@ export default function IntroSplash({ durationMs = 5000, onDone, logoUrl = "/log
           backdrop-filter: blur(10px);
           box-shadow: 0 20px 50px rgba(0,0,0,0.35);
         }
-        @media (max-width: 899px){
-          .frIntroLeft{
-            order:2;
-            text-align:center;
-            padding:16px;
-          }
-        }
+      @media (max-width: 899px){
+  .frIntroWrap{
+    display:flex;
+    flex-direction:column;
+    justify-content:flex-start;
+    align-items:center;
+    gap:10px;
+  }
+
+  .frIntroLeft{
+    order:1;
+    width:min(360px, 92vw);
+    text-align:center;
+    padding:14px 14px 10px;
+  }
+
+  .frIntroRight{
+    order:2;
+  }
+
+  .frPhoneStage{
+    width:min(360px, 92vw);
+  }
+}
 
         .frBrandPill{
           display:inline-flex;
