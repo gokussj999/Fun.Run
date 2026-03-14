@@ -226,6 +226,8 @@ export default function IntroSplash({ durationMs = 5000, onDone, logoUrl = "/log
     justify-content:flex-start;
     align-items:center;
     gap:10px;
+
+    
   }
 
   .frIntroLeft{
