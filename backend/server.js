@@ -789,24 +789,48 @@ app.get("/api/coin/list", async (req, res) => {
     const page = Math.max(0, Number(req.query?.page || 0));
     const pageSize = 100;
     const from = page * pageSize;
-    const to = from + pageSize;
+    const to = from + pageSize - 1;
 
-    const store = await loadStoreOnce();
+    const { data, error, count } = await supabase
+      .from("coins")
+      .select("*", { count: "exact" })
+      .order("created_at", { ascending: false })
+      .range(from, to);
 
-    const allCoins = Array.isArray(store?.coins) ? store.coins : [];
+    if (error) {
+      console.log("Supabase coin/list error:", error);
+      throw error;
+    }
 
-    const sorted = allCoins.sort(
-      (a, b) => Number(b.createdAt || 0) - Number(a.createdAt || 0)
+    const coins = (data || []).map((r) =>
+      ensureCoin({
+        id: r.id,
+        name: r.name,
+        symbol: r.symbol,
+        story: r.story || "",
+        logo: r.logo || "",
+        creatorWallet: r.creator_wallet || "",
+        owner: r.creator_wallet || "",
+        status: "LIVE",
+        createdAt: r.created_at ? new Date(r.created_at).getTime() : Date.now(),
+        holders: r.holders || {},
+        volumeSol: r.volume_sol || 0,
+        lastTradeAt: r.last_trade_at || 0,
+        totalSupply: r.total_supply || TOTAL_SUPPLY,
+        solReserve: r.reserve_sol || 0,
+        tokenReserve: r.reserve_token || TOTAL_SUPPLY,
+        mc: r.market_cap || 0,
+        ath: r.ath_market_cap || 0,
+        priceSol: r.last_price || 0,
+      })
     );
-
-    const coins = sorted.slice(from, to);
 
     return res.json({
       ok: true,
       coins,
-      count: sorted.length,
+      count: count || coins.length,
       page,
-      pageSize
+      pageSize,
     });
 
   } catch (e) {
