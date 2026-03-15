@@ -194,7 +194,7 @@ export default function IntroSplash({ durationMs = 5000, onDone, logoUrl = "/log
         .frHeroShell{
           position:relative;
           width:min(1120px, 100%);
-          min-height:min(720px, 92vh);
+          min-height:100vh;
           border-radius:32px;
           overflow:hidden;
           border:1px solid rgba(255,255,255,0.10);
