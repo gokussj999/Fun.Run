@@ -3254,8 +3254,124 @@ if (screen === "CREATOR") {
           )}
         </div>
       </Card>
+
+            <Card>
+        <SectionHeader title="Creator Holdings" right={<Pill>{creatorHoldings.length}</Pill>} />
+     <div
+  className="creatorScroll"
+  style={{
+    display: "flex",
+    flexDirection: "column",
+    gap: 10,
+    maxHeight: 320,
+    overflowY: "auto",
+    paddingRight: 4,
+    scrollbarWidth: "none",
+    msOverflowStyle: "none"
+  }}
+>
+ 
+          {creatorHoldings.length === 0 ? (
+            <div style={{ color: "var(--muted2)", fontSize: 13 }}>No holdings found.</div>
+          ) : (
+            creatorHoldings.map(({ coin, amt, pct }) => (
+              <button
+                key={coin.id}
+                onClick={() => {
+                  setSelectedCoinId(coin.id);
+                  setScreen("COIN");
+                }}
+                style={{
+                  width: "100%",
+                  padding: 12,
+                  borderRadius: 14,
+                  border: "1px solid var(--border)",
+                  background: "var(--card2)",
+                  color: "var(--text)",
+                  textAlign: "left",
+                  cursor: "pointer",
+                }}
+              >
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
+                  <div>
+                    <div style={{ fontWeight: 900 }}>{coin.symbol || "—"}</div>
+                    <div style={{ fontSize: 12, color: "var(--muted2)" }}>
+                      {Number(amt || 0).toFixed(2)} held
+                    </div>
+                  </div>
+
+                  <div style={{ textAlign: "right" }}>
+                    <div style={{ fontWeight: 900 }}>{pct.toFixed(2)}%</div>
+                    <div style={{ fontSize: 12, color: "var(--muted2)" }}>of supply</div>
+                  </div>
+                </div>
+              </button>
+            ))
+          )}
+        </div>
+      </Card>
+
+      <div style={{ height: 12 }} />
+
+      <Card>
+        <SectionHeader title="Last Transactions" />
+        <div
+          className="creatorScroll"
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: 10,
+            maxHeight: 260,
+            overflowY: "auto",
+            paddingRight: 4,
+            scrollbarWidth: "none",
+            msOverflowStyle: "none"
+          }}
+        >
+          {(coins || [])
+            .filter((c) => c.creatorWallet === creatorId)
+            .flatMap((c) =>
+              (c.chart || []).slice(-5).map((t) => ({
+                coin: c,
+                ...t
+              }))
+            )
+            .slice(-10)
+            .reverse()
+            .map((tx, i) => (
+              <div
+                key={i}
+                style={{
+                  padding: 10,
+                  borderRadius: 12,
+                  border: "1px solid var(--border)",
+                  background: "var(--card2)",
+                  display: "flex",
+                  justifyContent: "space-between",
+                  gap: 10
+                }}
+              >
+                <div>
+                  <div style={{ fontWeight: 900 }}>{tx.coin?.symbol || "—"}</div>
+                  <div style={{ fontSize: 12, color: "var(--muted2)" }}>
+                    {tx.side || "trade"}
+                  </div>
+                </div>
+
+                <div style={{ textAlign: "right" }}>
+                  <div style={{ fontWeight: 900 }}>
+                    {Number(tx.price || 0).toFixed(6)} SOL
+                  </div>
+                </div>
+              </div>
+            ))}
+        </div>
+      </Card>
     </ScreenShell>
   );
+}
+    
+  
 }
 
 
@@ -3877,7 +3993,7 @@ try {
         </ScreenShell>
       );
     }
-  }
+  
 
   return (
     <>
