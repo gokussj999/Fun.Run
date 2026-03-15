@@ -204,6 +204,15 @@ function ThemeStyles() {
       .noScrollbar{ scrollbar-width: none; -ms-overflow-style: none; }
       .noScrollbar::-webkit-scrollbar{ display:none; }
 
+      .creatorScroll::-webkit-scrollbar{
+  display:none;
+}
+
+.creatorScroll{
+  scrollbar-width:none;
+  -ms-overflow-style:none;
+}
+
       .miniScroll {
         overflow-y: auto;
         -webkit-overflow-scrolling: touch;
@@ -3013,14 +3022,32 @@ try {
       );
     }
 
-   if (screen === "CREATOR") {
+  
+   
+if (screen === "CREATOR") {
   const creatorId = creatorProfileId || "";
   const creatorCoins = (coins || []).filter((x) => x.creatorWallet === creatorId);
 
   const creatorRewards = creatorCoins.reduce(
     (sum, coin) =>
-      sum + Number(coin?.creatorRewardsSol || coin?.creatorRewardAccrued || coin?.creatorRewards || 0),
+      sum +
+      Number(
+        coin?.creatorRewardsSol ||
+          coin?.creatorRewardAccrued ||
+          coin?.creatorRewards ||
+          0
+      ),
     0
+  );
+
+  const sourceCoin =
+    (coins || []).find((x) => x.id === selectedCoinId) || null;
+
+  const sourceCoinReward = Number(
+    sourceCoin?.creatorRewardsSol ||
+      sourceCoin?.creatorRewardAccrued ||
+      sourceCoin?.creatorRewards ||
+      0
   );
 
   const creatorHoldings = creatorCoins
@@ -3033,7 +3060,7 @@ try {
     .filter((x) => x.amt > 0);
 
   content = (
-    <ScreenShell>
+    <ScreenShell allowYScroll>
       <Title
         sub={
           <span style={{ color: "var(--muted2)" }}>
@@ -3053,48 +3080,119 @@ try {
         <Pill>{shortWallet(creatorId)}</Pill>
         <Pill tone="warn">Coins: {creatorCoins.length}</Pill>
         <Pill tone="good">
-          Creator Reward: {Number(creatorRewards || 0).toFixed(6)} SOL
+          Lifetime Creator Reward: {Number(creatorRewards || 0).toFixed(6)} SOL
         </Pill>
+        {sourceCoin ? (
+          <Pill tone="good">
+            This Coin Reward: {sourceCoinReward.toFixed(6)} SOL
+          </Pill>
+        ) : null}
       </div>
+
+      {sourceCoin ? (
+        <>
+          <Card>
+            <SectionHeader title="Selected Coin Reward" />
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                gap: 12,
+                flexWrap: "wrap",
+              }}
+            >
+              <div>
+                <div style={{ fontWeight: 900 }}>
+                  {sourceCoin.symbol || "—"}{" "}
+                  <span style={{ color: "var(--muted2)", fontWeight: 700 }}>
+                    {sourceCoin.name || "Unnamed coin"}
+                  </span>
+                </div>
+                <div style={{ fontSize: 12, color: "var(--muted2)", marginTop: 4 }}>
+                  Reward from the coin you opened this creator profile from
+                </div>
+              </div>
+
+              <div style={{ textAlign: "right" }}>
+                <div style={{ fontWeight: 900, fontSize: 18 }}>
+                  {sourceCoinReward.toFixed(6)} SOL
+                </div>
+                <div style={{ fontSize: 12, color: "var(--muted2)" }}>
+                  creator reward
+                </div>
+              </div>
+            </div>
+          </Card>
+
+          <div style={{ height: 12 }} />
+        </>
+      ) : null}
 
       <Card>
         <SectionHeader title="Created Coins" right={<Pill>{creatorCoins.length}</Pill>} />
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+   <div
+  className="creatorScroll"
+  style={{
+    display: "flex",
+    flexDirection: "column",
+    gap: 10,
+    maxHeight: 320,
+    overflowY: "auto",
+    paddingRight: 4,
+    scrollbarWidth: "none",
+    msOverflowStyle: "none"
+  }}
+>
+
           {creatorCoins.length === 0 ? (
             <div style={{ color: "var(--muted2)", fontSize: 13 }}>No created coins yet.</div>
           ) : (
-            creatorCoins.map((coin) => (
-              <button
-                key={coin.id}
-                onClick={() => {
-                  setSelectedCoinId(coin.id);
-                  setScreen("COIN");
-                }}
-                style={{
-                  width: "100%",
-                  padding: 12,
-                  borderRadius: 14,
-                  border: "1px solid var(--border)",
-                  background: "var(--card2)",
-                  color: "var(--text)",
-                  textAlign: "left",
-                  cursor: "pointer",
-                }}
-              >
-                <div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
-                  <div>
-                    <div style={{ fontWeight: 900 }}>{coin.symbol || "—"}</div>
-                    <div style={{ fontSize: 12, color: "var(--muted2)" }}>
-                      {coin.name || "Unnamed coin"}
+            creatorCoins.map((coin) => {
+              const coinReward = Number(
+                coin?.creatorRewardsSol ||
+                  coin?.creatorRewardAccrued ||
+                  coin?.creatorRewards ||
+                  0
+              );
+
+              return (
+                <button
+                  key={coin.id}
+                  onClick={() => {
+                    setSelectedCoinId(coin.id);
+                    setScreen("COIN");
+                  }}
+                  style={{
+                    width: "100%",
+                    padding: 12,
+                    borderRadius: 14,
+                    border: "1px solid var(--border)",
+                    background: "var(--card2)",
+                    color: "var(--text)",
+                    textAlign: "left",
+                    cursor: "pointer",
+                  }}
+                >
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
+                    <div>
+                      <div style={{ fontWeight: 900 }}>{coin.symbol || "—"}</div>
+                      <div style={{ fontSize: 12, color: "var(--muted2)" }}>
+                        {coin.name || "Unnamed coin"}
+                      </div>
+                      <div style={{ fontSize: 12, color: "var(--good)", marginTop: 6 }}>
+                        Reward: {coinReward.toFixed(6)} SOL
+                      </div>
+                    </div>
+
+                    <div style={{ textAlign: "right" }}>
+                      <div style={{ fontWeight: 900 }}>{fmtUsd(Number(coin.mc || 0))}</div>
+                      <div style={{ fontSize: 12, color: "var(--muted2)" }}>MC</div>
                     </div>
                   </div>
-                  <div style={{ textAlign: "right" }}>
-                    <div style={{ fontWeight: 900 }}>{fmtUsd(Number(coin.mc || 0))}</div>
-                    <div style={{ fontSize: 12, color: "var(--muted2)" }}>MC</div>
-                  </div>
-                </div>
-              </button>
-            ))
+                </button>
+              );
+            })
           )}
         </div>
       </Card>
@@ -3103,7 +3201,20 @@ try {
 
       <Card>
         <SectionHeader title="Creator Holdings" right={<Pill>{creatorHoldings.length}</Pill>} />
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+     <div
+  className="creatorScroll"
+  style={{
+    display: "flex",
+    flexDirection: "column",
+    gap: 10,
+    maxHeight: 320,
+    overflowY: "auto",
+    paddingRight: 4,
+    scrollbarWidth: "none",
+    msOverflowStyle: "none"
+  }}
+>
+ 
           {creatorHoldings.length === 0 ? (
             <div style={{ color: "var(--muted2)", fontSize: 13 }}>No holdings found.</div>
           ) : (
@@ -3132,6 +3243,7 @@ try {
                       {Number(amt || 0).toFixed(2)} held
                     </div>
                   </div>
+
                   <div style={{ textAlign: "right" }}>
                     <div style={{ fontWeight: 900 }}>{pct.toFixed(2)}%</div>
                     <div style={{ fontSize: 12, color: "var(--muted2)" }}>of supply</div>
