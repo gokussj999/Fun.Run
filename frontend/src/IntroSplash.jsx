@@ -341,19 +341,23 @@ export default function IntroSplash({ durationMs = 5000, onDone, logoUrl = "/log
         }
 
         .frMachinePanel{
-          position:relative;
-          width:100%;
-          max-width:460px;
-          border-radius:26px;
-          padding:18px;
-          border:1px solid rgba(255,255,255,0.10);
-          background:
-            linear-gradient(180deg, rgba(12,18,20,0.82), rgba(7,10,12,0.90));
-          box-shadow:
-            0 24px 60px rgba(0,0,0,0.30),
-            inset 0 1px 0 rgba(255,255,255,0.06);
-          overflow:hidden;
-        }
+  position:relative;
+  width:100%;
+  max-width:460px;
+  min-height:360px;
+  display:flex;
+  flex-direction:column;
+  justify-content:flex-start;
+  border-radius:26px;
+  padding:18px;
+  border:1px solid rgba(255,255,255,0.10);
+  background:
+    linear-gradient(180deg, rgba(12,18,20,0.82), rgba(7,10,12,0.90));
+  box-shadow:
+    0 24px 60px rgba(0,0,0,0.30),
+    inset 0 1px 0 rgba(255,255,255,0.06);
+  overflow:hidden;
+}
 
         .frMachinePanel::before{
           content:"";
