@@ -471,7 +471,7 @@ maxWidth: "100%",
             0 0 70px rgba(25,230,162,.08)
           `,
           maxHeight: "calc(100vh - 110px)",
-          overflowY: "hidden",
+          overflowY: "auto",
           position: "relative",
         }}
       >
@@ -3013,15 +3013,15 @@ try {
       );
     }
 
-    if (screen === "CREATOR") {
+   if (screen === "CREATOR") {
   const creatorId = creatorProfileId || "";
   const creatorCoins = (coins || []).filter((x) => x.creatorWallet === creatorId);
 
- const creatorRewards = creatorCoins.reduce(
-  (sum, coin) =>
-    sum + Number(coin?.creatorRewardsSol || coin?.creatorRewardAccrued || coin?.creatorRewards || 0),
-  0
-);
+  const creatorRewards = creatorCoins.reduce(
+    (sum, coin) =>
+      sum + Number(coin?.creatorRewardsSol || coin?.creatorRewardAccrued || coin?.creatorRewards || 0),
+    0
+  );
 
   const creatorHoldings = creatorCoins
     .map((coin) => {
@@ -3052,7 +3052,9 @@ try {
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 12 }}>
         <Pill>{shortWallet(creatorId)}</Pill>
         <Pill tone="warn">Coins: {creatorCoins.length}</Pill>
-        <Pill tone="good">Creator Reward: {Number(creatorRewards || 0).toFixed(6)} SOL</Pill>
+        <Pill tone="good">
+          Creator Reward: {Number(creatorRewards || 0).toFixed(6)} SOL
+        </Pill>
       </div>
 
       <Card>
