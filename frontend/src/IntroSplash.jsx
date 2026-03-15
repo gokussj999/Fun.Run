@@ -644,24 +644,28 @@ export default function IntroSplash({ durationMs = 5000, onDone, logoUrl = "/log
         }
 
         .frFooterPill{
-          padding: 10px 14px;
-          border-radius: 999px;
-          font-size: 13px;
-          color: rgba(255,255,255,0.86);
-          letter-spacing: .2px;
-          border: 1px solid rgba(255,255,255,0.12);
-          background:
-            linear-gradient(180deg, rgba(255,255,255,0.10), rgba(255,255,255,0.05));
-          backdrop-filter: blur(12px);
-          box-shadow:
-            0 18px 40px rgba(0,0,0,0.35),
-            inset 0 1px 0 rgba(255,255,255,0.10);
-          max-width: calc(100% - 28px);
-          text-align:center;
-          white-space: nowrap;
-          overflow:hidden;
-          text-overflow: ellipsis;
-        }
+  position:absolute;
+  bottom:20px;
+  left:50%;
+  transform:translateX(-50%);
+  padding: 10px 14px;
+  border-radius: 999px;
+  font-size: 13px;
+  color: rgba(255,255,255,0.86);
+  letter-spacing: .2px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.10), rgba(255,255,255,0.05));
+  backdrop-filter: blur(12px);
+  box-shadow:
+    0 18px 40px rgba(0,0,0,0.35),
+    inset 0 1px 0 rgba(255,255,255,0.10);
+  max-width: calc(100% - 28px);
+  text-align:center;
+  white-space: nowrap;
+  overflow:hidden;
+  text-overflow: ellipsis;
+}
 
         @media (max-width: 899px){
   .frIntroRoot{
