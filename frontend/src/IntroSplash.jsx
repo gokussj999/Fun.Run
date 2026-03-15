@@ -734,14 +734,15 @@ export default function IntroSplash({ durationMs = 5000, onDone, logoUrl = "/log
     margin-top:-2px;
   }
 
-  .frMachinePanel{
-    max-width:none;
-    width:100%;
-    border-radius:22px;
-    padding:15px;
-    transform: translateY(-2px) scale(1.03);
-    transform-origin: top center;
-  }
+ .frMachinePanel{
+  max-width:none;
+  width:100%;
+  min-height:540px;
+  border-radius:22px;
+  padding:16px 14px 18px;
+  transform: translateY(-8px) scale(1.04);
+  transform-origin: top center;
+}
 
   .frHeaderText .frH1{
     font-size:16px;
