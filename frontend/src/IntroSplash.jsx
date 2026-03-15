@@ -153,15 +153,18 @@ export default function IntroSplash({ durationMs = 5000, onDone, logoUrl = "/log
       </div>
 
       <style>{`
-        .frIntroRoot{
-          position:fixed;
-          inset:0;
-          z-index:999999;
-          display:flex;
-          align-items:center;
-          justify-content:center;
-          overflow:hidden;
-          padding:14px;
+       .frIntroRoot{
+  position:fixed;
+  inset:0;
+  z-index:999999;
+  display:flex;
+  align-items:flex-start;
+  justify-content:center;
+  min-height:100vh;
+  height:100vh;
+  overflow:hidden;
+  padding:14px;
+}
           background:
             radial-gradient(1200px 700px at 70% 40%, rgba(0,255,204,0.10), rgba(0,0,0,0.95) 60%),
             linear-gradient(180deg, rgba(0,0,0,0.82), rgba(0,0,0,0.95));
