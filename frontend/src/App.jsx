@@ -460,7 +460,7 @@ function ScreenShell({ children, fullBleed = false, allowYScroll = false }) {
       }}
     >
       <div
-        className={`fadeIn ${allowYScroll ? "noScrollbar" : ""}`}
+        className="fadeIn noScrollbar"
         style={{
           width: "100%",
 maxWidth: "100%",
