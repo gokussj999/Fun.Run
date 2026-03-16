@@ -217,11 +217,21 @@ async function uploadMetadataToIPFS(metadata) {
 
 function ensureCoin(input = {}) {
   const totalSupply = safeNum(input.totalSupply, TOTAL_SUPPLY);
-  const vTokens = safeNum(input.vTokens, (totalSupply * VIRTUAL_TOKEN_PCT) / 100);
-  const vSol = safeNum(input.vSol, VIRTUAL_SOL);
 
+  const rawCurveSupply = safeNum(
+    input.curveSupply,
+    safeNum(input.tokenReserve, totalSupply)
+  );
+  const curveSupply = clampNum(rawCurveSupply, 0, totalSupply);
+
+  const rawCurveSold = safeNum(input.curveSold, Math.max(0, curveSupply - safeNum(input.tokenReserve, curveSupply)));
+  const curveSold = clampNum(rawCurveSold, 0, curveSupply);
+
+  const tokenReserve = clampNum(curveSupply - curveSold, 0, totalSupply);
+
+  const vTokens = safeNum(input.vTokens, (curveSupply * VIRTUAL_TOKEN_PCT) / 100);
+  const vSol = safeNum(input.vSol, VIRTUAL_SOL);
   const solReserve = Math.max(0, safeNum(input.solReserve, 0));
-  const tokenReserve = clampNum(safeNum(input.tokenReserve, totalSupply), 0, totalSupply);
 
   const pricing = calcPricing({
     totalSupply,
@@ -232,14 +242,16 @@ function ensureCoin(input = {}) {
   });
 
   const holders = asObj(input.holders, {});
-  const chartInput = Array.isArray(input.chart) ? input.chart.filter((n) => Number.isFinite(Number(n))).map(Number) : [];
+  const chartInput = Array.isArray(input.chart)
+    ? input.chart.filter((n) => Number.isFinite(Number(n))).map(Number)
+    : [];
 
- const mc = pricing.mcUsd;
-const ath = Math.max(safeNum(input.ath, mc), mc);
-const chart =
-  chartInput.length > 0
-    ? chartInput.slice(-120)
-    : [mc, mc, mc, mc, mc].map((n) => safeNum(n, 0));
+  const mc = pricing.mcUsd;
+  const ath = Math.max(safeNum(input.ath, mc), mc);
+  const chart =
+    chartInput.length > 0
+      ? chartInput.slice(-120)
+      : [mc, mc, mc, mc, mc].map((n) => safeNum(n, 0));
 
   return {
     id: String(input.id || uid()),
@@ -253,6 +265,8 @@ const chart =
     status: String(input.status || "LIVE").toUpperCase(),
 
     totalSupply,
+    curveSupply,
+    curveSold,
     vTokens,
     vSol,
     solReserve,
