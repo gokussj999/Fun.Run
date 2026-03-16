@@ -29,9 +29,19 @@ const CORS_ORIGINS = (process.env.CORS_ORIGINS || "http://localhost:5173")
   .filter(Boolean);
 
 // fees
+// fees
 const FEE_PCT = clampNum(Number(process.env.FEE_PCT || 1), 0, 10);
+
+// 1% fee ka breakdown:
+// 40% app owner
+// 40% coin creator
+// 20% referral
+const OWNER_PCT_OF_FEE = clampNum(Number(process.env.OWNER_PCT_OF_FEE || 40), 0, 100);
+const CREATOR_PCT_OF_FEE = clampNum(Number(process.env.CREATOR_PCT_OF_FEE || 40), 0, 100);
 const REFERRAL_PCT_OF_FEE = clampNum(Number(process.env.REFERRAL_PCT_OF_FEE || 20), 0, 100);
-const CREATOR_PCT_OF_FEE = clampNum(Number(process.env.CREATOR_PCT_OF_FEE || 50), 0, 100);
+
+const APP_OWNER_WALLET = String(process.env.APP_OWNER_WALLET || "").trim();
+
 const SOL_USD = clampNum(Number(process.env.SOL_USD || 80), 1, 100000);
 
 // amm
@@ -549,29 +559,60 @@ function distributeFee(store, coin, traderWallet, feeSol) {
   if (feeSol <= 0) return;
 
   const creatorWallet = String(coin.creatorWallet || coin.owner || "").trim();
+  const trader = String(traderWallet || "").trim();
+
+  const ownerPart = feeSol * (OWNER_PCT_OF_FEE / 100);
   const creatorPart = feeSol * (CREATOR_PCT_OF_FEE / 100);
 
-  if (creatorWallet && creatorPart > 0) {
-    const p = ensureProfile(store, creatorWallet);
-    p.creatorRewardsSol = Math.max(0, safeNum(p.creatorRewardsSol, 0) + creatorPart);
-    p.updatedAt = nowMS();
-    coin.creatorRewardsSol = Math.max(0, safeNum(coin.creatorRewardsSol, 0) + creatorPart);
+  let referrer = "";
+  let refPart = 0;
+
+  if (trader) {
+    const traderProfile = ensureProfile(store, trader);
+    referrer = String(traderProfile?.referrer || "").trim();
+
+    if (referrer && referrer !== trader) {
+      refPart = feeSol * (REFERRAL_PCT_OF_FEE / 100);
+    }
   }
 
-  const trader = String(traderWallet || "").trim();
-  if (!trader) return;
+  // app owner
+  if (APP_OWNER_WALLET && ownerPart > 0) {
+    const ownerProfile = ensureProfile(store, APP_OWNER_WALLET);
+    ownerProfile.ownerRewardsSol = Math.max(
+      0,
+      safeNum(ownerProfile.ownerRewardsSol, 0) + ownerPart
+    );
+    ownerProfile.updatedAt = nowMS();
+  }
 
-  const traderProfile = ensureProfile(store, trader);
-  const referrer = String(traderProfile?.referrer || "").trim();
-  if (!referrer || referrer === trader) return;
+  // coin creator
+  if (creatorWallet && creatorPart > 0) {
+    const creatorProfile = ensureProfile(store, creatorWallet);
+    creatorProfile.creatorRewardsSol = Math.max(
+      0,
+      safeNum(creatorProfile.creatorRewardsSol, 0) + creatorPart
+    );
+    creatorProfile.updatedAt = nowMS();
 
-  const refPart = feeSol * (REFERRAL_PCT_OF_FEE / 100);
-  if (refPart <= 0) return;
+    coin.creatorRewardsSol = Math.max(
+      0,
+      safeNum(coin.creatorRewardsSol, 0) + creatorPart
+    );
+  }
 
-  const refP = ensureProfile(store, referrer);
-  refP.referralRewardsSol = Math.max(0, safeNum(refP.referralRewardsSol, 0) + refPart);
-  refP.updatedAt = nowMS();
+  // referral
+  if (referrer && refPart > 0) {
+    const refProfile = ensureProfile(store, referrer);
+    refProfile.referralRewardsSol = Math.max(
+      0,
+      safeNum(refProfile.referralRewardsSol, 0) + refPart
+    );
+    refProfile.updatedAt = nowMS();
+  }
 }
+refP.updatedAt = nowMS();
+
 
 function recalcCoin(coin) {
   const fixed = ensureCoin(coin);
