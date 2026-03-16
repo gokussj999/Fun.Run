@@ -1663,58 +1663,58 @@ function PriceChart({ points, txMarkers, mode, onToggleMode }) {
   const text = mode === "dark" ? "rgba(255,255,255,.72)" : "rgba(0,0,0,.62)";
 
   function fmtUsdLocal(n) {
-    const x = Number(n || 0);
+  const x = Number(n || 0);
 
-    if (!Number.isFinite(x) || x <= 0) return "$0";
-    if (x >= 1000) return `$${Math.round(x).toLocaleString()}`;
-    if (x >= 1) return `$${x.toFixed(2)}`;
-    if (x >= 0.01) return `$${x.toFixed(4)}`;
-    if (x >= 0.0001) return `$${x.toFixed(6)}`;
-    return `$${x.toExponential(2)}`;
-  }
+  if (!Number.isFinite(x) || x <= 0) return "$0";
+  if (x >= 1000) return `$${Math.round(x).toLocaleString()}`;
+  if (x >= 1) return `$${x.toFixed(2)}`;
+  if (x >= 0.01) return `$${x.toFixed(4)}`;
+  if (x >= 0.0001) return `$${x.toFixed(6)}`;
+  if (x >= 0.000001) return `$${x.toFixed(8)}`;
+
+  return `$${x.toFixed(10)}`;
+}
 
   // points can be:
   // [1,2,3]
   // [{price:...}, {value:...}, {close:...}, {mc:...}]
   const raw = Array.isArray(points) ? points : [];
 
-  const normalized = raw
-  .map((p) => {
-    if (typeof p === "number") return p;
-    if (p && typeof p === "object") {
-      return Number(
-        p.price ??
-        p.value ??
-        p.close ??
-        p.last ??
-        p.marketCap ??
-        p.mc ??
-        p.y ??
-        0
-      );
-    }
-    return Number(p || 0);
-  })
-  .filter((n) => Number.isFinite(n) && n >= 0);
+   const normalized = raw
+    .map((p) => {
+      if (typeof p === "number") return p;
 
-const safePoints = normalized.filter((n, i, arr) => {
-  if (i === 0) return true;
+      if (p && typeof p === "object") {
+        return Number(
+          p.price ??
+          p.value ??
+          p.close ??
+          p.last ??
+          p.marketCap ??
+          p.mc ??
+          p.y ??
+          p.v ??
+          0
+        );
+      }
 
-  const prev = Number(arr[i - 1] || 0);
-  if (prev <= 0) return true;
+      return Number(p ?? 0);
+    })
+    .map((v) => {
+      if (!Number.isFinite(v) || v < 0) return 0;
+      if (v > 1e18) return 1e18;
+      return v;
+    })
+    .filter((v) => Number.isFinite(v));
 
-  const ratio = n / prev;
-
-  // absurd spikes remove
-  if (ratio > 20 || ratio < 0.05) return false;
-
-  return true;
-});
-
+const safePoints = normalized;
 
     
 
-  const series = safePoints.length ? safePoints : [0, 0, 0, 0, 0];
+  const series =
+  Array.isArray(safePoints) && safePoints.length > 1
+    ? safePoints
+    : [1, 1, 1, 1, 1];
 
   const last = Number(series[series.length - 1] ?? 0);
 const prev = Number(series[series.length - 2] ?? last);
@@ -1775,17 +1775,23 @@ const isUp = pct >= 0;
   const yAt = (v) =>
     H - PAD - ((v - min) / span) * (H - PAD * 2);
 
-  const coords = series.map((v, i) => ({
-    x: xAt(i),
-    y: yAt(v),
-    v,
-    i,
-  }));
+  const coords =
+  Array.isArray(series) && series.length > 0
+    ? series.map((v, i) => ({
+        x: xAt(i),
+        y: yAt(v),
+        v,
+        i,
+      }))
+    : [
+        { x: PAD, y: H / 2, v: 1, i: 0 },
+        { x: W - PAD, y: H / 2, v: 1, i: 1 },
+      ];
 
   console.log("PriceChart points raw:", points);
 console.log("PriceChart series:", series);
 
-  function buildSmoothPath(list) {
+function buildSmoothPath(list) {
   if (!list.length) return "";
 
   let path = `M ${list[0].x} ${list[0].y}`;

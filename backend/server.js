@@ -582,7 +582,7 @@ function recalcCoin(coin) {
       fixed.priceUsd ??
       fixed.price ??
       fixed.lastPriceUsd ??
-      fixed.mc,
+      0,
       0
     )
   );
@@ -593,7 +593,9 @@ function recalcCoin(coin) {
     : [point, point, point, point, point];
 
   fixed.chart = nextChart.slice(-120);
-  fixed.ath = Math.max(safeNum(coin.ath, point), point);
+
+  const currentMc = Math.max(0, safeNum(fixed.mc, 0));
+  fixed.ath = Math.max(safeNum(coin.ath, 0), currentMc);
 
   return fixed;
 }
