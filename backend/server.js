@@ -611,7 +611,7 @@ function distributeFee(store, coin, traderWallet, feeSol) {
     refProfile.updatedAt = nowMS();
   }
 }
-refP.updatedAt = nowMS();
+
 
 
 function recalcCoin(coin) {
