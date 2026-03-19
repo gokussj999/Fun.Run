@@ -2353,8 +2353,6 @@ async function loadCoins(page = 0, append = false) {
     }
 
     const data = await apiGet(`/api/coin/list?page=${page}`);
-    console.log("API DATA:", data);
-
     if (data?.ok) {
       const nextCoins = (data.coins || []).map(ensureCoinShape);
 
