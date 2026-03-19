@@ -509,6 +509,10 @@ async function flushStoreNow() {
     reserve_token: c.tokenReserve || c.totalSupply || TOTAL_SUPPLY,
     market_cap: c.mc || 0,
     last_price: c.priceSol || 0,
+    ath_market_cap: c.ath || 0,
+creator_rewards: c.creatorRewardsSol || 0,
+chart: Array.isArray(c.chart) ? c.chart : [],
+holders: c.holders || {},
   }));
 
   const { error: coinsSyncError } = await supabase
@@ -879,6 +883,10 @@ app.get("/api/coin/list", async (req, res) => {
         mc: r.market_cap || 0,
         ath: r.ath_market_cap || 0,
         priceSol: r.last_price || 0,
+        ath: r.ath_market_cap || 0,
+creatorRewardsSol: r.creator_rewards || 0,
+chart: Array.isArray(r.chart) ? r.chart : [],
+holders: r.holders || {},
       })
     );
 
