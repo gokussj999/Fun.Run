@@ -261,7 +261,7 @@ function ensureCoin(input = {}) {
   const chart =
     chartInput.length > 0
       ? chartInput.slice(-120)
-      : [mc, mc, mc, mc, mc].map((n) => safeNum(n, 0));
+      : [pricing.priceUsd, pricing.priceUsd, pricing.priceUsd, pricing.priceUsd, pricing.priceUsd];
 
   return {
     id: String(input.id || uid()),
