@@ -3030,19 +3030,10 @@ try {
    
 if (screen === "CREATOR") {
   const creatorId = creatorProfileId || "";
+
   const creatorCoins = (coins || []).filter((x) => x.creatorWallet === creatorId);
 
-  const creatorRewards = creatorCoins.reduce(
-    (sum, coin) =>
-      sum +
-      Number(
-        coin?.creatorRewardsSol ||
-          coin?.creatorRewardAccrued ||
-          coin?.creatorRewards ||
-          0
-      ),
-    0
-  );
+ const creatorRewards = creatorCoins.reduce((sum, coin) => sum + Number(coin?.creatorRewardsSol || 0), 0);
 
   const sourceCoin =
     (coins || []).find((x) => x.id === selectedCoinId) || null;
