@@ -785,26 +785,33 @@ function ammSellBySolOut(coin, wallet, solOutGross) {
 
   coin.solReserve = Math.max(0, coin.solReserve - net);
 
-  coin.curveSupply = curveSupply;
-  coin.curveSold = Math.max(0, curveSold - tokensIn);
+coin.curveSupply = curveSupply;
+coin.curveSold = 0;
 
-  // keep for UI/backward compatibility
-  coin.tokenReserve = Math.max(0, curveSupply - coin.curveSold);
+// exchange-style infinite pool feel
+coin.tokenReserve = Math.max(
+  1,
+  safeNum(coin.tokenReserve, totalSupply)
+);
 
-  coin.volumeSol = Math.max(0, safeNum(coin.volumeSol, 0) + gross);
-  coin.lastTradeAt = nowMS();
-  coin.status = "LIVE";
+coin.volumeSol = Math.max(0, safeNum(coin.volumeSol, 0) + gross);
+coin.lastTradeAt = nowMS();
+coin.status = "LIVE";
 
-  coin.priceSol =
-    (safeNum(coin.vSol, VIRTUAL_SOL) / Math.max(1, curveSupply)) *
-    (1 + (safeNum(coin.curveSold, 0) / Math.max(1, curveSupply)) * 20);
+const pricing = calcPricing({
+  totalSupply,
+  solReserve: coin.solReserve,
+  tokenReserve: coin.tokenReserve,
+  vSol: coin.vSol,
+  vTokens: coin.vTokens,
+});
 
-  const solUsd = Math.max(0, safeNum(coin.solUsd, safeNum(globalThis?.SOL_USD, 0)));
-  coin.priceUsd = solUsd > 0 ? coin.priceSol * solUsd : 0;
-  coin.marketCapSol = coin.priceSol * totalSupply;
-  coin.marketCapUsd = coin.priceUsd * totalSupply;
-  coin.mc = coin.marketCapUsd || coin.marketCapSol || 0;
-  coin.ath = Math.max(safeNum(coin.ath, 0), safeNum(coin.mc, 0));
+coin.priceSol = pricing.priceSol;
+coin.priceUsd = pricing.priceUsd;
+coin.marketCapUsd = pricing.mcUsd;
+coin.marketCapSol = pricing.priceSol * totalSupply;
+coin.mc = pricing.mcUsd || coin.marketCapSol || 0;
+coin.ath = Math.max(safeNum(coin.ath, 0), safeNum(coin.mc, 0));
 
   return {
     ok: true,
