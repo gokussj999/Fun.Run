@@ -1882,7 +1882,7 @@ function buildSmoothPath(list) {
       >
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <div style={{ fontSize: 12, color: text, fontWeight: 950 }}>
-            MC:{" "}
+            Price:{" "}
             <span style={{ color: mode === "dark" ? "#fff" : "#000" }}>
               {label}
             </span>

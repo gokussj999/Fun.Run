@@ -688,16 +688,19 @@ function ammBuy(coin, wallet, solInGross) {
   coin.vTokens = vTokens;
   coin.solReserve = coin.solReserve + net;
 
-  coin.curveSupply = curveSupply;
-  coin.curveSold = Math.min(curveSupply, curveSold + tokensOut);
+coin.curveSupply = curveSupply;
+coin.curveSold = 0;
 
-  // keep this for UI/backward compatibility
-  coin.tokenReserve = Math.max(0, curveSupply - coin.curveSold);
+// exchange-style infinite pool feel
+coin.tokenReserve = Math.max(
+  1,
+  safeNum(coin.tokenReserve, totalSupply)
+);
 
-  coin.holders[wallet] = Math.max(
-    0,
-    safeNum(coin.holders[wallet], 0) + tokensOut
-  );
+coin.holders[wallet] = Math.max(
+  0,
+  safeNum(coin.holders[wallet], 0) + tokensOut
+);
 
   coin.volumeSol = Math.max(0, safeNum(coin.volumeSol, 0) + solInGross);
   coin.lastTradeAt = nowMS();
