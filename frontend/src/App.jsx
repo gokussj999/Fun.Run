@@ -2273,6 +2273,8 @@ useEffect(() => {
   const [tradeOpen, setTradeOpen] = useState(false);
   const [tradeSide, setTradeSide] = useState("BUY");
   const [tradeSol, setTradeSol] = useState("0.05");
+  const [tradeTokens, setTradeTokens] = useState("");
+const [tradeMode, setTradeMode] = useState("SOL");
   const [tradeLoading, setTradeLoading] = useState(false);
 
   const [dwOpen, setDwOpen] = useState(false);
@@ -3528,7 +3530,54 @@ const creatorHoldingEntries = Object.entries((creatorCoins || []).reduce((acc, c
               confirmText={tradeLoading ? "..." : tradeSide === "BUY" ? "Confirm Buy" : "Confirm Sell"}
               confirmTone={tradeSide === "BUY" ? "primary" : "danger"}
             >
-              <Input label="Amount (SOL)" value={tradeSol} onChange={setTradeSol} placeholder="e.g. 0.05" type="number" />
+              {tradeSide === "BUY" && (
+  <>
+    <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+      <MiniBtn
+        onClick={() => setTradeMode("SOL")}
+        tone={tradeMode === "SOL" ? "primary" : "default"}
+      >
+        SOL
+      </MiniBtn>
+      <MiniBtn
+        onClick={() => setTradeMode("TOKENS")}
+        tone={tradeMode === "TOKENS" ? "primary" : "default"}
+      >
+        Tokens
+      </MiniBtn>
+    </div>
+
+    {tradeMode === "SOL" && (
+      <Input
+        label="Amount (SOL)"
+        value={tradeSol}
+        onChange={setTradeSol}
+        placeholder="e.g. 0.05"
+        type="number"
+      />
+    )}
+
+    {tradeMode === "TOKENS" && (
+      <Input
+        label="Tokens"
+        value={tradeTokens}
+        onChange={setTradeTokens}
+        placeholder="e.g. 1000"
+        type="number"
+      />
+    )}
+  </>
+)}
+
+{tradeSide === "SELL" && (
+  <Input
+    label="Tokens"
+    value={tradeTokens}
+    onChange={setTradeTokens}
+    placeholder="Enter tokens to sell"
+    type="number"
+  />
+)}
             </Modal>
 
             <div style={{ height: 10 }} />
