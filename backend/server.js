@@ -158,7 +158,7 @@ function calcPricing({ totalSupply, solReserve, tokenReserve, vSol, vTokens }) {
   const priceUsd = Math.max(0, priceSol * SOL_USD);
 
   const circulating = Math.max(1, total - reserveTokens);
-  const mcUsd = Math.max(0, priceUsd * circulating);
+  const mcUsd = Math.max(0, priceUsd * total);
 
   return { priceSol, priceUsd, mcUsd, circulating };
 }

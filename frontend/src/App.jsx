@@ -1725,12 +1725,12 @@ const safePrev = Math.max(0, Number(prev) || 0);
 const safeFirst = Math.max(0, Number(first) || safeLast);
 
 // % ko previous tick se nahi, visible chart ke first point se nikalo
-const pct =
-  safeFirst > 0 && Number.isFinite(safeFirst)
-    ? ((safeLast - safeFirst) / safeFirst) * 100
-    : 0;
+const change = safeLast - safePrev;
+const base = Math.max(safePrev, 0.0000000001);
 
-const isUp = pct >= 0;
+// damping factor (jitna chota, utna smooth)
+const pct = (change / base) * 100 * 0.25;
+const isUp = true;
 
   const stroke = isUp
     ? mode === "dark"
@@ -1756,7 +1756,7 @@ const isUp = pct >= 0;
     ? "rgba(255,122,122,.18)"
     : "rgba(220,38,38,.12)";
 
-  const label = safeLast > 0 ? fmtUsdLocal(safeLast) : "—";
+  const label = fmtUsdLocal(points?.[points.length - 1] || 0);
 
   const minRaw = Math.min(...series);
   const maxRaw = Math.max(...series);
@@ -1882,7 +1882,7 @@ function buildSmoothPath(list) {
       >
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <div style={{ fontSize: 12, color: text, fontWeight: 950 }}>
-            Price:{" "}
+            MC:{" "}
             <span style={{ color: mode === "dark" ? "#fff" : "#000" }}>
               {label}
             </span>
@@ -3421,7 +3421,7 @@ const creatorHoldingEntries = Object.entries((creatorCoins || []).reduce((acc, c
             <div style={{ display: "flex", justifyContent: "space-between", gap: 10, marginBottom: 10 }}>
               <Pill>Status: {c.status}</Pill>
               <div style={{ display: "flex", gap: 10, flexWrap: "wrap", justifyContent: "flex-end" }}>
-                <Pill>MC: {fmtUsd(c.mc || 0)}</Pill>
+                <Pill>Price: {fmtUsd(c.priceUsd || c.priceSol || 0)}</Pill>
                 <Pill>ATH: {fmtUsd(c.ath || 0)}</Pill>
               </div>
             </div>
@@ -3465,7 +3465,7 @@ const creatorHoldingEntries = Object.entries((creatorCoins || []).reduce((acc, c
 </Card>
 
             <PriceChart
-              points={c.chart}
+              points={c.chart || []}
               txMarkers={txMarkers}
               mode={chartMode}
               onToggleMode={() => setChartMode((m) => (m === "dark" ? "light" : "dark"))}
