@@ -2575,6 +2575,7 @@ const t = setInterval(() => {
       if (res.coin) {
         const updated = ensureCoinShape(res.coin);
         setCoins((prev) => (prev || []).map((x) => (x.id === updated.id ? updated : x)));
+        setSelectedCoinId(updated.id);
       }
 
       await loadProfile();
