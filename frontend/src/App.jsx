@@ -2563,7 +2563,9 @@ const t = setInterval(() => {
   coinId: coin.id,
 };
 
-payload.sol = s;
+if (SIDE === "BUY") payload.sol = Number(s || 0);
+else payload.tokens = Number(s || 0);
+console.log("SELL DEBUG PAYLOAD:", { SIDE, endpoint, payload, s });
 
 const res = await apiPost(endpoint, payload);
 
@@ -3529,7 +3531,7 @@ const creatorHoldingEntries = Object.entries((creatorCoins || []).reduce((acc, c
               onConfirm={async () => {
                 if (tradeLoading) return;
                 setTradeOpen(false);
-                await doTrade(c, tradeSide, tradeSol);
+                await doTrade(c, tradeSide, tradeSide === "BUY" ? tradeSol : tradeTokens);
               }}
               confirmText={tradeLoading ? "..." : tradeSide === "BUY" ? "Confirm Buy" : "Confirm Sell"}
               confirmTone={tradeSide === "BUY" ? "primary" : "danger"}
