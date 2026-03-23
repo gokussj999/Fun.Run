@@ -813,6 +813,50 @@ function ammSellBySolOut(coin, wallet, solOutGross) {
   };
 }
 
+function ammSellByTokenIn(coin, wallet, tokenIn) {
+  const tokens = Math.max(0, safeNum(tokenIn, 0));
+
+  if (tokens <= 0) {
+    return { ok: false, error: "invalid token amount" };
+  }
+
+  const userBal = safeNum(coin.holders?.[wallet] || 0, 0);
+
+  if (tokens > userBal) {
+    return { ok: false, error: "not enough tokens" };
+  }
+
+  // AMM formula (same as buy but reverse)
+  const k = coin.reserveSol * coin.reserveToken;
+
+  const newTokenReserve = coin.reserveToken + tokens;
+  const newSolReserve = k / newTokenReserve;
+
+  let solOut = coin.reserveSol - newSolReserve;
+  solOut = Math.max(0, solOut);
+
+  const fee = solOut * 0.01; // 1% fee (same as buy)
+  const netSol = solOut - fee;
+
+  // update reserves
+  coin.reserveSol = newSolReserve;
+  coin.reserveToken = newTokenReserve;
+
+  // update user balance
+  coin.holders[wallet] = userBal - tokens;
+
+  // volume update
+  coin.volumeSol = safeNum(coin.volumeSol, 0) + solOut;
+
+  return {
+    ok: true,
+    tokensIn: tokens,
+    solOut,
+    feeSol: fee,
+    netSol,
+  };
+}
+
 // -------------------- ROUTES --------------------
 app.get("/", async (req, res) => {
   return res.json({
@@ -1157,13 +1201,14 @@ async function runCoinLocked(coinId, fn) {
 }
 
 async function doTrade(req, res, side) {
-  const wallet = String(req.body?.wallet || "").trim();
-  const coinId = String(req.body?.coinId || "").trim();
-  const sol = Math.max(0, safeNum(req.body?.sol, 0));
+ const wallet = String(req.body?.wallet || "").trim();
+const coinId = String(req.body?.coinId || "").trim();
+const sol = Math.max(0, safeNum(req.body?.sol, 0));
+const tokens = Math.max(0, safeNum(req.body?.tokens, 0));
 
-  if (!wallet || !coinId || sol <= 0) {
-    return res.json({ ok: false, error: "wallet/coinId/sol required" });
-  }
+if (!wallet || !coinId || (String(side).toLowerCase() === "buy" ? sol <= 0 : tokens <= 0)) {
+  return res.json({ ok: false, error: "wallet/coinId/amount required" });
+}
 
   try {
     const result = await runCoinLocked(coinId, async () => {
@@ -1183,7 +1228,7 @@ async function doTrade(req, res, side) {
         tradeResult = ammBuy(coin, wallet, sol);
         if (!tradeResult.ok) return { ok: false, error: tradeResult.error };
       } else if (sideLower === "sell") {
-        tradeResult = ammSellBySolOut(coin, wallet, sol);
+        tradeResult = ammSellByTokenIn(coin, wallet, tokens);
         if (!tradeResult.ok) return { ok: false, error: tradeResult.error };
       } else {
         return { ok: false, error: "invalid side" };
