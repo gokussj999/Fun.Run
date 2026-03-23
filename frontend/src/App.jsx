@@ -2558,11 +2558,14 @@ const t = setInterval(() => {
 
     setTradeLoading(true);
     try {
-      const res = await apiPost(endpoint, {
-        wallet: solAddr,
-        coinId: coin.id,
-        sol: s,
-      });
+      const payload = {
+  wallet: solAddr,
+  coinId: coin.id,
+};
+
+payload.sol = s;
+
+const res = await apiPost(endpoint, payload);
 
       console.log("TRADE RESPONSE:", res); 
       console.log("TRADE CHART:", res?.coin?.chart);
@@ -3549,13 +3552,16 @@ const creatorHoldingEntries = Object.entries((creatorCoins || []).reduce((acc, c
     </div>
 
     {tradeMode === "SOL" && (
-      <Input
-        label="Amount (SOL)"
-        value={tradeSol}
-        onChange={setTradeSol}
-        placeholder="e.g. 0.05"
-        type="number"
-      />
+
+     <Input
+  id="tradeAmount"
+  name="tradeAmount"
+  label={tradeSide === "BUY" ? "Amount (SOL)" : "Tokens"}
+  value={tradeSol}
+  onChange={setTradeSol}
+  placeholder="e.g. 0.05"
+  type="number"
+/>
     )}
 
     {tradeMode === "TOKENS" && (
@@ -3572,10 +3578,10 @@ const creatorHoldingEntries = Object.entries((creatorCoins || []).reduce((acc, c
 
 {tradeSide === "SELL" && (
   <Input
-    label="Tokens"
-    value={tradeTokens}
-    onChange={setTradeTokens}
-    placeholder="Enter tokens to sell"
+    label="Amount (SOL)"
+    value={tradeSol}
+    onChange={setTradeSol}
+    placeholder="e.g. 0.05"
     type="number"
   />
 )}

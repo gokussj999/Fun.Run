@@ -742,7 +742,6 @@ function ammSellBySolOut(coin, wallet, solOutGross) {
 
   const totalSupply = Math.max(1, safeNum(coin.totalSupply, TOTAL_SUPPLY));
   const curveSupply = Math.max(1, safeNum(coin.curveSupply, totalSupply));
-  const curveSold = Math.max(0, safeNum(coin.curveSold, 0));
 
   const vSol = Math.max(1e-9, safeNum(coin.vSol, VIRTUAL_SOL));
   const vTokens = Math.max(
@@ -760,18 +759,8 @@ function ammSellBySolOut(coin, wallet, solOutGross) {
   const have = Math.max(0, safeNum(coin.holders[wallet], 0));
   if (have <= 0) return { ok: false, error: "Not enough tokens" };
 
-  // curve uses remaining allocation
-  const remainingBefore = Math.max(0, curveSupply - curveSold);
-
-  const x = coin.solReserve + vSol;
-  const y = remainingBefore + vTokens;
-  const k = x * y;
-
-  const newX = Math.max(1e-9, x - gross);
-  const newY = k / newX;
-
-  let tokensIn = Math.max(0, newY - y);
-  tokensIn = Math.min(tokensIn, have);
+  const currentPriceSol = Math.max(1e-9, safeNum(coin.priceSol, 0));
+  let tokensIn = Math.min(have, gross / currentPriceSol);
 
   if (tokensIn <= 0.0000001) {
     return { ok: false, error: "Trade too small" };
@@ -785,33 +774,32 @@ function ammSellBySolOut(coin, wallet, solOutGross) {
 
   coin.solReserve = Math.max(0, coin.solReserve - net);
 
-coin.curveSupply = curveSupply;
-coin.curveSold = 0;
+  coin.curveSupply = curveSupply;
+  coin.curveSold = 0;
 
-// exchange-style infinite pool feel
-coin.tokenReserve = Math.max(
-  1,
-  safeNum(coin.tokenReserve, totalSupply)
-);
+  coin.tokenReserve = Math.max(
+    1,
+    safeNum(coin.tokenReserve, totalSupply) + tokensIn
+  );
 
-coin.volumeSol = Math.max(0, safeNum(coin.volumeSol, 0) + gross);
-coin.lastTradeAt = nowMS();
-coin.status = "LIVE";
+  coin.volumeSol = Math.max(0, safeNum(coin.volumeSol, 0) + gross);
+  coin.lastTradeAt = nowMS();
+  coin.status = "LIVE";
 
-const pricing = calcPricing({
-  totalSupply,
-  solReserve: coin.solReserve,
-  tokenReserve: coin.tokenReserve,
-  vSol: coin.vSol,
-  vTokens: coin.vTokens,
-});
+  const pricing = calcPricing({
+    totalSupply,
+    solReserve: coin.solReserve,
+    tokenReserve: coin.tokenReserve,
+    vSol: coin.vSol,
+    vTokens: coin.vTokens,
+  });
 
-coin.priceSol = pricing.priceSol;
-coin.priceUsd = pricing.priceUsd;
-coin.marketCapUsd = pricing.mcUsd;
-coin.marketCapSol = pricing.priceSol * totalSupply;
-coin.mc = pricing.mcUsd || coin.marketCapSol || 0;
-coin.ath = Math.max(safeNum(coin.ath, 0), safeNum(coin.mc, 0));
+  coin.priceSol = pricing.priceSol;
+  coin.priceUsd = pricing.priceUsd;
+  coin.marketCapUsd = pricing.mcUsd;
+  coin.marketCapSol = pricing.priceSol * totalSupply;
+  coin.mc = pricing.mcUsd || coin.marketCapSol || 0;
+  coin.ath = Math.max(safeNum(coin.ath, 0), safeNum(coin.mc, 0));
 
   return {
     ok: true,
