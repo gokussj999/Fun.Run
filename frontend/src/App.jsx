@@ -2214,6 +2214,8 @@ export default function App() {
 const [coinsHasMore, setCoinsHasMore] = useState(true);
 const coinsLoadMoreRef = useRef(null);
 
+}
+
 useEffect(() => {
   if (screen !== "HOME") return;
   if (!coinsHasMore) return;
@@ -2640,14 +2642,16 @@ const res = await apiPost(endpoint, payload);
         <div style={{ color: "var(--muted)" }}>Privy initializing…</div>
       </ScreenShell>
     );
-  } else if (!authenticated) {
+  }
+  
+  else if (!authenticated) 
     content = (
       <ScreenShell>
         <Title sub="Continue with Google">Login</Title>
         <PrimaryButton onClick={login}>Continue with Google</PrimaryButton>
       </ScreenShell>
     );
-  } else {
+  
     if (screen === "HOME") {
       const page1 = (
         <div>
@@ -3034,14 +3038,15 @@ try {
       );
     }
 
-  
-   
-if (screen === "CREATOR") {
+  if (screen === "CREATOR") {
   const creatorId = creatorProfileId || "";
 
   const creatorCoins = (coins || []).filter((x) => x.creatorWallet === creatorId);
 
- const creatorRewards = creatorCoins.reduce((sum, coin) => sum + Number(coin?.creatorRewardsSol || 0), 0);
+  const creatorRewards = creatorCoins.reduce(
+    (sum, coin) => sum + Number(coin?.creatorRewardsSol || 0),
+    0
+  );
 
   const sourceCoin =
     (coins || []).find((x) => x.id === selectedCoinId) || null;
@@ -3134,22 +3139,23 @@ if (screen === "CREATOR") {
 
       <Card>
         <SectionHeader title="Created Coins" right={<Pill>{creatorCoins.length}</Pill>} />
-   <div
-  className="creatorScroll"
-  style={{
-    display: "flex",
-    flexDirection: "column",
-    gap: 10,
-    maxHeight: 320,
-    overflowY: "auto",
-    paddingRight: 4,
-    scrollbarWidth: "none",
-    msOverflowStyle: "none"
-  }}
->
-
+        <div
+          className="creatorScroll"
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: 10,
+            maxHeight: 320,
+            overflowY: "auto",
+            paddingRight: 4,
+            scrollbarWidth: "none",
+            msOverflowStyle: "none",
+          }}
+        >
           {creatorCoins.length === 0 ? (
-            <div style={{ color: "var(--muted2)", fontSize: 13 }}>No created coins yet.</div>
+            <div style={{ color: "var(--muted2)", fontSize: 13 }}>
+              No created coins yet.
+            </div>
           ) : (
             creatorCoins.map((coin) => {
               const coinReward = Number(
@@ -3204,78 +3210,23 @@ if (screen === "CREATOR") {
 
       <Card>
         <SectionHeader title="Creator Holdings" right={<Pill>{creatorHoldings.length}</Pill>} />
-     <div
-  className="creatorScroll"
-  style={{
-    display: "flex",
-    flexDirection: "column",
-    gap: 10,
-    maxHeight: 320,
-    overflowY: "auto",
-    paddingRight: 4,
-    scrollbarWidth: "none",
-    msOverflowStyle: "none"
-  }}
->
- 
+        <div
+          className="creatorScroll"
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: 10,
+            maxHeight: 320,
+            overflowY: "auto",
+            paddingRight: 4,
+            scrollbarWidth: "none",
+            msOverflowStyle: "none",
+          }}
+        >
           {creatorHoldings.length === 0 ? (
-            <div style={{ color: "var(--muted2)", fontSize: 13 }}>No holdings found.</div>
-          ) : (
-            creatorHoldings.map(({ coin, amt, pct }) => (
-              <button
-                key={coin.id}
-                onClick={() => {
-                  setSelectedCoinId(coin.id);
-                  setScreen("COIN");
-                }}
-                style={{
-                  width: "100%",
-                  padding: 12,
-                  borderRadius: 14,
-                  border: "1px solid var(--border)",
-                  background: "var(--card2)",
-                  color: "var(--text)",
-                  textAlign: "left",
-                  cursor: "pointer",
-                }}
-              >
-                <div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
-                  <div>
-                    <div style={{ fontWeight: 900 }}>{coin.symbol || "—"}</div>
-                    <div style={{ fontSize: 12, color: "var(--muted2)" }}>
-                      {Number(amt || 0).toFixed(2)} held
-                    </div>
-                  </div>
-
-                  <div style={{ textAlign: "right" }}>
-                    <div style={{ fontWeight: 900 }}>{pct.toFixed(2)}%</div>
-                    <div style={{ fontSize: 12, color: "var(--muted2)" }}>of supply</div>
-                  </div>
-                </div>
-              </button>
-            ))
-          )}
-        </div>
-      </Card>
-
-            <Card>
-        <SectionHeader title="Creator Holdings" right={<Pill>{creatorHoldings.length}</Pill>} />
-     <div
-  className="creatorScroll"
-  style={{
-    display: "flex",
-    flexDirection: "column",
-    gap: 10,
-    maxHeight: 320,
-    overflowY: "auto",
-    paddingRight: 4,
-    scrollbarWidth: "none",
-    msOverflowStyle: "none"
-  }}
->
- 
-          {creatorHoldings.length === 0 ? (
-            <div style={{ color: "var(--muted2)", fontSize: 13 }}>No holdings found.</div>
+            <div style={{ color: "var(--muted2)", fontSize: 13 }}>
+              No holdings found.
+            </div>
           ) : (
             creatorHoldings.map(({ coin, amt, pct }) => (
               <button
@@ -3328,7 +3279,7 @@ if (screen === "CREATOR") {
             overflowY: "auto",
             paddingRight: 4,
             scrollbarWidth: "none",
-            msOverflowStyle: "none"
+            msOverflowStyle: "none",
           }}
         >
           {(coins || [])
@@ -3336,7 +3287,7 @@ if (screen === "CREATOR") {
             .flatMap((c) =>
               (c.chart || []).slice(-5).map((t) => ({
                 coin: c,
-                ...t
+                ...t,
               }))
             )
             .slice(-10)
@@ -3351,7 +3302,7 @@ if (screen === "CREATOR") {
                   background: "var(--card2)",
                   display: "flex",
                   justifyContent: "space-between",
-                  gap: 10
+                  gap: 10,
                 }}
               >
                 <div>
@@ -3373,10 +3324,6 @@ if (screen === "CREATOR") {
     </ScreenShell>
   );
 }
-    
-  
-}
-
 
 
     if (screen === "COIN") {
@@ -3396,12 +3343,14 @@ const creatorHoldingEntries = Object.entries((creatorCoins || []).reduce((acc, c
   if (amt > 0) acc[coin.id] = { coin, amt };
   return acc;
 }, {}));
-        const isLiveNow = c.status === "LIVE";
+  
+                const isLiveNow = c.status === "LIVE";
         const txMarkers = myTxList.filter((t) => t.coinId === c.id).slice(0, 20);
         const myHoldingForCoin = c?.holders?.[solAddr] || 0;
 
         const totalSupply = Number(c.totalSupply || 0);
-        const myPct = totalSupply > 0 ? (Number(myHoldingForCoin || 0) / totalSupply) * 100 : 0;
+        const myPct =
+          totalSupply > 0 ? (Number(myHoldingForCoin || 0) / totalSupply) * 100 : 0;
 
         content = (
           <ScreenShell fullBleed>
@@ -3426,51 +3375,59 @@ const creatorHoldingEntries = Object.entries((creatorCoins || []).reduce((acc, c
               </span>
             </Title>
 
-            <div style={{ display: "flex", justifyContent: "space-between", gap: 10, marginBottom: 10 }}>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                gap: 10,
+                marginBottom: 10,
+              }}
+            >
               <Pill>Status: {c.status}</Pill>
-              <div style={{ display: "flex", gap: 10, flexWrap: "wrap", justifyContent: "flex-end" }}>
+              <div
+                style={{
+                  display: "flex",
+                  gap: 10,
+                  flexWrap: "wrap",
+                  justifyContent: "flex-end",
+                }}
+              >
                 <Pill>Price: {fmtUsd(c.priceUsd || c.priceSol || 0)}</Pill>
                 <Pill>ATH: {fmtUsd(c.ath || 0)}</Pill>
               </div>
             </div>
 
-   <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
-  <Pill tone="warn">Your: {Number(myHoldingForCoin || 0).toFixed(0)}</Pill>
-</div> 
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
+              <Pill tone="warn">Your: {Number(myHoldingForCoin || 0).toFixed(0)}</Pill>
+            </div>
 
-<Card>
-  <SectionHeader title="Coin Creator" />
+            <Card>
+              <SectionHeader title="Coin Creator" />
 
-  <div
-    onClick={() => {
-      setCreatorProfileId(c.creatorWallet);
-      setScreen("CREATOR");
-    }}
-    style={{
-      display: "flex",
-      justifyContent: "space-between",
-      alignItems: "center",
-      padding: 12,
-      borderRadius: 14,
-      border: "1px solid var(--border)",
-      background: "var(--card2)",
-      cursor: "pointer",
-    }}
-  >
-    <div>
-      <div style={{ fontWeight: 900 }}>
-        {shortWallet(c.creatorWallet)}
-      </div>
-      <div style={{ fontSize: 12, color: "var(--muted2)" }}>
-        Coin Creator
-      </div>
-    </div>
+              <div
+                onClick={() => {
+                  setCreatorProfileId(c.creatorWallet);
+                  setScreen("CREATOR");
+                }}
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  padding: 12,
+                  borderRadius: 14,
+                  border: "1px solid var(--border)",
+                  background: "var(--card2)",
+                  cursor: "pointer",
+                }}
+              >
+                <div>
+                  <div style={{ fontWeight: 900 }}>{shortWallet(c.creatorWallet)}</div>
+                  <div style={{ fontSize: 12, color: "var(--muted2)" }}>Coin Creator</div>
+                </div>
 
-    <MiniBtn tone="primary">
-      View Profile
-    </MiniBtn>
-  </div>
-</Card>
+                <MiniBtn tone="primary">View Profile</MiniBtn>
+              </div>
+            </Card>
 
             <PriceChart
               points={c.chart || []}
@@ -3497,28 +3454,35 @@ const creatorHoldingEntries = Object.entries((creatorCoins || []).reduce((acc, c
               }
             >
               <div style={{ fontWeight: 950, marginBottom: 8 }}>Trade</div>
+
               <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
                 <MiniBtn
                   onClick={() => {
                     setTradeSide("BUY");
                     setTradeSol("0.05");
+                    setTradeTokens("");
+                    setTradeMode("SOL");
                     setTradeOpen(true);
                   }}
                   tone="good"
                 >
                   Buy
                 </MiniBtn>
+
                 <MiniBtn
                   disabled={!isLiveNow}
                   onClick={() => {
                     setTradeSide("SELL");
                     setTradeSol("0.05");
+                    setTradeTokens("");
+                    setTradeMode("TOKENS");
                     setTradeOpen(true);
                   }}
                   tone="danger"
                 >
                   Sell
                 </MiniBtn>
+
                 <Pill>On-chain SOL: {balance} SOL</Pill>
                 <Pill>Your tokens: {Number(myHoldingForCoin).toFixed(0)}</Pill>
               </div>
@@ -3530,63 +3494,80 @@ const creatorHoldingEntries = Object.entries((creatorCoins || []).reduce((acc, c
               onClose={() => (tradeLoading ? null : setTradeOpen(false))}
               onConfirm={async () => {
                 if (tradeLoading) return;
+
+                const amount =
+                  tradeSide === "BUY"
+                    ? tradeSol
+                    : tradeMode === "SOL"
+                    ? tradeSol
+                    : tradeTokens;
+
+                if (!amount || Number(amount) <= 0) {
+                  return showToast("Amount invalid");
+                }
+
                 setTradeOpen(false);
-                await doTrade(c, tradeSide, tradeSide === "BUY" ? tradeSol : tradeTokens);
+                await doTrade(c, tradeSide, amount);
               }}
-              confirmText={tradeLoading ? "..." : tradeSide === "BUY" ? "Confirm Buy" : "Confirm Sell"}
+              confirmText={
+                tradeLoading
+                  ? "..."
+                  : tradeSide === "BUY"
+                  ? "Confirm Buy"
+                  : "Confirm Sell"
+              }
               confirmTone={tradeSide === "BUY" ? "primary" : "danger"}
             >
-              {tradeSide === "BUY" && (
-  <>
-    <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
-      <MiniBtn
-        onClick={() => setTradeMode("SOL")}
-        tone={tradeMode === "SOL" ? "primary" : "default"}
-      >
-        SOL
-      </MiniBtn>
-      <MiniBtn
-        onClick={() => setTradeMode("TOKENS")}
-        tone={tradeMode === "TOKENS" ? "primary" : "default"}
-      >
-        Tokens
-      </MiniBtn>
-    </div>
+              {tradeSide === "BUY" ? (
+                <Input
+                  id="tradeAmount"
+                  name="tradeAmount"
+                  label="Amount (SOL)"
+                  value={tradeSol}
+                  onChange={setTradeSol}
+                  placeholder="e.g. 0.05"
+                  type="number"
+                />
+              ) : (
+                <>
+                  <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+                    <MiniBtn
+                      tone={tradeMode === "SOL" ? "primary" : "default"}
+                      onClick={() => setTradeMode("SOL")}
+                    >
+                      SOL
+                    </MiniBtn>
+                    <MiniBtn
+                      tone={tradeMode === "TOKENS" ? "primary" : "default"}
+                      onClick={() => setTradeMode("TOKENS")}
+                    >
+                      Tokens
+                    </MiniBtn>
+                  </div>
 
-    {tradeMode === "SOL" && (
-
-     <Input
-  id="tradeAmount"
-  name="tradeAmount"
-  label={tradeSide === "BUY" ? "Amount (SOL)" : "Tokens"}
-  value={tradeSol}
-  onChange={setTradeSol}
-  placeholder="e.g. 0.05"
-  type="number"
-/>
-    )}
-
-    {tradeMode === "TOKENS" && (
-      <Input
-        label="Tokens"
-        value={tradeTokens}
-        onChange={setTradeTokens}
-        placeholder="e.g. 1000"
-        type="number"
-      />
-    )}
-  </>
-)}
-
-{tradeSide === "SELL" && (
-  <Input
-    label="Tokens"
-    value={tradeTokens}
-    onChange={setTradeTokens}
-    placeholder="e.g. 1000000"
-    type="number"
-  />
-)}
+                  {tradeMode === "SOL" ? (
+                    <Input
+                      id="tradeAmount"
+                      name="tradeAmount"
+                      label="Amount (SOL)"
+                      value={tradeSol}
+                      onChange={setTradeSol}
+                      placeholder="e.g. 0.05"
+                      type="number"
+                    />
+                  ) : (
+                    <Input
+                      id="tradeTokens"
+                      name="tradeTokens"
+                      label="Tokens"
+                      value={tradeTokens}
+                      onChange={setTradeTokens}
+                      placeholder="e.g. 1000000"
+                      type="number"
+                    />
+                  )}
+                </>
+              )}
             </Modal>
 
             <div style={{ height: 10 }} />
@@ -3594,7 +3575,8 @@ const creatorHoldingEntries = Object.entries((creatorCoins || []).reduce((acc, c
           </ScreenShell>
         );
       }
-    }
+
+      
 
     if (screen === "CREATE") {
       content = (
@@ -4153,5 +4135,6 @@ try {
         </Card>
       </Modal>
     </>
-  );
+
+      );
 }
