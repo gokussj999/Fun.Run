@@ -3580,10 +3580,10 @@ const creatorHoldingEntries = Object.entries((creatorCoins || []).reduce((acc, c
 
 {tradeSide === "SELL" && (
   <Input
-    label="Amount (SOL)"
-    value={tradeSol}
-    onChange={setTradeSol}
-    placeholder="e.g. 0.05"
+    label="Tokens"
+    value={tradeTokens}
+    onChange={setTradeTokens}
+    placeholder="e.g. 1000000"
     type="number"
   />
 )}
