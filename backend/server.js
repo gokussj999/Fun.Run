@@ -71,6 +71,11 @@ app.use(
     credentials: true,
   })
 );
+
+app.use((req, res, next) => {
+  res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
+  next();
+});
 app.use(
   rateLimit({
     windowMs: 60_000,
