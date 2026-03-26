@@ -624,23 +624,38 @@ function distributeFee(store, coin, traderWallet, feeSol) {
 function recalcCoin(coin) {
   const fixed = ensureCoin(coin);
 
-  const point = Math.max(
-    0,
-    safeNum(
-      fixed.priceUsd ??
-        fixed.price ??
-        fixed.lastPriceUsd ??
-        0,
-      0
-    )
+  const totalSupply = Math.max(1, safeNum(fixed.totalSupply, TOTAL_SUPPLY));
+  const reserveSol = Math.max(0, safeNum(fixed.reserveSol, 0));
+  const reserveToken = Math.max(1, safeNum(fixed.reserveToken, 0));
+
+  const vSol = Math.max(0, safeNum(fixed.vSol, VIRTUAL_SOL));
+  const vTokens = Math.max(
+    1,
+    safeNum(fixed.vTokens, (safeNum(VIRTUAL_TOKEN_PCT, 5) * totalSupply) / 100)
   );
 
-  const prev = Array.isArray(coin.chart) ? coin.chart : [];
-  fixed.chart = prev.length ? prev.slice(-119).concat([point]) : [point, point, point, point, point];
-  fixed.chart = fixed.chart.slice(-120);
+  const priceSol = (reserveSol + vSol) / (reserveToken + vTokens);
+  const priceUsd = priceSol * SOL_USD;
 
-  const currentMc = Math.max(0, safeNum(fixed.mc, 0));
-  fixed.ath = Math.max(safeNum(coin.ath, 0), currentMc);
+  const circulating = Math.max(0, totalSupply - reserveToken);
+  const mcUsd = priceUsd * circulating;
+
+  fixed.priceSol = priceSol;
+  fixed.priceUsd = priceUsd;
+  fixed.price = priceUsd;
+  fixed.lastPriceUsd = priceUsd;
+  fixed.mc = mcUsd;
+
+  const point = Math.max(0, safeNum(priceUsd, 0));
+
+  const prev = Array.isArray(fixed.chart) ? fixed.chart : [];
+  fixed.chart = prev.length
+    ? prev.slice(-119).concat([point])
+    : [point, point, point, point, point];
+
+  fixed.chart = fixed.chart.slice(-120);
+  fixed.lastTradeAt = Date.now();
+  fixed.ath = Math.max(safeNum(fixed.ath, 0), mcUsd);
 
   return fixed;
 }
@@ -846,6 +861,7 @@ app.get("/api/balance/:wallet", async (req, res) => {
   }
 });
 
+
 app.get("/api/coin/list", async (req, res) => {
   try {
     const page = Math.max(0, Number(req.query?.page || 0));
@@ -853,16 +869,18 @@ app.get("/api/coin/list", async (req, res) => {
     const from = page * pageSize;
     const to = from + pageSize - 1;
 
+    let allCoins = [];
+
     if (DB_MODE === "supabase" && supabase) {
       const { data, error, count } = await supabase
         .from("coins")
         .select("*", { count: "exact" })
         .order("created_at", { ascending: false })
-        .range(from, to);
+        .limit(5000);
 
       if (error) throw error;
 
-      const coins = (data || []).map((r) =>
+      allCoins = (data || []).map((r) =>
         ensureCoin({
           id: r.id,
           name: r.name || "",
@@ -878,7 +896,8 @@ app.get("/api/coin/list", async (req, res) => {
           lastTradeAt: r.last_trade_at || 0,
           totalSupply: r.total_supply || TOTAL_SUPPLY,
           solReserve: r.reserve_sol || 0,
-          tokenReserve: r.reserve_token || saleSupplyFromTotal(r.total_supply || TOTAL_SUPPLY),
+          tokenReserve:
+            r.reserve_token || saleSupplyFromTotal(r.total_supply || TOTAL_SUPPLY),
           mc: r.market_cap || 0,
           ath: r.ath_market_cap || 0,
           priceSol: r.last_price || 0,
@@ -887,23 +906,75 @@ app.get("/api/coin/list", async (req, res) => {
         })
       );
 
+      const store = await loadStoreOnce();
+      const memMap = new Map((store.coins || []).map((c) => [String(c.id), ensureCoin(c)]));
+
+      allCoins = allCoins.map((c) => {
+        const mem = memMap.get(String(c.id));
+        if (!mem) return c;
+        return ensureCoin({
+          ...c,
+          holders:
+            mem.holders && Object.keys(mem.holders).length
+              ? mem.holders
+              : c.holders || {},
+          chart:
+            Array.isArray(mem.chart) && mem.chart.length
+              ? mem.chart
+              : c.chart || [],
+          lastTradeAt: Math.max(safeNum(c.lastTradeAt, 0), safeNum(mem.lastTradeAt, 0)),
+          volumeSol: Math.max(safeNum(c.volumeSol, 0), safeNum(mem.volumeSol, 0)),
+          mc: safeNum(mem.mc, 0) > 0 ? mem.mc : c.mc,
+          ath: Math.max(safeNum(c.ath, 0), safeNum(mem.ath, 0)),
+          creatorRewardsSol: Math.max(
+            safeNum(c.creatorRewardsSol, 0),
+            safeNum(mem.creatorRewardsSol, 0)
+          ),
+        });
+      });
+
+      const hotCutoff = nowMS() - 15 * 60 * 1000;
+
+      const hot15m = allCoins
+        .filter((c) => safeNum(c.lastTradeAt, 0) >= hotCutoff)
+        .sort((a, b) => safeNum(b.volumeSol, 0) - safeNum(a.volumeSol, 0))
+        .slice(0, 10);
+
+      const latest = allCoins
+        .slice()
+        .sort((a, b) => safeNum(b.createdAt, 0) - safeNum(a.createdAt, 0));
+
       return res.json({
         ok: true,
-        coins,
-        count: count || coins.length,
+        coins: latest.slice(from, to + 1),
+        count: count || latest.length,
         page,
         pageSize,
+        hot15m,
       });
     }
 
     const store = await loadStoreOnce();
-    const all = (store.coins || []).map(ensureCoin).sort((a, b) => safeNum(b.createdAt, 0) - safeNum(a.createdAt, 0));
+    allCoins = (store.coins || []).map(ensureCoin);
+
+    const hotCutoff = nowMS() - 15 * 60 * 1000;
+
+    const hot15m = allCoins
+      .filter((c) => safeNum(c.lastTradeAt, 0) >= hotCutoff)
+      .sort((a, b) => safeNum(b.volumeSol, 0) - safeNum(a.volumeSol, 0))
+      .slice(0, 10);
+
+    const latest = allCoins
+      .slice()
+      .sort((a, b) => safeNum(b.createdAt, 0) - safeNum(a.createdAt, 0));
+
     return res.json({
       ok: true,
-      coins: all.slice(from, to + 1),
-      count: all.length,
+      coins: latest.slice(from, to + 1),
+      count: latest.length,
       page,
       pageSize,
+      hot15m,
     });
   } catch (e) {
     console.log("coin/list error:", e?.message || e);

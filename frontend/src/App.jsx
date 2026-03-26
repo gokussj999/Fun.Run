@@ -819,13 +819,21 @@ function fmtSol(n) {
   return fmtNum(x, 6);
 }
 
-function pctChangeFromChart(chart) {
-  const arr = Array.isArray(chart) ? chart : [];
+function pctChangeFromChart(chart, lookback = 12) {
+  const arr = Array.isArray(chart)
+    ? chart.map((x) => Number(x)).filter((x) => Number.isFinite(x) && x > 0)
+    : [];
+
   if (arr.length < 2) return 0;
-  const a = Number(arr[arr.length - 2] || 0);
-  const b = Number(arr[arr.length - 1] || 0);
-  if (!a) return 0;
-  return ((b - a) / a) * 100;
+
+  const end = arr[arr.length - 1];
+  const startIndex = Math.max(0, arr.length - 1 - lookback);
+  const start = arr[startIndex] || arr[0] || end;
+
+  if (!start || !Number.isFinite(start)) return 0;
+
+  const pct = ((end - start) / start) * 100;
+  return Number.isFinite(pct) ? pct : 0;
 }
 
 function normalizeCoin(c = {}) {
@@ -1145,6 +1153,7 @@ export default function App() {
   });
 
   const [screen, setScreen] = useState("HOME");
+  const [screenHistory, setScreenHistory] = useState(["HOME"]);
   const [selectedCoinId, setSelectedCoinId] = useState(null);
   const [creatorProfileId, setCreatorProfileId] = useState("");
 
@@ -1152,6 +1161,8 @@ export default function App() {
   const [loadingCoins, setLoadingCoins] = useState(false);
   const [coinsPage, setCoinsPage] = useState(0);
   const [coinsHasMore, setCoinsHasMore] = useState(true);
+  const [hot15m, setHot15m] = useState([]);
+  const [homeFeedMode, setHomeFeedMode] = useState("ALL");
 
   const [searchQ, setSearchQ] = useState("");
   const [searchMode, setSearchMode] = useState("SEARCH");
@@ -1229,43 +1240,57 @@ export default function App() {
   }, [coins, searchQ]);
 
   const latestCoins = useMemo(() => {
-    return (coins || [])
-      .slice()
-      .sort((a, b) => safeNum(b.createdAt, 0) - safeNum(a.createdAt, 0))
-      .slice(0, 20);
-  }, [coins]);
+  return (coins || [])
+    .slice()
+    .sort((a, b) => safeNum(b.createdAt, 0) - safeNum(a.createdAt, 0))
+    .slice(0, 20);
+}, [coins]);
+
+// 👇 YAHAN PASTE KARO
+const topMovers4h = useMemo(() => {
+  const cutoff = Date.now() - 4 * 60 * 60 * 1000;
+  return [...(coins || [])]
+    .filter((c) => Number(c?.lastTradeAt || 0) >= cutoff)
+    .sort((a, b) => Number(b?.volumeSol || 0) - Number(a?.volumeSol || 0));
+}, [coins]);
 
   async function loadCoins(page = 0, append = false) {
-    try {
-      setLoadingCoins(true);
+  try {
+    setLoadingCoins(true);
 
-      const json = await api(`/api/coin/list?page=${page}`);
-      const incoming = Array.isArray(json?.coins) ? json.coins.map(normalizeCoin) : [];
+    const json = await api(`/api/coin/list?page=${page}`);
+    const incoming = Array.isArray(json?.coins) ? json.coins.map(normalizeCoin) : [];
+    const incomingHot = Array.isArray(json?.hot15m) ? json.hot15m.map(normalizeCoin) : [];
 
-      setCoins((prev) => {
-        if (!append) return incoming;
+    setHot15m(incomingHot);
 
-        const map = new Map();
-        [...(prev || []), ...incoming].forEach((c) => {
-          if (c?.id) map.set(String(c.id), c);
-        });
-        return Array.from(map.values());
+    setCoins((prev) => {
+      if (!append) return incoming;
+
+      const map = new Map();
+      [...(prev || []), ...incoming].forEach((c) => {
+        if (c?.id) map.set(String(c.id), c);
       });
 
-      setCoinsPage(page);
-      setCoinsHasMore(incoming.length >= 100);
+      return Array.from(map.values()).sort(
+        (a, b) => safeNum(b.createdAt, 0) - safeNum(a.createdAt, 0)
+      );
+    });
 
-      if (page === 0) {
-        try {
-          localStorage.setItem("coins_cache_v1", JSON.stringify(incoming));
-        } catch {}
-      }
-    } catch (e) {
-      setToast(e?.message || "Failed to load coins");
-    } finally {
-      setLoadingCoins(false);
+    setCoinsPage(page);
+    setCoinsHasMore(incoming.length >= 100);
+
+    if (page === 0) {
+      try {
+        localStorage.setItem("coins_cache_v1", JSON.stringify(incoming));
+      } catch {}
     }
+  } catch (e) {
+    setToast(e?.message || "Failed to load coins");
+  } finally {
+    setLoadingCoins(false);
   }
+}
 
   async function loadProfile(wallet = solAddr) {
     if (!wallet) return;
@@ -1322,86 +1347,120 @@ export default function App() {
     return () => io.disconnect();
   }, [screen, coinsPage, coinsHasMore, loadingCoins]);
 
-  useEffect(() => {
-    if (!theme) return;
 
-    const themes = {
-      calm: {
-        "--bg": "#070B0E",
-        "--card": "#0D1416",
-        "--card2": "#0B1716",
-        "--border": "rgba(255,255,255,.10)",
-        "--text": "#F4FFF9",
-        "--muted": "rgba(244,255,249,.70)",
-        "--muted2": "rgba(244,255,249,.48)",
-        "--primary": "#19E6A2",
-        "--primary2": "#8FFFD0",
-        "--accent2": "#6AD7FF",
-        "--accent3": "#A78BFA",
-      },
-      neon: {
-        "--bg": "#09070D",
-        "--card": "#15101B",
-        "--card2": "#120D17",
-        "--border": "rgba(255,255,255,.10)",
-        "--text": "#FAF7FF",
-        "--muted": "rgba(250,247,255,.72)",
-        "--muted2": "rgba(250,247,255,.46)",
-        "--primary": "#A855F7",
-        "--primary2": "#E879F9",
-        "--accent2": "#22D3EE",
-        "--accent3": "#34D399",
-      },
-      ocean: {
-        "--bg": "#061019",
-        "--card": "#0A1924",
-        "--card2": "#0A1620",
-        "--border": "rgba(255,255,255,.10)",
-        "--text": "#F3FCFF",
-        "--muted": "rgba(243,252,255,.72)",
-        "--muted2": "rgba(243,252,255,.46)",
-        "--primary": "#38BDF8",
-        "--primary2": "#67E8F9",
-        "--accent2": "#22C55E",
-        "--accent3": "#A78BFA",
-      },
-      rose: {
-        "--bg": "#12080C",
-        "--card": "#1A1014",
-        "--card2": "#160D11",
-        "--border": "rgba(255,255,255,.10)",
-        "--text": "#FFF7FA",
-        "--muted": "rgba(255,247,250,.72)",
-        "--muted2": "rgba(255,247,250,.46)",
-        "--primary": "#FB7185",
-        "--primary2": "#FDA4AF",
-        "--accent2": "#F472B6",
-        "--accent3": "#C084FC",
-      },
-      royal: {
-        "--bg": "#0A0C16",
-        "--card": "#111426",
-        "--card2": "#0D1120",
-        "--border": "rgba(255,255,255,.10)",
-        "--text": "#F7F8FF",
-        "--muted": "rgba(247,248,255,.72)",
-        "--muted2": "rgba(247,248,255,.46)",
-        "--primary": "#818CF8",
-        "--primary2": "#A5B4FC",
-        "--accent2": "#22D3EE",
-        "--accent3": "#C084FC",
-      },
-    };
+useEffect(() => {
+  const themes = {
+    calm: {
+      "--bg": "#060A0D",
+      "--bgSoft": "rgba(6,10,13,.72)",
+      "--card": "rgba(12,19,23,.78)",
+      "--card2": "rgba(11,21,25,.62)",
+      "--border": "rgba(255,255,255,.08)",
+      "--text": "#F4FFF9",
+      "--muted": "rgba(244,255,249,.72)",
+      "--muted2": "rgba(244,255,249,.50)",
+      "--primary": "#19E6A2",
+      "--primary2": "#8FFFD0",
+      "--accent2": "#6AD7FF",
+      "--accent3": "#A78BFA",
+      "--heroGlow": "rgba(25,230,162,.22)",
+      "--pillBg": "rgba(255,255,255,.04)",
+      "--btnBg": "rgba(255,255,255,.04)",
+      "--inputBg": "rgba(255,255,255,.035)",
+    },
+    neon: {
+      "--bg": "#09070F",
+      "--bgSoft": "rgba(9,7,15,.72)",
+      "--card": "rgba(18,15,26,.80)",
+      "--card2": "rgba(14,11,22,.64)",
+      "--border": "rgba(255,255,255,.08)",
+      "--text": "#FAF7FF",
+      "--muted": "rgba(250,247,255,.72)",
+      "--muted2": "rgba(250,247,255,.48)",
+      "--primary": "#C084FC",
+      "--primary2": "#E879F9",
+      "--accent2": "#22D3EE",
+      "--accent3": "#818CF8",
+      "--heroGlow": "rgba(192,132,252,.24)",
+      "--pillBg": "rgba(255,255,255,.045)",
+      "--btnBg": "rgba(255,255,255,.045)",
+      "--inputBg": "rgba(255,255,255,.04)",
+    },
+    ocean: {
+      "--bg": "#071017",
+      "--bgSoft": "rgba(7,16,23,.72)",
+      "--card": "rgba(11,24,34,.80)",
+      "--card2": "rgba(10,22,32,.64)",
+      "--border": "rgba(255,255,255,.08)",
+      "--text": "#F3FCFF",
+      "--muted": "rgba(243,252,255,.72)",
+      "--muted2": "rgba(243,252,255,.46)",
+      "--primary": "#38BDF8",
+      "--primary2": "#67E8F9",
+      "--accent2": "#22C55E",
+      "--accent3": "#A78BFA",
+      "--heroGlow": "rgba(56,189,248,.24)",
+      "--pillBg": "rgba(255,255,255,.04)",
+      "--btnBg": "rgba(255,255,255,.04)",
+      "--inputBg": "rgba(255,255,255,.035)",
+    },
+    rose: {
+      "--bg": "#12080C",
+      "--bgSoft": "rgba(18,8,12,.72)",
+      "--card": "rgba(26,16,20,.80)",
+      "--card2": "rgba(22,13,17,.64)",
+      "--border": "rgba(255,255,255,.08)",
+      "--text": "#FFF7FA",
+      "--muted": "rgba(255,247,250,.72)",
+      "--muted2": "rgba(255,247,250,.46)",
+      "--primary": "#FB7185",
+      "--primary2": "#FDA4AF",
+      "--accent2": "#F472B6",
+      "--accent3": "#C084FC",
+      "--heroGlow": "rgba(251,113,133,.24)",
+      "--pillBg": "rgba(255,255,255,.045)",
+      "--btnBg": "rgba(255,255,255,.045)",
+      "--inputBg": "rgba(255,255,255,.04)",
+    },
+    royal: {
+      "--bg": "#0A0C16",
+      "--bgSoft": "rgba(10,12,22,.72)",
+      "--card": "rgba(17,20,38,.80)",
+      "--card2": "rgba(13,17,32,.64)",
+      "--border": "rgba(255,255,255,.08)",
+      "--text": "#F7F8FF",
+      "--muted": "rgba(247,248,255,.72)",
+      "--muted2": "rgba(247,248,255,.46)",
+      "--primary": "#818CF8",
+      "--primary2": "#A5B4FC",
+      "--accent2": "#22D3EE",
+      "--accent3": "#C084FC",
+      "--heroGlow": "rgba(129,140,248,.24)",
+      "--pillBg": "rgba(255,255,255,.045)",
+      "--btnBg": "rgba(255,255,255,.045)",
+      "--inputBg": "rgba(255,255,255,.04)",
+    },
+  };
 
-    const t = themes[theme] || themes.calm;
-    Object.entries(t).forEach(([k, v]) => {
-      document.documentElement.style.setProperty(k, v);
-    });
+  const t = themes[theme] || themes.calm;
 
-    try {
-      localStorage.setItem(LS_THEME, theme);
-    } catch {}
-  }, [theme]);
+  Object.entries(t).forEach(([k, v]) => {
+    document.documentElement.style.setProperty(k, v);
+  });
+
+  document.body.style.background = `
+    radial-gradient(1200px 700px at 15% -10%, ${t["--heroGlow"]}, transparent 55%),
+    radial-gradient(900px 600px at 110% 0%, ${t["--accent2"]}22, transparent 45%),
+    linear-gradient(180deg, ${t["--bg"]} 0%, ${t["--bg"]} 100%)
+  `;
+
+  document.body.style.color = t["--text"];
+
+  try {
+    localStorage.setItem(LS_THEME, theme);
+  } catch {}
+}, [theme]);
+ 
 
   async function handleLogoPick(file) {
     if (!file) return;
@@ -1461,7 +1520,7 @@ export default function App() {
 
       setCoins((prev) => [created, ...(prev || []).filter((x) => String(x.id) !== String(created.id))]);
       setSelectedCoinId(created.id);
-      setScreen("COIN");
+      goScreen("COIN");
 
       setTokenName("");
       setSymbol("");
@@ -1479,6 +1538,30 @@ export default function App() {
       setCreating(false);
     }
   }
+
+
+function goScreen(next) {
+  setScreenHistory((prev) => {
+    const last = prev[prev.length - 1];
+    if (last === next) return prev;
+    return [...prev, next];
+  });
+  setScreen(next);
+}
+
+function goBack() {
+  setScreenHistory((prev) => {
+    if (prev.length <= 1) {
+      goScreen("HOME")
+      return ["HOME"];
+    }
+    const nextHistory = prev.slice(0, -1);
+    const prevScreen = nextHistory[nextHistory.length - 1] || "HOME";
+    setScreen(prevScreen);
+    return nextHistory;
+  });
+}
+
 
   async function handleTrade() {
     if (!authenticated || !solAddr) {
@@ -1631,9 +1714,18 @@ export default function App() {
     const h = height;
     const pad = 18;
 
-    const max = Math.max(...points, 1);
-    const min = Math.min(...points, max);
-    const range = Math.max(max - min, max * 0.05, 1);
+    const maxRaw = Math.max(...points, 1e-12);
+const minRaw = Math.min(...points, maxRaw);
+const spread = Math.max(maxRaw - minRaw, 1e-12);
+
+// centered zoom taake line chart ke beech me rahe
+const center = (maxRaw + minRaw) / 2;
+const visualRange = Math.max(spread * 2.4, center * 0.12, 1e-12);
+
+const min = Math.max(0, center - visualRange / 2);
+const max = center + visualRange / 2;
+const range = Math.max(max - min, 1e-12);
+
 
     const coords = points.map((p, i) => {
       const x = pad + (i * (w - pad * 2)) / Math.max(1, points.length - 1);
@@ -1702,14 +1794,15 @@ export default function App() {
   function openCoin(c) {
     if (!c?.id) return;
     setSelectedCoinId(c.id);
-    setScreen("COIN");
+    goScreen("COIN");
   }
 
   function openCreatorFromCoin(c) {
     const cw = String(c?.creatorWallet || "").trim();
     if (!cw) return;
     setCreatorProfileId(cw);
-    setScreen("CREATOR");
+  goScreen("CREATOR");
+  
   }
 
 const homeLeft = null;
@@ -1717,7 +1810,701 @@ const homeLeft = null;
  const homeRight = null;
 
 
-  // =========================== App.jsx (FULL FILE) — PART 5 / 5 ===========================
+
+ function ThemeStyles() {
+  return (
+    <style>{`
+      :root{
+        --bg:#060A0D;
+        --card:#0C1317;
+        --card2:#0B1519;
+        --border:rgba(255,255,255,.08);
+
+        --text:#F4FFF9;
+        --muted:rgba(244,255,249,.72);
+        --muted2:rgba(244,255,249,.50);
+
+        --primary:#19E6A2;
+        --primary2:#8FFFD0;
+        --accent2:#6AD7FF;
+        --accent3:#A78BFA;
+
+        --danger:#FF6B6B;
+        --warn:#FFD36A;
+        --good:#19E6A2;
+      }
+
+      *{ box-sizing:border-box; }
+      html,body,#root{ min-height:100%; }
+
+      body{
+        margin:0;
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial;
+        color:var(--text);
+        background:
+          radial-gradient(900px 520px at 50% -10%, rgba(25,230,162,.10), transparent 58%),
+          radial-gradient(700px 420px at 100% 100%, rgba(106,215,255,.08), transparent 52%),
+          linear-gradient(180deg, #04080A 0%, #060A0D 100%);
+        -webkit-font-smoothing:antialiased;
+        text-rendering:optimizeLegibility;
+      }
+
+      body::before{
+        content:"";
+        position:fixed;
+        inset:0;
+        pointer-events:none;
+        background:
+          linear-gradient(to bottom, rgba(255,255,255,.015), transparent 18%),
+          linear-gradient(to top, rgba(25,230,162,.03), transparent 16%);
+        z-index:0;
+      }
+
+      a{ color:inherit; text-decoration:none; }
+
+      .topbar{
+        position:sticky;
+        top:0;
+        z-index:60;
+        padding:10px 12px 0;
+        background:transparent;
+        border-bottom:none;
+        backdrop-filter:none;
+      }
+
+      .topbarInner{
+        width:min(100%, 540px);
+        margin:0 auto;
+        min-height:66px;
+        padding:10px 12px;
+        display:flex;
+        align-items:center;
+        justify-content:space-between;
+        gap:10px;
+        border:1px solid rgba(255,255,255,.08);
+        border-radius:22px;
+        background:
+          linear-gradient(180deg, rgba(10,15,18,.92), rgba(8,12,15,.86));
+        box-shadow:
+          0 16px 40px rgba(0,0,0,.28),
+          inset 0 1px 0 rgba(255,255,255,.04);
+        backdrop-filter: blur(16px);
+      }
+
+      .brand{
+        display:flex;
+        align-items:center;
+        gap:10px;
+        min-width:0;
+        flex:1;
+      }
+
+      .brandLogo{
+        width:42px;
+        height:42px;
+        border-radius:14px;
+        overflow:hidden;
+        flex:0 0 auto;
+        border:1px solid rgba(255,255,255,.10);
+        background:rgba(255,255,255,.04);
+        box-shadow:0 8px 22px rgba(0,0,0,.22);
+      }
+
+      .brandLogo img{
+        width:100%;
+        height:100%;
+        object-fit:cover;
+        display:block;
+      }
+
+      .brandText{
+        min-width:0;
+        display:flex;
+        flex-direction:column;
+        gap:2px;
+      }
+
+      .brandTitle{
+        font-size:15px;
+        font-weight:1000;
+        line-height:1;
+        letter-spacing:.2px;
+        white-space:nowrap;
+        overflow:hidden;
+        text-overflow:ellipsis;
+      }
+
+      .brandSub{
+        font-size:11px;
+        color:var(--muted2);
+        white-space:nowrap;
+        overflow:hidden;
+        text-overflow:ellipsis;
+      }
+
+      .topActions{
+        display:flex;
+        align-items:center;
+        gap:8px;
+        flex-wrap:wrap;
+        justify-content:flex-end;
+      }
+
+      .appShell{
+        position:relative;
+        z-index:1;
+        width:min(100%, 540px);
+        margin:0 auto;
+        padding:14px 12px 120px;
+      }
+
+      .grid{
+        display:grid;
+        grid-template-columns:1fr;
+        gap:14px;
+        align-items:start;
+      }
+
+      .leftCol, .midCol, .rightCol{
+        display:grid;
+        gap:14px;
+      }
+
+      .card{
+        border:1px solid var(--border);
+        border-radius:26px;
+        background:
+          linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,.015)),
+          linear-gradient(180deg, rgba(11,17,20,.92), rgba(9,14,17,.88));
+        box-shadow:
+          0 20px 50px rgba(0,0,0,.24),
+          inset 0 1px 0 rgba(255,255,255,.04);
+        overflow:hidden;
+        backdrop-filter: blur(14px);
+      }
+
+      .cardBody{
+        padding:16px;
+      }
+
+      .sectionHeader{
+        display:flex;
+        align-items:center;
+        justify-content:space-between;
+        gap:10px;
+        margin-bottom:12px;
+      }
+
+      .sectionTitle{
+        font-size:13px;
+        font-weight:1000;
+        letter-spacing:.18px;
+      }
+
+      .sectionSub{
+        font-size:11px;
+        color:var(--muted2);
+      }
+
+      .pillRow{
+        display:flex;
+        flex-wrap:wrap;
+        gap:8px;
+      }
+
+      .pill{
+        display:inline-flex;
+        align-items:center;
+        gap:7px;
+        padding:8px 11px;
+        border-radius:999px;
+        border:1px solid rgba(255,255,255,.08);
+        background:rgba(255,255,255,.035);
+        font-size:12px;
+        color:var(--muted);
+        box-shadow: inset 0 1px 0 rgba(255,255,255,.03);
+      }
+
+      .coinList{
+        display:grid;
+        gap:10px;
+      }
+
+      .coinBtn{
+        width:100%;
+        text-align:left;
+        background:
+          linear-gradient(180deg, rgba(255,255,255,.035), rgba(255,255,255,.02));
+        border:1px solid rgba(255,255,255,.08);
+        border-radius:18px;
+        padding:12px;
+        color:var(--text);
+        cursor:pointer;
+        transition:none;
+        box-shadow: inset 0 1px 0 rgba(255,255,255,.03);
+      }
+
+      .coinBtn:hover{
+        border-color:rgba(25,230,162,.22);
+      }
+
+      .coinRow{
+        display:flex;
+        align-items:center;
+        gap:12px;
+        min-width:0;
+      }
+
+      .coinLogo{
+        width:46px;
+        height:46px;
+        border-radius:16px;
+        overflow:hidden;
+        flex:0 0 auto;
+        border:1px solid rgba(255,255,255,.08);
+        background:rgba(255,255,255,.03);
+      }
+
+      .coinLogo img{
+        width:100%;
+        height:100%;
+        object-fit:cover;
+        display:block;
+      }
+
+      .coinText{
+        min-width:0;
+        flex:1;
+      }
+
+      .coinName{
+        font-weight:900;
+        font-size:14px;
+        white-space:nowrap;
+        overflow:hidden;
+        text-overflow:ellipsis;
+      }
+
+      .coinMeta{
+        margin-top:3px;
+        font-size:12px;
+        color:var(--muted2);
+        white-space:nowrap;
+        overflow:hidden;
+        text-overflow:ellipsis;
+      }
+
+      .rightNum{
+        text-align:right;
+        flex:0 0 auto;
+      }
+
+      .rightNumMain{
+        font-weight:900;
+        font-size:13px;
+      }
+
+      .rightNumSub{
+        margin-top:3px;
+        font-size:11px;
+        color:var(--muted2);
+      }
+
+      .hero{
+        position:relative;
+        overflow:hidden;
+      }
+
+      .heroGlow{
+        position:absolute;
+        right:-70px;
+        bottom:-70px;
+        width:220px;
+        height:220px;
+        background:radial-gradient(circle at center, rgba(25,230,162,.18), transparent 60%);
+        pointer-events:none;
+        filter:blur(16px);
+      }
+
+      .heroTitle{
+        font-size:24px;
+        line-height:1.05;
+        font-weight:1000;
+        letter-spacing:.15px;
+        max-width:260px;
+      }
+
+      .heroText{
+        margin-top:12px;
+        color:var(--muted);
+        font-size:14px;
+        line-height:1.62;
+        max-width:340px;
+      }
+
+      .heroActions{
+        display:flex;
+        gap:10px;
+        margin-top:16px;
+        flex-wrap:wrap;
+      }
+
+      .tabs{
+        display:flex;
+        gap:8px;
+        flex-wrap:wrap;
+      }
+
+      .tabBtn{
+        border:none;
+        cursor:pointer;
+        padding:9px 12px;
+        border-radius:14px;
+        font-size:12px;
+        font-weight:900;
+        color:var(--muted);
+        background:rgba(255,255,255,.04);
+        border:1px solid rgba(255,255,255,.07);
+        transition:none;
+      }
+
+      .tabBtn.active{
+        background:linear-gradient(135deg, rgba(25,230,162,.18), rgba(143,255,208,.12));
+        color:var(--text);
+        border-color:rgba(25,230,162,.26);
+        box-shadow:0 10px 24px rgba(25,230,162,.10);
+      }
+
+      .searchBox{
+        display:flex;
+        gap:10px;
+        align-items:center;
+        padding:12px 14px;
+        border-radius:16px;
+        background:rgba(255,255,255,.03);
+        border:1px solid rgba(255,255,255,.07);
+      }
+
+      .searchBox input{
+        width:100%;
+        background:transparent;
+        border:none;
+        outline:none;
+        color:var(--text);
+        font-size:14px;
+      }
+
+      .miniMuted{
+        font-size:11px;
+        color:var(--muted2);
+      }
+
+      .hr{
+        height:1px;
+        background:linear-gradient(90deg, transparent, rgba(255,255,255,.08), transparent);
+        margin:12px 0;
+      }
+
+      .scrollY{
+        max-height:480px;
+        overflow:auto;
+        padding-right:4px;
+        scrollbar-width:none;
+        -ms-overflow-style:none;
+      }
+      .scrollY::-webkit-scrollbar{ display:none; }
+
+      .hScroll{
+        display:flex;
+        gap:10px;
+        overflow:auto;
+        padding-bottom:2px;
+        scrollbar-width:none;
+        -ms-overflow-style:none;
+      }
+      .hScroll::-webkit-scrollbar{ display:none; }
+
+      .tinyCard{
+        min-width:220px;
+        border-radius:18px;
+        border:1px solid rgba(255,255,255,.08);
+        background:rgba(255,255,255,.03);
+        padding:12px;
+      }
+
+      .statsGrid{
+        display:grid;
+        gap:10px;
+        grid-template-columns: repeat(2, minmax(0,1fr));
+      }
+
+      .stat{
+        border:1px solid rgba(255,255,255,.08);
+        border-radius:20px;
+        background:rgba(255,255,255,.03);
+        padding:13px 12px;
+        min-height:70px;
+        box-shadow: inset 0 1px 0 rgba(255,255,255,.03);
+      }
+
+      .statLabel{
+        font-size:11px;
+        color:var(--muted2);
+      }
+
+      .statValue{
+        margin-top:8px;
+        font-size:16px;
+        font-weight:1000;
+      }
+
+      .footerNav{
+        position:fixed;
+        left:50%;
+        transform:translateX(-50%);
+        bottom:12px;
+        z-index:80;
+        width:min(calc(100% - 24px), 500px);
+        display:grid;
+        grid-template-columns: repeat(5, 1fr);
+        gap:8px;
+        padding:10px;
+        border:1px solid rgba(255,255,255,.08);
+        background:rgba(8,12,15,.88);
+        backdrop-filter: blur(18px);
+        border-radius:24px;
+        box-shadow:
+          0 20px 60px rgba(0,0,0,.34),
+          inset 0 1px 0 rgba(255,255,255,.04);
+      }
+
+      .footerBtn{
+        border:none;
+        cursor:pointer;
+        border-radius:16px;
+        padding:10px 6px;
+        color:var(--muted);
+        background:transparent;
+        font-size:11px;
+        font-weight:900;
+        transition:none;
+        min-height:56px;
+      }
+
+      .footerBtn.active{
+        color:var(--text);
+        background:linear-gradient(135deg, rgba(25,230,162,.16), rgba(143,255,208,.10));
+        border:1px solid rgba(25,230,162,.22);
+        box-shadow: inset 0 1px 0 rgba(255,255,255,.05);
+      }
+
+      .modalBack{
+        position:fixed;
+        inset:0;
+        background:rgba(0,0,0,.58);
+        backdrop-filter: blur(10px);
+        display:grid;
+        place-items:center;
+        z-index:120;
+        padding:16px;
+      }
+
+      .modalCard{
+        width:min(100%, 520px);
+        max-height:min(86vh, 900px);
+        overflow:auto;
+        border-radius:26px;
+        border:1px solid rgba(255,255,255,.10);
+        background:linear-gradient(180deg, rgba(10,15,18,.98), rgba(8,12,15,.96));
+        box-shadow:0 30px 80px rgba(0,0,0,.45);
+      }
+
+      .modalHead{
+        position:sticky;
+        top:0;
+        z-index:2;
+        display:flex;
+        align-items:center;
+        justify-content:space-between;
+        gap:12px;
+        padding:14px 16px;
+        border-bottom:1px solid rgba(255,255,255,.08);
+        background:rgba(10,15,18,.92);
+        backdrop-filter:blur(14px);
+      }
+
+      .modalTitle{
+        font-size:14px;
+        font-weight:1000;
+      }
+
+      .modalBody{
+        padding:16px;
+      }
+
+      .themeGrid{
+        display:grid;
+        gap:10px;
+      }
+
+      .themeOption{
+        width:100%;
+        text-align:left;
+        padding:12px 13px;
+        border-radius:16px;
+        border:1px solid rgba(255,255,255,.08);
+        background:rgba(255,255,255,.03);
+        color:var(--text);
+        cursor:pointer;
+        transition:none;
+      }
+
+      .themeOption.active{
+        border-color:rgba(25,230,162,.28);
+        background:linear-gradient(135deg, rgba(25,230,162,.12), rgba(143,255,208,.08));
+      }
+
+      .row{
+        display:flex;
+        align-items:center;
+        gap:10px;
+      }
+
+      .space{
+        flex:1;
+        min-width:0;
+      }
+
+      .fadeIn{
+        animation:none !important;
+      }
+
+      @media (max-width: 640px){
+        .topbar{
+          padding:8px 8px 0;
+        }
+
+        .topbarInner{
+          width:100%;
+          min-height:62px;
+          padding:10px 10px;
+          border-radius:18px;
+        }
+
+        .brandLogo{
+          width:38px;
+          height:38px;
+          border-radius:12px;
+        }
+
+        .brandTitle{
+          font-size:14px;
+        }
+
+        .brandSub{
+          font-size:10px;
+        }
+
+        .topActions{
+          gap:6px;
+        }
+
+        .appShell{
+          width:100%;
+          padding:12px 8px 112px;
+        }
+
+        .card{
+          border-radius:22px;
+        }
+
+        .cardBody{
+          padding:14px;
+        }
+
+        .heroTitle{
+          font-size:21px;
+          max-width:none;
+        }
+
+        .heroText{
+          font-size:13px;
+          line-height:1.55;
+        }
+
+        .statsGrid{
+          grid-template-columns:1fr 1fr;
+          gap:8px;
+        }
+
+        .stat{
+          min-height:64px;
+          padding:11px;
+          border-radius:18px;
+        }
+
+        .footerNav{
+          width:calc(100% - 16px);
+          bottom:8px;
+          padding:8px;
+          border-radius:20px;
+          gap:6px;
+        }
+
+        .footerBtn{
+          min-height:52px;
+          border-radius:14px;
+          font-size:10px;
+          padding:8px 4px;
+        }
+
+        .modalCard{
+          width:100%;
+          border-radius:22px;
+        }
+      }
+
+      @media (min-width: 900px){
+        .appShell{
+          padding-top:18px;
+        }
+      }
+    `}</style>
+  );
+}
+
+// =========================== App.jsx (FULL FILE) — PART 5 / 5 ===========================
+
+  const toUsdFromSol = (sol) => fmtUsd(Number(sol || 0) * 80);
+
+  function renderBackButton() {
+    if (screen === "HOME") return null;
+
+    return (
+      <div style={{ marginBottom: 12 }}>
+        <button
+          onClick={goBack}
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 8,
+            padding: "10px 14px",
+            borderRadius: 14,
+            border: "1px solid var(--border)",
+            background: "var(--btnBg)",
+            color: "var(--text)",
+            cursor: "pointer",
+            backdropFilter: "blur(12px)",
+            WebkitBackdropFilter: "blur(12px)",
+            boxShadow: "0 10px 30px rgba(0,0,0,.22)",
+          }}
+        >
+          <span style={{ fontSize: 16, lineHeight: 1 }}>←</span>
+          <span style={{ fontWeight: 900 }}>Back</span>
+        </button>
+      </div>
+    );
+  }
 
   return (
     <>
@@ -1732,7 +2519,7 @@ const homeLeft = null;
             className="brand"
             style={{ cursor: "pointer" }}
             onClick={() => {
-              setScreen("HOME");
+              goScreen("HOME");
             }}
           >
             <div className="brandLogo">
@@ -1751,9 +2538,7 @@ const homeLeft = null;
                 tone="good"
                 onClick={async () => {
                   try {
-                    if (ready) {
-                      await login();
-                    }
+                    if (ready) await login();
                   } catch (e) {
                     setToast(e?.message || "Login failed");
                   }
@@ -1787,6 +2572,7 @@ const homeLeft = null;
                   onClick={async () => {
                     try {
                       await exportWallet();
+                      setToast("Wallet backup exported");
                     } catch (e) {
                       setToast(e?.message || "Export failed");
                     }
@@ -1818,8 +2604,7 @@ const homeLeft = null;
       </div>
 
       <div className="appShell">
-
-                {screen === "HOME" && (
+        {screen === "HOME" && (
           <div className="grid">
             <div className="leftCol">
               <Card className="hero">
@@ -1835,7 +2620,7 @@ const homeLeft = null;
                   <MiniBtn
                     tone="good"
                     onClick={() => {
-                      setScreen("CREATE");
+                      goScreen("CREATE");
                     }}
                   >
                     <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
@@ -1845,7 +2630,7 @@ const homeLeft = null;
 
                   <MiniBtn
                     onClick={() => {
-                      setScreen("SEARCH");
+                      goScreen("SEARCH");
                     }}
                   >
                     <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
@@ -1854,72 +2639,106 @@ const homeLeft = null;
                   </MiniBtn>
                 </div>
               </Card>
-
-              <Card>
-                <SectionHeader title="Top 100 Coins" sub="Fast loaded list" right={<Pill>{coins.length}</Pill>} />
-                <div className="coinList">
-                  {(coins || []).slice(0, 100).map((c) => (
-                    <CoinMiniCard
-                      key={c.id}
-                      c={c}
-                      subtitle={`Volume • ${fmtSol(c.volumeSol || 0)} SOL`}
-                      onOpen={() => openCoin(c)}
-                    />
-                  ))}
-                </div>
-                <div ref={coinsLoadMoreRef} style={{ height: 1 }} />
-              </Card>
             </div>
 
             <ScreenShell>
               <Card>
-                <Title sub="Clean home view only">Home</Title>
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: 10,
+                    marginBottom: 14,
+                    flexWrap: "wrap",
+                  }}
+                >
+                  <SectionHeader
+                    title={
+                      homeFeedMode === "TOP_MOVERS"
+                        ? "Top Movers"
+                        : homeFeedMode === "LATEST"
+                        ? "Latest"
+                        : "All Coins"
+                    }
+                    sub={
+                      homeFeedMode === "TOP_MOVERS"
+                        ? "Top 50 by volume in last 4 hours"
+                        : homeFeedMode === "LATEST"
+                        ? "Latest 50 created coins"
+                        : "All users coins"
+                    }
+                  />
 
-                <div className="statsGrid">
-                  <div className="stat">
-                    <div className="statLabel">Coins</div>
-                    <div className="statValue">{fmtNum(coins.length, 0)}</div>
-                  </div>
-                  <div className="stat">
-                    <div className="statLabel">My Creations</div>
-                    <div className="statValue">{fmtNum(myCreations.length, 0)}</div>
-                  </div>
-                  <div className="stat">
-                    <div className="statLabel">Referral Rewards</div>
-                    <div className="statValue">
-                      {fmtSol(profile?.referralRewards?.totalSol || 0)} SOL
-                    </div>
-                  </div>
-                  <div className="stat">
-                    <div className="statLabel">Creator Rewards</div>
-                    <div className="statValue">
-                      {fmtSol(profile?.rewards?.totalSol || 0)} SOL
-                    </div>
+                  <div className="tabs">
+                    <button
+                      className={`tabBtn ${homeFeedMode === "ALL" ? "active" : ""}`}
+                      onClick={() => setHomeFeedMode("ALL")}
+                    >
+                      All Coins
+                    </button>
+
+                    <button
+                      className={`tabBtn ${homeFeedMode === "TOP_MOVERS" ? "active" : ""}`}
+                      onClick={() => setHomeFeedMode("TOP_MOVERS")}
+                    >
+                      Top Movers
+                    </button>
+
+                    <button
+                      className={`tabBtn ${homeFeedMode === "LATEST" ? "active" : ""}`}
+                      onClick={() => setHomeFeedMode("LATEST")}
+                    >
+                      Latest
+                    </button>
                   </div>
                 </div>
-              </Card>
-            </ScreenShell>
 
-            <div className="rightCol">
-              <Card>
-                <SectionHeader title="Latest" sub="20 newest" right={<Pill>{latestCoins.length}</Pill>} />
                 <div className="coinList">
-                  {latestCoins.map((c) => (
+                  {(homeFeedMode === "TOP_MOVERS"
+                    ? topMovers4h.slice(0, 50)
+                    : homeFeedMode === "LATEST"
+                    ? latestCoins.slice(0, 50)
+                    : coins
+                  ).map((c) => (
                     <CoinMiniCard
                       key={c.id}
                       c={c}
-                      subtitle={coinSubtitle(c)}
+                      subtitle={
+                        homeFeedMode === "TOP_MOVERS"
+                          ? `4h Volume • ${toUsdFromSol(c.volumeSol || 0)}`
+                          : homeFeedMode === "LATEST"
+                          ? `Created • ${new Date(c.createdAt || Date.now()).toLocaleString()}`
+                          : `Volume • ${toUsdFromSol(c.volumeSol || 0)}`
+                      }
                       onOpen={() => openCoin(c)}
                     />
                   ))}
                 </div>
+
+                <div
+                  ref={coinsLoadMoreRef}
+                  style={{
+                    height: 24,
+                    display: homeFeedMode === "ALL" ? "flex" : "none",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    marginTop: 10,
+                    color: "var(--muted)",
+                    fontSize: 12,
+                  }}
+                >
+                  {loadingCoins ? "Loading..." : coinsHasMore ? "Scroll for more" : "No more coins"}
+                </div>
               </Card>
-            </div>
+            </ScreenShell>
           </div>
         )}
 
         {screen === "SEARCH" && (
           <ScreenShell>
+            {renderBackButton()}
+
             <Card>
               <Title sub="Search, top volume, top moves">Search</Title>
 
@@ -1950,7 +2769,12 @@ const homeLeft = null;
 
                   <div className="coinList">
                     {filteredCoins.map((c) => (
-                      <CoinMiniCard key={c.id} c={c} subtitle={coinSubtitle(c)} onOpen={() => openCoin(c)} />
+                      <CoinMiniCard
+                        key={c.id}
+                        c={c}
+                        subtitle={coinSubtitle(c)}
+                        onOpen={() => openCoin(c)}
+                      />
                     ))}
                   </div>
                 </>
@@ -1962,7 +2786,7 @@ const homeLeft = null;
                     <CoinMiniCard
                       key={c.id}
                       c={c}
-                      subtitle={`Volume • ${fmtSol(c.volumeSol || 0)} SOL`}
+                      subtitle={`Volume • ${toUsdFromSol(c.volumeSol || 0)}`}
                       onOpen={() => openCoin(c)}
                     />
                   ))}
@@ -1987,6 +2811,8 @@ const homeLeft = null;
 
         {screen === "CREATE" && (
           <ScreenShell>
+            {renderBackButton()}
+
             <Card>
               <Title sub="Create a new coin">Create Coin</Title>
 
@@ -2053,6 +2879,8 @@ const homeLeft = null;
 
         {screen === "COIN" && (
           <ScreenShell>
+            {renderBackButton()}
+
             {!selectedCoin ? (
               <Card>
                 <div className="miniMuted">Select a coin first.</div>
@@ -2074,7 +2902,7 @@ const homeLeft = null;
                       <div className="pillRow" style={{ marginTop: 12 }}>
                         <Pill>MC {fmtUsd(selectedCoin.mc || 0)}</Pill>
                         <Pill>ATH {fmtUsd(selectedCoin.ath || 0)}</Pill>
-                        <Pill>Volume {fmtSol(selectedCoin.volumeSol || 0)} SOL</Pill>
+                        <Pill>Volume {toUsdFromSol(selectedCoin.volumeSol || 0)}</Pill>
                       </div>
                     </div>
 
@@ -2119,7 +2947,7 @@ const homeLeft = null;
                     </div>
                     <div className="stat">
                       <div className="statLabel">Creator Reward</div>
-                      <div className="statValue">{fmtSol(selectedCoin.creatorRewardsSol || 0)} SOL</div>
+                      <div className="statValue">{toUsdFromSol(selectedCoin.creatorRewardsSol || 0)}</div>
                     </div>
                     <div className="stat">
                       <div className="statLabel">Supply</div>
@@ -2186,159 +3014,216 @@ const homeLeft = null;
           </ScreenShell>
         )}
 
-        {screen === "PROFILE" && (
-          <ScreenShell>
-            <Card>
-              <Title
-                sub={authenticated ? shortWallet(solAddr) : "Connect wallet to view profile"}
-                right={
-                  authenticated ? (
-                    <div className="pillRow">
-                      <MiniBtn onClick={() => handleWithdraw("REF")}>Withdraw Referral</MiniBtn>
-                      <MiniBtn onClick={() => handleWithdraw("CREATOR")}>Withdraw Creator</MiniBtn>
-                    </div>
-                  ) : null
-                }
+      {screen === "PROFILE" && (
+  <ScreenShell>
+    {renderBackButton()}
+
+    <Card>
+      <Title
+        sub={
+          authenticated ? (
+            <div style={{ display: "grid", gap: 6 }}>
+              <div>{shortWallet(solAddr)}</div>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <Pill>SOL Balance: {fmtSol(balanceSol || 0)} SOL</Pill>
+                <Pill>Total Value: {fmtUsd((balanceSol || 0) * 80)}</Pill>
+              </div>
+            </div>
+          ) : (
+            "Connect wallet to view profile"
+          )
+        }
+        right={
+          authenticated ? (
+            <div className="pillRow">
+              <MiniBtn onClick={() => handleWithdraw("REF")}>Withdraw Affiliate</MiniBtn>
+              <MiniBtn onClick={() => handleWithdraw("CREATOR")}>Withdraw Creator</MiniBtn>
+            </div>
+          ) : null
+        }
+      >
+        Profile
+      </Title>
+
+      {!authenticated ? (
+        <div className="miniMuted">Wallet not connected.</div>
+      ) : (
+        <>
+          <div className="pillRow" style={{ marginBottom: 14 }}>
+            <Pill>Affiliate Rewards: {toUsdFromSol(profile?.referralRewards?.totalSol || 0)}</Pill>
+            <Pill>Creator Rewards: {toUsdFromSol(profile?.rewards?.totalSol || 0)}</Pill>
+            <Pill>Affiliates: {fmtNum(profile?.referralCount || 0, 0)}</Pill>
+          </div>
+
+          <SectionHeader
+            title="Affiliate Link"
+            right={
+              <MiniBtn
+                onClick={async () => {
+                  const link = getReferralLink(solAddr);
+                  const ok = await copyText(link);
+                  setToast(ok ? "Affiliate link copied" : "Copy failed");
+                }}
               >
-                Profile
-              </Title>
+                Copy
+              </MiniBtn>
+            }
+          />
+          <div
+            style={{
+              padding: 12,
+              borderRadius: 16,
+              border: "1px solid rgba(255,255,255,.08)",
+              background: "rgba(255,255,255,.03)",
+              fontSize: 12,
+              color: "var(--muted)",
+              wordBreak: "break-all",
+            }}
+          >
+            {getReferralLink(solAddr) || "—"}
+          </div>
 
-              {!authenticated ? (
-                <div className="miniMuted">Wallet not connected.</div>
-              ) : (
-                <>
-                  <div className="pillRow" style={{ marginBottom: 14 }}>
-                    <Pill>
-                      Referral Rewards: {fmtSol(profile?.referralRewards?.totalSol || 0)} SOL
-                    </Pill>
-                    <Pill>
-                      Creator Rewards: {fmtSol(profile?.rewards?.totalSol || 0)} SOL
-                    </Pill>
-                    <Pill>
-                      Referrals: {fmtNum(profile?.referralCount || 0, 0)}
-                    </Pill>
+          <div className="hr" />
+
+          <SectionHeader title="My Creations" right={<Pill>{myCreations.length}</Pill>} />
+          <div className="scrollY" style={{ display: "grid", gap: 10 }}>
+            {myCreations.length === 0 ? (
+              <div className="miniMuted">No created coins.</div>
+            ) : (
+              myCreations.map((coin) => (
+                <button
+                  key={coin.id}
+                  onClick={() => openCoin(coin)}
+                  style={{
+                    width: "100%",
+                    padding: 12,
+                    borderRadius: 14,
+                    border: "1px solid var(--border)",
+                    background: "var(--card)",
+                    color: "var(--text)",
+                    textAlign: "left",
+                    cursor: "pointer",
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                    <CoinLogo c={coin} size={44} radius={14} />
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div style={{ fontWeight: 1000, fontSize: 13 }}>{coin.name}</div>
+                      <div style={{ marginTop: 4, fontSize: 11, color: "var(--muted2)" }}>
+                        {coin.symbol} • MC {fmtUsd(coin.mc || 0)}
+                      </div>
+                    </div>
                   </div>
+                </button>
+              ))
+            )}
+          </div>
 
-                  <SectionHeader
-                    title="Referral Link"
-                    right={
-                      <MiniBtn
-                        onClick={async () => {
-                          const link = getReferralLink(solAddr);
-                          const ok = await copyText(link);
-                          setToast(ok ? "Referral link copied" : "Copy failed");
-                        }}
-                      >
-                        Copy
-                      </MiniBtn>
-                    }
-                  />
+          <div className="hr" />
+
+          <SectionHeader title="My Holdings" right={<Pill>{profileHoldings.length}</Pill>} />
+          <div className="scrollY" style={{ display: "grid", gap: 10 }}>
+            {profileHoldings.length === 0 ? (
+              <div className="miniMuted">No holdings found.</div>
+            ) : (
+              profileHoldings.map((h) => {
+                const c = (coins || []).find((x) => String(x.id) === String(h.coinId));
+                return (
+                  <button
+                    key={h.coinId}
+                    onClick={() => {
+                      if (c) openCoin(c);
+                    }}
+                    style={{
+                      width: "100%",
+                      textAlign: "left",
+                      padding: 12,
+                      borderRadius: 16,
+                      border: "1px solid rgba(255,255,255,.08)",
+                      background: "rgba(255,255,255,.03)",
+                      color: "var(--text)",
+                      cursor: "pointer",
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                      <CoinLogo
+                        c={c || { symbol: h.symbol, name: h.name, logo: h.logo }}
+                        size={44}
+                        radius={14}
+                      />
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <div style={{ fontWeight: 1000, fontSize: 13 }}>
+                          {h.name || h.symbol || "—"}
+                        </div>
+                        <div style={{ marginTop: 4, fontSize: 11, color: "var(--muted2)" }}>
+                          {fmtNum(h.amount || 0, 4)} tokens • {safeNum(h.pct, 0).toFixed(4)}%
+                        </div>
+                      </div>
+                    </div>
+                  </button>
+                );
+              })
+            )}
+          </div>
+
+          <div className="hr" />
+
+          <SectionHeader title="Last Transactions" right={<Pill>{profileTxs.length}</Pill>} />
+          <div className="scrollY" style={{ display: "grid", gap: 10 }}>
+            {profileTxs.length === 0 ? (
+              <div className="miniMuted">No transactions found.</div>
+            ) : (
+              profileTxs.map((tx) => {
+                const c = (coins || []).find((x) => String(x.id) === String(tx.coinId));
+                return (
                   <div
+                    key={tx.id}
                     style={{
                       padding: 12,
                       borderRadius: 16,
                       border: "1px solid rgba(255,255,255,.08)",
                       background: "rgba(255,255,255,.03)",
-                      fontSize: 12,
-                      color: "var(--muted)",
-                      wordBreak: "break-all",
                     }}
                   >
-                    {getReferralLink(solAddr) || "—"}
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        gap: 10,
+                      }}
+                    >
+                      <div style={{ fontSize: 13, fontWeight: 1000 }}>
+                        {tx.side} • {c?.symbol || "COIN"}
+                      </div>
+                      <Pill>{new Date(tx.t || tx.ts || Date.now()).toLocaleString()}</Pill>
+                    </div>
+
+                    <div style={{ marginTop: 8, fontSize: 12, color: "var(--muted)" }}>
+                      SOL: {fmtSol(tx.sol || 0)} • Tokens: {fmtNum(tx.tokens || 0, 4)} • Fee: {fmtSol(tx.fee || 0)}
+                    </div>
                   </div>
-
-                  <div className="hr" />
-
-                  <SectionHeader title="My Holdings" right={<Pill>{profileHoldings.length}</Pill>} />
-                  <div className="scrollY" style={{ display: "grid", gap: 10 }}>
-                    {profileHoldings.length === 0 ? (
-                      <div className="miniMuted">No holdings found.</div>
-                    ) : (
-                      profileHoldings.map((h) => {
-                        const c = (coins || []).find((x) => String(x.id) === String(h.coinId));
-                        return (
-                          <button
-                            key={h.coinId}
-                            onClick={() => {
-                              if (c) openCoin(c);
-                            }}
-                            style={{
-                              width: "100%",
-                              textAlign: "left",
-                              padding: 12,
-                              borderRadius: 16,
-                              border: "1px solid rgba(255,255,255,.08)",
-                              background: "rgba(255,255,255,.03)",
-                              color: "var(--text)",
-                              cursor: "pointer",
-                            }}
-                          >
-                            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                              <CoinLogo c={c || { symbol: h.symbol, name: h.name, logo: h.logo }} size={44} radius={14} />
-
-                              <div style={{ minWidth: 0, flex: 1 }}>
-                                <div style={{ fontWeight: 1000, fontSize: 13 }}>
-                                  {h.name || h.symbol || "—"}
-                                </div>
-                                <div style={{ marginTop: 4, fontSize: 11, color: "var(--muted2)" }}>
-                                  {fmtNum(h.amount || 0, 4)} tokens • {safeNum(h.pct, 0).toFixed(4)}%
-                                </div>
-                              </div>
-                            </div>
-                          </button>
-                        );
-                      })
-                    )}
-                  </div>
-
-                  <div className="hr" />
-
-                  <SectionHeader title="Last Transactions" right={<Pill>{profileTxs.length}</Pill>} />
-                  <div className="scrollY" style={{ display: "grid", gap: 10 }}>
-                    {profileTxs.length === 0 ? (
-                      <div className="miniMuted">No transactions found.</div>
-                    ) : (
-                      profileTxs.map((tx) => {
-                        const c = (coins || []).find((x) => String(x.id) === String(tx.coinId));
-                        return (
-                          <div
-                            key={tx.id}
-                            style={{
-                              padding: 12,
-                              borderRadius: 16,
-                              border: "1px solid rgba(255,255,255,.08)",
-                              background: "rgba(255,255,255,.03)",
-                            }}
-                          >
-                            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
-                              <div style={{ fontSize: 13, fontWeight: 1000 }}>
-                                {tx.side} • {c?.symbol || "COIN"}
-                              </div>
-                              <Pill>{new Date(tx.t || Date.now()).toLocaleString()}</Pill>
-                            </div>
-
-                            <div style={{ marginTop: 8, fontSize: 12, color: "var(--muted)" }}>
-                              SOL: {fmtSol(tx.sol || 0)} • Tokens: {fmtNum(tx.tokens || 0, 4)} • Fee: {fmtSol(tx.fee || 0)}
-                            </div>
-                          </div>
-                        );
-                      })
-                    )}
-                  </div>
-                </>
-              )}
-            </Card>
-          </ScreenShell>
-        )}
-
+                );
+              })
+            )}
+          </div>
+        </>
+      )}
+    </Card>
+  </ScreenShell>
+)}
         {screen === "CREATOR" && (
           <ScreenShell>
+            {renderBackButton()}
+
             <Card>
-              <Title sub={shortWallet(creatorProfileId || creatorCoin?.creatorWallet || "")}>Creator Profile</Title>
+              <Title sub={shortWallet(creatorProfileId || creatorCoin?.creatorWallet || "")}>
+                Creator Profile
+              </Title>
 
               <div className="pillRow" style={{ marginBottom: 14 }}>
                 <Pill>Coins Created: {fmtNum(creatorCoins.length, 0)}</Pill>
-                <Pill>Lifetime Reward: {fmtSol(creatorRewards || 0)} SOL</Pill>
+                <Pill>Lifetime Reward: {toUsdFromSol(creatorRewards || 0)}</Pill>
               </div>
 
               <SectionHeader title="Coins Created" right={<Pill>{creatorCoins.length}</Pill>} />
@@ -2365,7 +3250,7 @@ const homeLeft = null;
 
                       <div className="pillRow" style={{ marginTop: 12 }}>
                         <Pill>MC {fmtUsd(coin.mc || 0)}</Pill>
-                        <Pill>Reward {fmtSol(coin.creatorRewardsSol || 0)} SOL</Pill>
+                        <Pill>Reward {toUsdFromSol(coin.creatorRewardsSol || 0)}</Pill>
                       </div>
                     </button>
                   ))
@@ -2394,7 +3279,7 @@ const homeLeft = null;
                       key={coin.id}
                       onClick={() => {
                         setSelectedCoinId(coin.id);
-                        setScreen("COIN");
+                        goScreen("COIN");
                       }}
                       style={{
                         width: "100%",
@@ -2426,35 +3311,50 @@ const homeLeft = null;
       </div>
 
       <div className="footerNav">
-        <button className={`footerBtn ${screen === "HOME" ? "active" : ""}`} onClick={() => setScreen("HOME")}>
+        <button
+          className={`footerBtn ${screen === "HOME" ? "active" : ""}`}
+          onClick={() => goScreen("HOME")}
+        >
           <div style={{ display: "grid", placeItems: "center", gap: 5 }}>
             <HomeIcon />
             <span>Home</span>
           </div>
         </button>
 
-        <button className={`footerBtn ${screen === "SEARCH" ? "active" : ""}`} onClick={() => setScreen("SEARCH")}>
+        <button
+          className={`footerBtn ${screen === "SEARCH" ? "active" : ""}`}
+          onClick={() => goScreen("SEARCH")}
+        >
           <div style={{ display: "grid", placeItems: "center", gap: 5 }}>
             <SearchIcon />
             <span>Search</span>
           </div>
         </button>
 
-        <button className={`footerBtn ${screen === "CREATE" ? "active" : ""}`} onClick={() => setScreen("CREATE")}>
+        <button
+          className={`footerBtn ${screen === "CREATE" ? "active" : ""}`}
+          onClick={() => goScreen("CREATE")}
+        >
           <div style={{ display: "grid", placeItems: "center", gap: 5 }}>
             <PlusIcon />
             <span>Create</span>
           </div>
         </button>
 
-        <button className={`footerBtn ${screen === "PROFILE" ? "active" : ""}`} onClick={() => setScreen("PROFILE")}>
+        <button
+          className={`footerBtn ${screen === "PROFILE" ? "active" : ""}`}
+          onClick={() => goScreen("PROFILE")}
+        >
           <div style={{ display: "grid", placeItems: "center", gap: 5 }}>
             <UserIcon />
             <span>Profile</span>
           </div>
         </button>
 
-        <button className={`footerBtn ${settingsOpen ? "active" : ""}`} onClick={() => setSettingsOpen(true)}>
+        <button
+          className={`footerBtn ${settingsOpen ? "active" : ""}`}
+          onClick={() => setSettingsOpen(true)}
+        >
           <div style={{ display: "grid", placeItems: "center", gap: 5 }}>
             <CogIcon />
             <span>Settings</span>
@@ -2527,12 +3427,26 @@ const homeLeft = null;
                         onClick={async () => {
                           try {
                             await exportWallet();
+                            setToast("Backup exported");
                           } catch (e) {
-                            setToast(e?.message || "Export failed");
+                            setToast(e?.message || "Backup failed");
                           }
                         }}
                       >
-                        Export
+                        Backup
+                      </MiniBtn>
+
+                      <MiniBtn
+                        onClick={async () => {
+                          try {
+                            await exportWallet();
+                            setToast("Recovery export opened");
+                          } catch (e) {
+                            setToast(e?.message || "Recovery failed");
+                          }
+                        }}
+                      >
+                        Recovery
                       </MiniBtn>
 
                       <MiniBtn
