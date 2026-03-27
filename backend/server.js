@@ -1299,8 +1299,14 @@ async function doTrade(req, res, side) {
   const sol = Math.max(0, safeNum(req.body?.sol, 0));
   const tokens = Math.max(0, safeNum(req.body?.tokens, 0));
 
-  if (!wallet || !coinId || (String(side).toLowerCase() === "buy" ? sol <= 0 : tokens <= 0)) {
-    return res.json({ ok: false, error: "wallet/coinId/amount required" });
+  const sideLower = String(side).toLowerCase();
+
+  if (
+    !wallet ||
+    !coinId ||
+    (sideLower === "buy" ? sol <= 0 : sol <= 0)
+  ) {
+    return res.json({ ok: false, error: "wallet/coinId/sol required" });
   }
 
   try {
@@ -1315,13 +1321,18 @@ async function doTrade(req, res, side) {
 
       let coin = ensureCoin(store.coins[idx]);
       let tradeResult = null;
-      const sideLower = String(side).toLowerCase();
 
       if (sideLower === "buy") {
         tradeResult = ammBuy(coin, wallet, sol);
         if (!tradeResult.ok) return { ok: false, error: tradeResult.error };
       } else if (sideLower === "sell") {
-        tradeResult = ammSellByTokenIn(coin, wallet, tokens);
+        const currentPriceSol = Math.max(1e-9, safeNum(coin.priceSol, 0));
+        const estimatedTokens = sol / currentPriceSol;
+
+        console.log("SELL REQUEST SOL =", sol);
+console.log("SELL EST TOKENS =", estimatedTokens);
+
+        tradeResult = ammSellByTokens(coin, wallet, estimatedTokens);
         if (!tradeResult.ok) return { ok: false, error: tradeResult.error };
       } else {
         return { ok: false, error: "invalid side" };
@@ -1338,7 +1349,10 @@ async function doTrade(req, res, side) {
         side: String(side).toUpperCase(),
         coinId,
         wallet,
-        sol: sideLower === "buy" ? sol : Math.max(0, safeNum(tradeResult.netSol, 0)),
+        sol:
+          sideLower === "buy"
+            ? sol
+            : Math.max(0, safeNum(tradeResult.solOutNet || tradeResult.netSol, 0)),
         tokens:
           sideLower === "buy"
             ? Math.max(0, safeNum(tradeResult.tokensOut, 0))
@@ -1358,7 +1372,10 @@ async function doTrade(req, res, side) {
             ? Math.max(0, safeNum(tradeResult.tokensOut || tradeResult.cappedTokensOut, 0))
             : Math.max(0, safeNum(tradeResult.tokensIn, 0)),
         fee: Math.max(0, safeNum(tradeResult.feeSol, 0)),
-        netSol: Math.max(0, safeNum(tradeResult.netSol, 0)),
+        netSol:
+          sideLower === "buy"
+            ? Math.max(0, safeNum(tradeResult.netSol, 0))
+            : Math.max(0, safeNum(tradeResult.solOutNet || tradeResult.netSol, 0)),
       };
     });
 
