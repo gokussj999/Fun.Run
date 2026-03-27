@@ -2928,33 +2928,25 @@ const homeLeft = null;
                   <div className="hr" />
                   <PriceChart coin={selectedCoin} height={isMobile ? 240 : 320} />
 
+                  <div className="statsGrid" style={{ marginTop: 12 }}>
+  <div className="stat">
+    <div className="statLabel">Your Tokens</div>
+    <div className="statValue">
+      {fmtNum(
+        (selectedCoin?.holders && selectedCoin.holders[solAddr]) || 0,
+        4
+      )}
+    </div>
+  </div>
+</div>
+
                   <div className="hr" />
 
-                  <div className="statsGrid">
-                    <div className="stat">
-                      <div className="statLabel">Price</div>
-                      <div className="statValue">{fmtUsd(currentCoinPriceUsd)}</div>
-                    </div>
-                    <div className="stat">
-                      <div className="statLabel">Change</div>
-                      <div
-                        className="statValue"
-                        style={{ color: isUp ? "var(--good)" : "var(--danger)" }}
-                      >
-                        {isUp ? "+" : ""}
-                        {currentCoinPnl.toFixed(2)}%
-                      </div>
-                    </div>
-                    <div className="stat">
-                      <div className="statLabel">Creator Reward</div>
-                      <div className="statValue">{toUsdFromSol(selectedCoin.creatorRewardsSol || 0)}</div>
-                    </div>
-                    <div className="stat">
-                      <div className="statLabel">Supply</div>
-                      <div className="statValue">{fmtNum(selectedCoin.totalSupply || 0, 0)}</div>
-                    </div>
-                  </div>
+              
                 </Card>
+
+
+
 
                 <Card>
                   <SectionHeader title="Trade" sub="Buy / sell quickly" />
@@ -3014,25 +3006,14 @@ const homeLeft = null;
           </ScreenShell>
         )}
 
+
+
       {screen === "PROFILE" && (
   <ScreenShell>
     {renderBackButton()}
 
     <Card>
-      <Title
-        sub={
-          authenticated ? (
-            <div style={{ display: "grid", gap: 6 }}>
-              <div>{shortWallet(solAddr)}</div>
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                <Pill>SOL Balance: {fmtSol(balanceSol || 0)} SOL</Pill>
-                <Pill>Total Value: {fmtUsd((balanceSol || 0) * 80)}</Pill>
-              </div>
-            </div>
-          ) : (
-            "Connect wallet to view profile"
-          )
-        }
+     
         right={
           authenticated ? (
             <div className="pillRow">
@@ -3041,11 +3022,21 @@ const homeLeft = null;
             </div>
           ) : null
         }
-      >
-        Profile
-      </Title>
 
-      {!authenticated ? (
+        <Title
+  sub={authenticated ? shortWallet(solAddr) : "Connect wallet to view profile"}
+  right={
+    authenticated ? (
+      <div className="pillRow">
+        <MiniBtn onClick={() => handleWithdraw("REF")}>Withdraw Affiliate</MiniBtn>
+        <MiniBtn onClick={() => handleWithdraw("CREATOR")}>Withdraw Creator</MiniBtn>
+      </div>
+    ) : null
+  }
+>
+  Profile
+</Title>
+         {!authenticated ? (
         <div className="miniMuted">Wallet not connected.</div>
       ) : (
         <>
