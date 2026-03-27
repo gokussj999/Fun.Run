@@ -2928,7 +2928,7 @@ const homeLeft = null;
                   <div className="hr" />
                   <PriceChart coin={selectedCoin} height={isMobile ? 240 : 320} />
 
-                  <div className="statsGrid" style={{ marginTop: 12 }}>
+  <div className="statsGrid" style={{ marginTop: 12 }}>
   <div className="stat">
     <div className="statLabel">Your Tokens</div>
     <div className="statValue">
@@ -2936,6 +2936,13 @@ const homeLeft = null;
         (selectedCoin?.holders && selectedCoin.holders[solAddr]) || 0,
         4
       )}
+    </div>
+  </div>
+
+  <div className="stat">
+    <div className="statLabel">Coin Reward</div>
+    <div className="statValue">
+      {toUsdFromSol(selectedCoin?.creatorRewardsSol || 0)}
     </div>
   </div>
 </div>
