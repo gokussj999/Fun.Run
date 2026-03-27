@@ -833,7 +833,9 @@ function pctChangeFromChart(chart, lookback = 12) {
   if (!start || !Number.isFinite(start)) return 0;
 
   const pct = ((end - start) / start) * 100;
-  return Number.isFinite(pct) ? pct : 0;
+  // 🔥 clamp karo taake unrealistic spikes na ayen
+const clamped = Math.max(-500, Math.min(500, pct));
+return Number.isFinite(clamped) ? clamped : 0;
 }
 
 function normalizeCoin(c = {}) {
@@ -1589,17 +1591,12 @@ function goBack() {
       };
 
       if (tradeMode === "BUY") {
-        path = "/api/coin/buy";
-        payload.sol = amount;
-      } else {
-        path = "/api/coin/sell";
-        if (sellMode === "TOKENS") {
-          payload.tokens = amount;
-        } else {
-          const priceSol = Math.max(0.000000001, safeNum(selectedCoin?.priceSol, 0));
-          payload.tokens = amount / priceSol;
-        }
-      }
+  path = "/api/coin/buy";
+  payload.sol = amount;
+} else {
+  path = "/api/coin/sell";
+  payload.sol = amount;
+}
 
       const json = await api(path, {
         method: "POST",
@@ -1706,9 +1703,20 @@ function goBack() {
   const isUp = currentCoinPnl >= 0;
 
   function PriceChart({ coin, height = 280 }) {
-    const points = Array.isArray(coin?.chart) && coin.chart.length
-      ? coin.chart.map((n) => Math.max(0, safeNum(n, 0)))
-      : [0, 0, 0, 0, 0];
+   const rawPoints =
+  Array.isArray(coin?.chart) && coin.chart.length
+    ? coin.chart.map((n) => Math.max(0, safeNum(n, 0)))
+    : [0, 0, 0, 0, 0];
+
+// 🔥 smoothing
+const basePoints =
+  rawPoints.length >= 2 ? rawPoints.slice(-60) : [0, 0, 0, 0, 0];
+
+const points = basePoints.map((p, i, arr) => {
+  const prev = arr[i - 1] ?? p;
+  const next = arr[i + 1] ?? p;
+  return (prev + p + next) / 3;
+});
 
     const w = 1000;
     const h = height;
@@ -2970,31 +2978,13 @@ const homeLeft = null;
                     ))}
                   </div>
 
-                  {tradeMode === "SELL" ? (
-                    <div className="tabs" style={{ marginBottom: 12 }}>
-                      {["TOKENS", "SOL"].map((m) => (
-                        <button
-                          key={m}
-                          className={`tabBtn ${sellMode === m ? "active" : ""}`}
-                          onClick={() => setSellMode(m)}
-                        >
-                          {m === "TOKENS" ? "Sell by Tokens" : "Sell by SOL"}
-                        </button>
-                      ))}
-                    </div>
-                  ) : null}
+                
 
                   <Input
                     type="number"
                     value={tradeAmount}
                     onChange={(e) => setTradeAmount(e.target.value)}
-                    placeholder={
-                      tradeMode === "BUY"
-                        ? "Enter SOL amount"
-                        : sellMode === "TOKENS"
-                        ? "Enter token amount"
-                        : "Enter SOL amount"
-                    }
+                   placeholder="Enter SOL amount"
                   />
 
                   <div className="pillRow" style={{ marginTop: 12 }}>
