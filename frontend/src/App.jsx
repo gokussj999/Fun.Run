@@ -14,31 +14,41 @@ const LS_THEME = "theme";
 function ThemeStyles() {
   return (
     <style>{`
-      :root{
-        --bg:#060A0D;
-        --bgSoft:rgba(6,10,13,.72);
-        --card:rgba(12,19,23,.78);
-        --card2:rgba(11,21,25,.62);
-        --border:rgba(255,255,255,.08);
+    :root{
+  --bg:#07111F;
+  --bgSoft:rgba(7,17,31,.66);
 
-        --text:#F4FFF9;
-        --muted:rgba(244,255,249,.72);
-        --muted2:rgba(244,255,249,.50);
+  --card:rgba(18,29,45,.42);
+  --card2:rgba(12,22,35,.30);
+  --card3:rgba(255,255,255,.05);
 
-        --primary:#19E6A2;
-        --primary2:#8FFFD0;
-        --accent2:#6AD7FF;
-        --accent3:#A78BFA;
+  --border:rgba(255,255,255,.10);
+  --borderSoft:rgba(255,255,255,.06);
 
-        --danger:#FF6B6B;
-        --warn:#FFD36A;
-        --good:#19E6A2;
+  --text:#F7FBFF;
+  --muted:rgba(231,241,255,.78);
+  --muted2:rgba(208,223,243,.54);
 
-        --heroGlow:rgba(25,230,162,.22);
-        --pillBg:rgba(255,255,255,.04);
-        --btnBg:rgba(255,255,255,.04);
-        --inputBg:rgba(255,255,255,.035);
-      }
+  --primary:#63F5C8;
+  --primary2:#7CCBFF;
+  --secondary:#7CCBFF;
+  --accent:#A78BFA;
+  --accent2:#A78BFA;
+  --accent3:#FF8FB1;
+
+  --danger:#FF8DA1;
+  --warn:#FFD47A;
+  --good:#63F5C8;
+
+  --heroGlow:rgba(99,245,200,.18);
+  --btnBg:linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+  --btnText:#04110D;
+  --inputBg:rgba(255,255,255,.045);
+
+  --shadow1:0 14px 40px rgba(0,0,0,.24);
+  --shadow2:0 24px 80px rgba(0,0,0,.30);
+  --shine:inset 0 1px 0 rgba(255,255,255,.08);
+}
 
       *{ box-sizing:border-box; }
       html,body,#root{ min-height:100%; }
@@ -48,9 +58,10 @@ function ThemeStyles() {
         font-family: Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial;
         color:var(--text);
         background:
-          radial-gradient(900px 520px at 50% -10%, rgba(25,230,162,.10), transparent 58%),
-          radial-gradient(700px 420px at 100% 100%, rgba(106,215,255,.08), transparent 52%),
-          linear-gradient(180deg, #04080A 0%, #060A0D 100%);
+          radial-gradient(1100px 700px at 50% -10%, rgba(25,230,162,.12), transparent 55%),
+          radial-gradient(900px 600px at 100% 0%, rgba(98,215,255,.10), transparent 42%),
+          radial-gradient(800px 520px at 0% 100%, rgba(155,140,255,.08), transparent 40%),
+          linear-gradient(180deg, #030507 0%, #05070A 100%);
         -webkit-font-smoothing:antialiased;
         text-rendering:optimizeLegibility;
       }
@@ -61,8 +72,8 @@ function ThemeStyles() {
         inset:0;
         pointer-events:none;
         background:
-          linear-gradient(to bottom, rgba(255,255,255,.015), transparent 18%),
-          linear-gradient(to top, rgba(25,230,162,.03), transparent 16%);
+          linear-gradient(to bottom, rgba(255,255,255,.02), transparent 16%),
+          radial-gradient(700px 300px at 50% 0%, rgba(255,255,255,.025), transparent 70%);
         z-index:0;
       }
 
@@ -71,47 +82,49 @@ function ThemeStyles() {
       .topbar{
         position:sticky;
         top:0;
-        z-index:60;
+        z-index:80;
         padding:10px 12px 0;
         background:transparent;
       }
 
       .topbarInner{
-        width:min(100%, 540px);
+        width:min(100%, 560px);
         margin:0 auto;
-        min-height:66px;
-        padding:10px 12px;
+        min-height:68px;
+        padding:11px 12px;
         display:flex;
         align-items:center;
         justify-content:space-between;
         gap:10px;
-        border:1px solid rgba(255,255,255,.08);
-        border-radius:22px;
+        border:1px solid var(--border);
+        border-radius:24px;
         background:
-          linear-gradient(180deg, rgba(10,15,18,.92), rgba(8,12,15,.86));
-        box-shadow:
-          0 16px 40px rgba(0,0,0,.28),
-          inset 0 1px 0 rgba(255,255,255,.04);
-        backdrop-filter: blur(16px);
+          linear-gradient(180deg, rgba(16,22,28,.78), rgba(10,14,18,.70));
+        box-shadow: var(--shadow1), var(--shine);
+        backdrop-filter: blur(18px) saturate(140%);
+        -webkit-backdrop-filter: blur(18px) saturate(140%);
       }
 
       .brand{
         display:flex;
         align-items:center;
-        gap:10px;
+        gap:11px;
         min-width:0;
         flex:1;
       }
 
       .brandLogo{
-        width:42px;
-        height:42px;
-        border-radius:14px;
+        width:44px;
+        height:44px;
+        border-radius:15px;
         overflow:hidden;
         flex:0 0 auto;
-        border:1px solid rgba(255,255,255,.10);
-        background:rgba(255,255,255,.04);
-        box-shadow:0 8px 22px rgba(0,0,0,.22);
+        border:1px solid rgba(255,255,255,.12);
+        background:
+          linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.025));
+        box-shadow:
+          0 10px 24px rgba(0,0,0,.24),
+          inset 0 1px 0 rgba(255,255,255,.06);
       }
 
       .brandLogo img{
@@ -132,7 +145,7 @@ function ThemeStyles() {
         font-size:15px;
         font-weight:1000;
         line-height:1;
-        letter-spacing:.2px;
+        letter-spacing:.18px;
         white-space:nowrap;
         overflow:hidden;
         text-overflow:ellipsis;
@@ -157,37 +170,48 @@ function ThemeStyles() {
       .appShell{
         position:relative;
         z-index:1;
-        width:min(100%, 540px);
+        width:min(100%, 560px);
         margin:0 auto;
-        padding:14px 12px 120px;
+        padding:16px 12px 126px;
       }
 
-      .grid{
+      .grid,
+      .leftCol,
+      .midCol,
+      .rightCol{
         display:grid;
         grid-template-columns:1fr;
-        gap:14px;
-        align-items:start;
+        gap:16px;
       }
 
-      .leftCol, .midCol, .rightCol{
-        display:grid;
-        gap:14px;
-      }
+     .card{
+  position:relative;
+  border:1px solid var(--border);
+  border-radius:28px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--card) 88%, white 12%), var(--card)),
+    linear-gradient(180deg, color-mix(in srgb, var(--bg) 72%, black 28%), color-mix(in srgb, var(--bg) 82%, black 18%));
+  box-shadow:
+    var(--shadow2),
+    0 0 0 1px color-mix(in srgb, var(--primary) 12%, transparent),
+    0 18px 50px color-mix(in srgb, var(--glow) 18%, transparent),
+    var(--shine);
+  overflow:hidden;
+  backdrop-filter: blur(18px) saturate(135%);
+  -webkit-backdrop-filter: blur(18px) saturate(135%);
+}
 
-      .card{
-        border:1px solid var(--border);
-        border-radius:26px;
-        background:
-          linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,.015)),
-          linear-gradient(180deg, rgba(11,17,20,.92), rgba(9,14,17,.88));
-        box-shadow:
-          0 20px 50px rgba(0,0,0,.24),
-          inset 0 1px 0 rgba(255,255,255,.04);
-        overflow:hidden;
-        backdrop-filter: blur(14px);
+      .card::before{
+        content:"";
+        position:absolute;
+        inset:0;
+        pointer-events:none;
+        background:linear-gradient(180deg, rgba(255,255,255,.02), transparent 28%);
       }
 
       .cardBody{
+        position:relative;
+        z-index:1;
         padding:16px;
       }
 
@@ -220,13 +244,14 @@ function ThemeStyles() {
         display:inline-flex;
         align-items:center;
         gap:7px;
-        padding:8px 11px;
+        padding:8px 12px;
         border-radius:999px;
         border:1px solid rgba(255,255,255,.08);
-        background:rgba(255,255,255,.035);
+        background:
+          linear-gradient(180deg, rgba(255,255,255,.055), rgba(255,255,255,.025));
         font-size:12px;
         color:var(--muted);
-        box-shadow: inset 0 1px 0 rgba(255,255,255,.03);
+        box-shadow: inset 0 1px 0 rgba(255,255,255,.04);
       }
 
       .coinList{
@@ -235,21 +260,26 @@ function ThemeStyles() {
       }
 
       .coinBtn{
-        width:100%;
-        text-align:left;
-        background:
-          linear-gradient(180deg, rgba(255,255,255,.035), rgba(255,255,255,.02));
-        border:1px solid rgba(255,255,255,.08);
-        border-radius:18px;
-        padding:12px;
-        color:var(--text);
-        cursor:pointer;
-        transition:none;
-        box-shadow: inset 0 1px 0 rgba(255,255,255,.03);
-      }
+  width:100%;
+  text-align:left;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--card) 82%, white 18%), color-mix(in srgb, var(--card) 94%, black 6%));
+  border:1px solid color-mix(in srgb, var(--primary) 16%, var(--border));
+  border-radius:20px;
+  padding:13px;
+  color:var(--text);
+  cursor:pointer;
+  transition:transform .16s ease, border-color .16s ease, background .16s ease, box-shadow .16s ease;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.035),
+    0 10px 24px color-mix(in srgb, var(--glow) 10%, transparent);
+}
 
       .coinBtn:hover{
-        border-color:rgba(25,230,162,.22);
+        transform:translateY(-1px);
+        border-color:rgba(25,230,162,.24);
+        background:
+          linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.024));
       }
 
       .coinRow{
@@ -265,7 +295,7 @@ function ThemeStyles() {
       }
 
       .coinName{
-        font-weight:900;
+        font-weight:950;
         font-size:14px;
         white-space:nowrap;
         overflow:hidden;
@@ -273,7 +303,7 @@ function ThemeStyles() {
       }
 
       .coinMeta{
-        margin-top:3px;
+        margin-top:4px;
         font-size:12px;
         color:var(--muted2);
         white-space:nowrap;
@@ -287,7 +317,7 @@ function ThemeStyles() {
       }
 
       .rightNumMain{
-        font-weight:900;
+        font-weight:1000;
         font-size:13px;
       }
 
@@ -304,29 +334,29 @@ function ThemeStyles() {
 
       .heroGlow{
         position:absolute;
-        right:-70px;
-        bottom:-70px;
-        width:220px;
-        height:220px;
-        background:radial-gradient(circle at center, rgba(25,230,162,.18), transparent 60%);
+        right:-80px;
+        bottom:-80px;
+        width:260px;
+        height:260px;
+        background:radial-gradient(circle at center, rgba(25,230,162,.18), transparent 62%);
         pointer-events:none;
-        filter:blur(16px);
+        filter:blur(18px);
       }
 
       .heroTitle{
-        font-size:24px;
-        line-height:1.05;
+        font-size:25px;
+        line-height:1.02;
         font-weight:1000;
-        letter-spacing:.15px;
-        max-width:260px;
+        letter-spacing:.14px;
+        max-width:280px;
       }
 
       .heroText{
         margin-top:12px;
         color:var(--muted);
         font-size:14px;
-        line-height:1.62;
-        max-width:340px;
+        line-height:1.64;
+        max-width:360px;
       }
 
       .heroActions{
@@ -342,32 +372,32 @@ function ThemeStyles() {
         flex-wrap:wrap;
       }
 
-      .tabBtn{
-        border:none;
-        cursor:pointer;
-        padding:9px 12px;
-        border-radius:14px;
-        font-size:12px;
-        font-weight:900;
-        color:var(--muted);
-        background:rgba(255,255,255,.04);
-        border:1px solid rgba(255,255,255,.07);
-        transition:none;
-      }
+   .tabBtn{
+  border:none;
+  cursor:pointer;
+  padding:9px 13px;
+  border-radius:15px;
+  font-size:12px;
+  font-weight:900;
+  color:var(--text);
+  background:color-mix(in srgb, var(--card) 88%, white 12%);
+  border:1px solid color-mix(in srgb, var(--primary) 14%, var(--border));
+  transition:all .16s ease;
+}
 
-      .tabBtn.active{
-        background:linear-gradient(135deg, rgba(25,230,162,.18), rgba(143,255,208,.12));
-        color:var(--text);
-        border-color:rgba(25,230,162,.26);
-        box-shadow:0 10px 24px rgba(25,230,162,.10);
-      }
+.tabBtn.active{
+  background:linear-gradient(135deg, var(--primary), var(--secondary));
+  color:var(--btnText);
+  border-color:color-mix(in srgb, var(--primary) 40%, white 10%);
+  box-shadow:0 10px 24px color-mix(in srgb, var(--glow) 24%, transparent);
+}
 
       .searchBox{
         display:flex;
         gap:10px;
         align-items:center;
         padding:12px 14px;
-        border-radius:16px;
+        border-radius:18px;
         background:rgba(255,255,255,.03);
         border:1px solid rgba(255,255,255,.07);
       }
@@ -412,11 +442,12 @@ function ThemeStyles() {
       .hScroll::-webkit-scrollbar{ display:none; }
 
       .tinyCard{
-        min-width:220px;
-        border-radius:18px;
+        min-width:230px;
+        border-radius:20px;
         border:1px solid rgba(255,255,255,.08);
         background:rgba(255,255,255,.03);
-        padding:12px;
+        padding:13px;
+        box-shadow: inset 0 1px 0 rgba(255,255,255,.03);
       }
 
       .statsGrid{
@@ -427,10 +458,11 @@ function ThemeStyles() {
 
       .stat{
         border:1px solid rgba(255,255,255,.08);
-        border-radius:20px;
-        background:rgba(255,255,255,.03);
-        padding:13px 12px;
-        min-height:70px;
+        border-radius:22px;
+        background:
+          linear-gradient(180deg, rgba(255,255,255,.045), rgba(255,255,255,.02));
+        padding:14px 13px;
+        min-height:74px;
         box-shadow: inset 0 1px 0 rgba(255,255,255,.03);
       }
 
@@ -441,8 +473,9 @@ function ThemeStyles() {
 
       .statValue{
         margin-top:8px;
-        font-size:16px;
+        font-size:17px;
         font-weight:1000;
+        letter-spacing:.1px;
       }
 
       .footerNav{
@@ -450,15 +483,16 @@ function ThemeStyles() {
         left:50%;
         transform:translateX(-50%);
         bottom:12px;
-        z-index:80;
-        width:min(calc(100% - 24px), 500px);
+        z-index:90;
+        width:min(calc(100% - 24px), 520px);
         display:grid;
         grid-template-columns: repeat(5, 1fr);
         gap:8px;
         padding:10px;
         border:1px solid rgba(255,255,255,.08);
         background:rgba(8,12,15,.88);
-        backdrop-filter: blur(18px);
+        backdrop-filter: blur(18px) saturate(140%);
+        -webkit-backdrop-filter: blur(18px) saturate(140%);
         border-radius:24px;
         box-shadow:
           0 20px 60px rgba(0,0,0,.34),
@@ -474,16 +508,18 @@ function ThemeStyles() {
         background:transparent;
         font-size:11px;
         font-weight:900;
-        transition:none;
+        transition:all .16s ease;
         min-height:56px;
       }
 
       .footerBtn.active{
-        color:var(--text);
-        background:linear-gradient(135deg, rgba(25,230,162,.16), rgba(143,255,208,.10));
-        border:1px solid rgba(25,230,162,.22);
-        box-shadow: inset 0 1px 0 rgba(255,255,255,.05);
-      }
+  color:var(--btnText);
+  background:linear-gradient(135deg, var(--primary), var(--secondary));
+  border:1px solid color-mix(in srgb, var(--primary) 40%, white 10%);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.18),
+    0 10px 24px color-mix(in srgb, var(--glow) 24%, transparent);
+}
 
       .modalBack{
         position:fixed;
@@ -500,7 +536,7 @@ function ThemeStyles() {
         width:min(100%, 520px);
         max-height:min(86vh, 900px);
         overflow:auto;
-        border-radius:26px;
+        border-radius:28px;
         border:1px solid rgba(255,255,255,.10);
         background:linear-gradient(180deg, rgba(10,15,18,.98), rgba(8,12,15,.96));
         box-shadow:0 30px 80px rgba(0,0,0,.45);
@@ -543,7 +579,7 @@ function ThemeStyles() {
         background:rgba(255,255,255,.03);
         color:var(--text);
         cursor:pointer;
-        transition:none;
+        transition:all .16s ease;
       }
 
       .themeOption.active{
@@ -563,9 +599,7 @@ function ThemeStyles() {
       }
 
       @media (max-width: 640px){
-        .topbar{
-          padding:8px 8px 0;
-        }
+        .topbar{ padding:8px 8px 0; }
 
         .topbarInner{
           width:100%;
@@ -580,17 +614,10 @@ function ThemeStyles() {
           border-radius:12px;
         }
 
-        .brandTitle{
-          font-size:14px;
-        }
+        .brandTitle{ font-size:14px; }
+        .brandSub{ font-size:10px; }
 
-        .brandSub{
-          font-size:10px;
-        }
-
-        .topActions{
-          gap:6px;
-        }
+        .topActions{ gap:6px; }
 
         .appShell{
           width:100%;
@@ -598,7 +625,7 @@ function ThemeStyles() {
         }
 
         .card{
-          border-radius:22px;
+          border-radius:24px;
         }
 
         .cardBody{
@@ -606,7 +633,7 @@ function ThemeStyles() {
         }
 
         .heroTitle{
-          font-size:21px;
+          font-size:22px;
           max-width:none;
         }
 
@@ -621,7 +648,7 @@ function ThemeStyles() {
         }
 
         .stat{
-          min-height:64px;
+          min-height:66px;
           padding:11px;
           border-radius:18px;
         }
@@ -682,19 +709,22 @@ function MiniBtn({ children, onClick, disabled, tone = "default", style }) {
   const toneStyle =
     tone === "good"
       ? {
-          background: "linear-gradient(135deg, rgba(25,230,162,.16), rgba(143,255,208,.10))",
-          border: "1px solid rgba(25,230,162,.28)",
+          background:
+            "linear-gradient(135deg, rgba(25,230,162,.22), rgba(143,255,208,.12))",
+          border: "1px solid rgba(25,230,162,.30)",
           color: "var(--text)",
+          boxShadow: "0 8px 20px rgba(25,230,162,.12)",
         }
       : tone === "danger"
       ? {
-          background: "rgba(255,107,107,.10)",
-          border: "1px solid rgba(255,107,107,.24)",
+          background: "rgba(255,107,107,.12)",
+          border: "1px solid rgba(255,107,107,.25)",
           color: "#FFD1D1",
         }
       : {
-          background: "rgba(255,255,255,.04)",
-          border: "1px solid rgba(255,255,255,.08)",
+          background:
+            "linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.025))",
+          border: "1px solid rgba(255,255,255,.10)",
           color: "var(--text)",
         };
 
@@ -705,13 +735,24 @@ function MiniBtn({ children, onClick, disabled, tone = "default", style }) {
       style={{
         border: "none",
         cursor: disabled ? "not-allowed" : "pointer",
-        padding: "10px 12px",
-        borderRadius: 14,
+        padding: "10px 13px",
+        borderRadius: 16,
         fontSize: 12,
         fontWeight: 900,
+        letterSpacing: ".2px",
         opacity: disabled ? 0.55 : 1,
+        transition: "all .15s ease",
         ...toneStyle,
         ...style,
+      }}
+      onMouseDown={(e) => {
+        if (!disabled) e.currentTarget.style.transform = "scale(0.96)";
+      }}
+      onMouseUp={(e) => {
+        if (!disabled) e.currentTarget.style.transform = "scale(1)";
+      }}
+      onMouseLeave={(e) => {
+        if (!disabled) e.currentTarget.style.transform = "scale(1)";
       }}
     >
       {children}
@@ -728,15 +769,31 @@ function PrimaryButton({ children, onClick, disabled, style }) {
         width: "100%",
         border: "none",
         cursor: disabled ? "not-allowed" : "pointer",
-        padding: "13px 14px",
-        borderRadius: 16,
+        padding: "14px 16px",
+        borderRadius: 18,
         fontSize: 14,
         fontWeight: 1000,
-        color: "#07110E",
-        background: "linear-gradient(135deg, var(--primary), var(--primary2))",
-        boxShadow: "0 12px 30px rgba(25,230,162,.22)",
-        opacity: disabled ? 0.6 : 1,
+        letterSpacing: ".2px",
+        color: "#03110D",
+        background:
+          "linear-gradient(135deg, var(--primary) 0%, var(--primary2) 100%)",
+        boxShadow: `
+          0 14px 40px rgba(25,230,162,.25),
+          inset 0 1px 0 rgba(255,255,255,.4)
+        `,
+        transition: "all .18s ease",
+        transform: disabled ? "none" : "translateY(0)",
+        opacity: disabled ? 0.55 : 1,
         ...style,
+      }}
+      onMouseDown={(e) => {
+        if (!disabled) e.currentTarget.style.transform = "scale(0.97)";
+      }}
+      onMouseUp={(e) => {
+        if (!disabled) e.currentTarget.style.transform = "scale(1)";
+      }}
+      onMouseLeave={(e) => {
+        if (!disabled) e.currentTarget.style.transform = "scale(1)";
       }}
     >
       {children}
@@ -982,10 +1039,9 @@ async function fileToDataUrl(file) {
 }
 
 function getReferralLink(addr) {
-  if (!addr || typeof window === "undefined") return "";
-  const u = new URL(window.location.href);
-  u.searchParams.set("ref", addr);
-  return u.toString();
+  if (!addr) return "";
+  const base = "https://fun-run-seven.vercel.app"; // 🔥 apna real domain yahan likhna
+  return `${base}/?ref=${encodeURIComponent(addr)}`;
 }
 
 async function api(path, options = {}) {
@@ -1172,6 +1228,9 @@ function CoinMiniCard({ c, subtitle, onOpen }) {
     </button>
   );
 }
+
+
+
 
 
 
@@ -1425,118 +1484,111 @@ export default function App() {
     return () => io.disconnect();
   }, [screen, coinsPage, coinsHasMore, loadingCoins]);
 
+  
+
   useEffect(() => {
-    const themes = {
-      calm: {
-        "--bg": "#060A0D",
-        "--bgSoft": "rgba(6,10,13,.72)",
-        "--card": "rgba(12,19,23,.78)",
-        "--card2": "rgba(11,21,25,.62)",
-        "--border": "rgba(255,255,255,.08)",
-        "--text": "#F4FFF9",
-        "--muted": "rgba(244,255,249,.72)",
-        "--muted2": "rgba(244,255,249,.50)",
-        "--primary": "#19E6A2",
-        "--primary2": "#8FFFD0",
-        "--accent2": "#6AD7FF",
-        "--accent3": "#A78BFA",
-        "--heroGlow": "rgba(25,230,162,.22)",
-      },
-      neon: {
-        "--bg": "#09070F",
-        "--bgSoft": "rgba(9,7,15,.72)",
-        "--card": "rgba(18,15,26,.80)",
-        "--card2": "rgba(14,11,22,.64)",
-        "--border": "rgba(255,255,255,.08)",
-        "--text": "#FAF7FF",
-        "--muted": "rgba(250,247,255,.72)",
-        "--muted2": "rgba(250,247,255,.48)",
-        "--primary": "#C084FC",
-        "--primary2": "#E879F9",
-        "--accent2": "#22D3EE",
-        "--accent3": "#818CF8",
-        "--heroGlow": "rgba(192,132,252,.24)",
-      },
-      ocean: {
-        "--bg": "#071017",
-        "--bgSoft": "rgba(7,16,23,.72)",
-        "--card": "rgba(11,24,34,.80)",
-        "--card2": "rgba(10,22,32,.64)",
-        "--border": "rgba(255,255,255,.08)",
-        "--text": "#F3FCFF",
-        "--muted": "rgba(243,252,255,.72)",
-        "--muted2": "rgba(243,252,255,.46)",
-        "--primary": "#38BDF8",
-        "--primary2": "#67E8F9",
-        "--accent2": "#22C55E",
-        "--accent3": "#A78BFA",
-        "--heroGlow": "rgba(56,189,248,.24)",
-      },
-      rose: {
-        "--bg": "#12080C",
-        "--bgSoft": "rgba(18,8,12,.72)",
-        "--card": "rgba(26,16,20,.80)",
-        "--card2": "rgba(22,13,17,.64)",
-        "--border": "rgba(255,255,255,.08)",
-        "--text": "#FFF7FA",
-        "--muted": "rgba(255,247,250,.72)",
-        "--muted2": "rgba(255,247,250,.46)",
-        "--primary": "#FB7185",
-        "--primary2": "#FDA4AF",
-        "--accent2": "#F472B6",
-        "--accent3": "#C084FC",
-        "--heroGlow": "rgba(251,113,133,.24)",
-      },
-      royal: {
-        "--bg": "#0A0C16",
-        "--bgSoft": "rgba(10,12,22,.72)",
-        "--card": "rgba(17,20,38,.80)",
-        "--card2": "rgba(13,17,32,.64)",
-        "--border": "rgba(255,255,255,.08)",
-        "--text": "#F7F8FF",
-        "--muted": "rgba(247,248,255,.72)",
-        "--muted2": "rgba(247,248,255,.46)",
-        "--primary": "#818CF8",
-        "--primary2": "#A5B4FC",
-        "--accent2": "#22D3EE",
-        "--accent3": "#C084FC",
-        "--heroGlow": "rgba(129,140,248,.24)",
-      },
-    };
+  const themes = {
+    calm: {
+      bg: "#07111F",
+      card: "rgba(18,29,45,.45)",
+      text: "#F7FBFF",
+      primary: "#63F5C8",
+      secondary: "#7CCBFF",
+      accent: "#A78BFA",
+      danger: "#FF8DA1",
+      glow: "rgba(99,245,200,.25)",
+    },
+    neon: {
+      bg: "#0C0B1A",
+      card: "rgba(31,20,49,.45)",
+      text: "#FBF8FF",
+      primary: "#C084FC",
+      secondary: "#22D3EE",
+      accent: "#F472B6",
+      danger: "#FF4D6D",
+      glow: "rgba(192,132,252,.35)",
+    },
+    ocean: {
+      bg: "#071A22",
+      card: "rgba(15,40,54,.45)",
+      text: "#F2FCFF",
+      primary: "#4FD1FF",
+      secondary: "#63F5C8",
+      accent: "#38BDF8",
+      danger: "#FF7B7B",
+      glow: "rgba(79,209,255,.25)",
+    },
+    fire: {
+      bg: "#140707",
+      card: "rgba(40,15,15,.45)",
+      text: "#FFF5F5",
+      primary: "#FF6B3D",
+      secondary: "#FFD166",
+      accent: "#FF3D6E",
+      danger: "#FF2E2E",
+      glow: "rgba(255,107,61,.25)",
+    },
+    royal: {
+      bg: "#0A1024",
+      card: "rgba(22,30,62,.45)",
+      text: "#F6F8FF",
+      primary: "#8FA8FF",
+      secondary: "#63F5C8",
+      accent: "#A78BFA",
+      danger: "#FF6B9D",
+      glow: "rgba(143,168,255,.25)",
+    },
+  };
 
-    const t = themes[theme] || themes.calm;
-    Object.entries(t).forEach(([k, v]) => {
-      document.documentElement.style.setProperty(k, v);
-    });
+  const t = themes[theme] || themes.calm;
 
-    document.body.style.background = `
-      radial-gradient(1200px 700px at 15% -10%, ${t["--heroGlow"]}, transparent 55%),
-      radial-gradient(900px 600px at 110% 0%, ${t["--accent2"]}22, transparent 45%),
-      linear-gradient(180deg, ${t["--bg"]} 0%, ${t["--bg"]} 100%)
-    `;
-    document.body.style.color = t["--text"];
 
-    try {
-      localStorage.setItem(LS_THEME, theme);
-    } catch {}
-  }, [theme]);
+  document.documentElement.style.setProperty("--bg", t.bg);
+document.documentElement.style.setProperty("--card", t.card);
+document.documentElement.style.setProperty("--text", t.text);
 
-  async function handleLogoPick(file) {
-    if (!file) return;
+document.documentElement.style.setProperty("--btn-primary", t.primary);
+document.documentElement.style.setProperty("--btn-secondary", t.secondary);
 
-    if (file.size > MAX_LOGO_BYTES) {
-      setToast("Logo too large");
-      return;
-    }
+document.documentElement.style.setProperty("--border", t.secondary + "33");
+document.documentElement.style.setProperty("--shadow", t.glow);
 
-    try {
-      const data = await fileToDataUrl(file);
-      setLogoFile(file);
-      setLogoPreview(data);
-    } catch {
-      setToast("Logo read failed");
-    }
+  document.documentElement.style.setProperty("--primary", t.primary);
+  document.documentElement.style.setProperty("--secondary", t.secondary);
+  document.documentElement.style.setProperty("--accent", t.accent);
+  document.documentElement.style.setProperty("--danger", t.danger);
+  document.documentElement.style.setProperty("--glow", t.glow);
+
+  document.body.style.background = `
+    radial-gradient(900px 600px at 10% 0%, ${t.glow}, transparent),
+    radial-gradient(800px 500px at 100% 0%, ${t.accent}, transparent),
+    ${t.bg}
+  `;
+
+  document.body.style.color = t.text;
+
+  try {
+    localStorage.setItem(LS_THEME, theme);
+  } catch {}
+}, [theme]);
+
+async function handleLogoPick(file) {
+  if (!file) return;
+
+  if (file.size > MAX_LOGO_BYTES) {
+    setToast("Logo too large");
+    return;
   }
+
+  try {
+    const data = await fileToDataUrl(file);
+    setLogoFile(file);
+    setLogoPreview(data);
+  } catch {
+    setToast("Logo read failed");
+  }
+}
+
 
   function goScreen(next) {
     setScreenHistory((prev) => {
@@ -1560,15 +1612,29 @@ export default function App() {
     });
   }
 
+  function openCoin(coin) {
+    if (!coin?.id) return;
+    setSelectedCoinId(coin.id);
+    goScreen("COIN");
+  }
 
+  function openCreatorFromCoin(coin) {
+    const wallet = String(coin?.creatorWallet || "").trim();
+    if (!wallet) return;
+    setCreatorProfileId(wallet);
+    goScreen("CREATOR");
+  }
 
+  function renderBackButton() {
+    if (screen === "HOME") return null;
+    return (
+      <MiniBtn onClick={goBack} style={{ width: "fit-content" }}>
+        ← Back
+      </MiniBtn>
+    );
+  }
 
-
-
-
-
-
-    async function handleCreateCoin() {
+  async function handleCreateCoin() {
     if (!authenticated || !solAddr) {
       setToast("Connect wallet first");
       return;
@@ -1629,57 +1695,94 @@ export default function App() {
     }
   }
 
-  async function handleTrade() {
-    if (!authenticated || !solAddr) {
-      setToast("Connect wallet first");
-      return;
-    }
-    if (!selectedCoin?.id) {
-      setToast("Select a coin first");
-      return;
-    }
-
-    const amount = Math.max(0, safeNum(tradeAmount, 0));
-    if (amount <= 0) {
-      setToast("Enter amount");
-      return;
-    }
-
-    try {
-      setTrading(true);
-
-      const path = tradeMode === "BUY" ? "/api/coin/buy" : "/api/coin/sell";
-      const payload = {
-        wallet: solAddr,
-        coinId: selectedCoin.id,
-        sol: amount,
-      };
-
-      const json = await api(path, {
-        method: "POST",
-        body: JSON.stringify(payload),
-      });
-
-      const updated = normalizeCoin(json?.coin || {});
-      if (updated?.id) {
-        setCoins((prev) =>
-          (prev || []).map((c) => (String(c.id) === String(updated.id) ? updated : c))
-        );
-        setSelectedCoinId(updated.id);
-      }
-
-      setTradeAmount("");
-      setToast(tradeMode === "BUY" ? "Buy successful" : "Sell successful");
-
-      await loadCoins(0, false);
-      await loadProfile(solAddr);
-      await loadBalance(solAddr);
-    } catch (e) {
-      setToast(e?.message || "Trade failed");
-    } finally {
-      setTrading(false);
-    }
+ async function handleTrade() {
+  if (!authenticated || !solAddr) {
+    setToast("Connect wallet first");
+    return;
   }
+
+  if (!selectedCoin?.id) {
+    setToast("Select a coin first");
+    return;
+  }
+
+  const amount = Math.max(0, safeNum(tradeAmount, 0));
+  if (amount <= 0) {
+    setToast("Enter amount");
+    return;
+  }
+
+  try {
+    setTrading(true);
+
+    // ⚡ OPTIMISTIC UI (instant feel)
+    let optimisticCoin = { ...selectedCoin };
+
+    if (tradeMode === "BUY") {
+      optimisticCoin.volumeSol = safeNum(optimisticCoin.volumeSol, 0) + amount;
+      optimisticCoin.mc = safeNum(optimisticCoin.mc, 0) * (1 + 0.015);
+    } else {
+      optimisticCoin.volumeSol = Math.max(0, safeNum(optimisticCoin.volumeSol, 0) - amount);
+      optimisticCoin.mc = safeNum(optimisticCoin.mc, 0) * (1 - 0.01);
+    }
+
+    optimisticCoin.chart = [
+      ...(optimisticCoin.chart || []).slice(-40),
+      optimisticCoin.mc,
+    ];
+
+    // instant UI update
+    setCoins((prev) =>
+      (prev || []).map((c) =>
+        String(c.id) === String(optimisticCoin.id) ? optimisticCoin : c
+      )
+    );
+
+    // 🚀 REAL API CALL
+    const path = tradeMode === "BUY" ? "/api/coin/buy" : "/api/coin/sell";
+
+    const payload = {
+      wallet: solAddr,
+      coinId: selectedCoin.id,
+      sol: amount,
+    };
+
+    const json = await api(path, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+
+    const updated = normalizeCoin(json?.coin || {});
+
+    if (updated?.id) {
+      setCoins((prev) =>
+        (prev || []).map((c) =>
+          String(c.id) === String(updated.id) ? updated : c
+        )
+      );
+      setSelectedCoinId(updated.id);
+    }
+
+    setTradeAmount("");
+
+    setToast(
+      tradeMode === "BUY"
+        ? "⚡ Buy executed"
+        : "⚡ Sell executed"
+    );
+
+    // background refresh (no blocking)
+    setTimeout(() => {
+      loadProfile(solAddr);
+      loadBalance(solAddr);
+    }, 500);
+
+  } catch (e) {
+    setToast(e?.message || "Trade failed");
+  } finally {
+    setTrading(false);
+  }
+}
 
   async function handleSetReferrer() {
     if (!authenticated || !solAddr) return;
@@ -1758,6 +1861,10 @@ export default function App() {
   const profileHoldings = Array.isArray(profile?.holdings) ? profile.holdings : [];
   const profileTxs = Array.isArray(profile?.txs) ? profile.txs : [];
 
+  const currentCoinPriceUsd = getCoinPriceUsd(selectedCoin || {});
+  const currentCoinPnl = pctChangeFromChart(selectedCoin?.chart || []);
+  const isUp = currentCoinPnl >= 0;
+
   function PriceChart({ coin, height = 280 }) {
     const rawPoints =
       Array.isArray(coin?.chart) && coin.chart.length
@@ -1768,144 +1875,168 @@ export default function App() {
       rawPoints.length >= 2 ? rawPoints.slice(-60) : [0, 0, 0, 0, 0];
 
     const points = basePoints.map((p, i, arr) => {
-      const isLastZone = i >= arr.length - 3;
-      if (isLastZone) return p;
-
       const prev = arr[i - 1] ?? p;
       const next = arr[i + 1] ?? p;
-      return (prev + p + next) / 3;
+      return i === 0 || i === arr.length - 1 ? p : (prev + p + next) / 3;
     });
 
     const w = 1000;
     const h = height;
-    const pad = 18;
+    const padX = 18;
+    const padY = 18;
 
     const maxRaw = Math.max(...points, 1e-12);
     const minRaw = Math.min(...points, maxRaw);
     const spread = Math.max(maxRaw - minRaw, 1e-12);
 
     const center = (maxRaw + minRaw) / 2;
-    const visualRange = Math.max(spread * 2.4, center * 0.12, 1e-12);
+    const visualRange = Math.max(spread * 2.1, center * 0.12, 1e-12);
 
     const min = Math.max(0, center - visualRange / 2);
     const max = center + visualRange / 2;
     const range = Math.max(max - min, 1e-12);
 
     const coords = points.map((p, i) => {
-      const x = pad + (i * (w - pad * 2)) / Math.max(1, points.length - 1);
-      const y = h - pad - ((p - min) / range) * (h - pad * 2);
+      const x = padX + (i * (w - padX * 2)) / Math.max(1, points.length - 1);
+      const y = h - padY - ((p - min) / range) * (h - padY * 2);
       return [x, y];
     });
 
-    const d = coords
-      .map((pt, i) => `${i === 0 ? "M" : "L"} ${pt[0].toFixed(2)} ${pt[1].toFixed(2)}`)
-      .join(" ");
+    const linePath = coords.reduce((acc, [x, y], i, arr) => {
+      if (i === 0) return `M ${x} ${y}`;
+      const [prevX, prevY] = arr[i - 1];
+      const cx = (prevX + x) / 2;
+      return `${acc} Q ${cx} ${prevY}, ${x} ${y}`;
+    }, "");
 
-    const area = `${d} L ${coords[coords.length - 1][0]} ${h - pad} L ${coords[0][0]} ${h - pad} Z`;
-    const label = fmtUsd(points[points.length - 1] || 0);
+    const areaPath = `${linePath} L ${coords[coords.length - 1][0]} ${h - padY} L ${coords[0][0]} ${h - padY} Z`;
+
+    const last = points[points.length - 1] || 0;
     const pct = pctChangeFromChart(points);
+    const chartUp = pct >= 0;
+
+    const glowColor = chartUp ? "rgba(25,230,162,.28)" : "rgba(255,107,107,.24)";
+    const strokeColor = chartUp ? "url(#lineGrad)" : "url(#lineGradDown)";    const dotX = coords[coords.length - 1]?.[0] || padX;
+    const dotY = coords[coords.length - 1]?.[1] || h / 2;
+    const glowId = chartUp ? "chartGlowUp" : "chartGlowDown";
 
     return (
       <div
         style={{
-          borderRadius: 20,
+          width: "100%",
+          borderRadius: 22,
           overflow: "hidden",
-          border: "1px solid rgba(255,255,255,.08)",
-          background: "linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,.015))",
-          padding: 12,
+          background:
+            "linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,.01))",
+          border: "1px solid rgba(255,255,255,.06)",
+          padding: 10,
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 10 }}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 10,
+            marginBottom: 10,
+          }}
+        >
           <div>
-            <div style={{ fontSize: 12, color: "var(--muted2)", fontWeight: 900 }}>Price</div>
-            <div style={{ marginTop: 4, fontSize: 20, fontWeight: 1000 }}>{label}</div>
+            <div style={{ fontSize: 12, color: "var(--muted2)" }}>Live Price</div>
+            <div style={{ fontSize: 18, fontWeight: 1000 }}>{fmtUsd(last)}</div>
           </div>
 
-          <Pill
+          <div
             style={{
-              color: pct >= 0 ? "var(--good)" : "var(--danger)",
-              borderColor: pct >= 0 ? "rgba(25,230,162,.20)" : "rgba(255,107,107,.20)",
-              background: pct >= 0 ? "rgba(25,230,162,.08)" : "rgba(255,107,107,.08)",
+              fontSize: 12,
+              fontWeight: 900,
+              color: chartUp ? "var(--good)" : "var(--danger)",
+              padding: "8px 10px",
+              borderRadius: 999,
+              border: "1px solid rgba(255,255,255,.07)",
+              background: "rgba(255,255,255,.03)",
             }}
           >
-            {pct >= 0 ? "+" : ""}
+            {chartUp ? "+" : ""}
             {pct.toFixed(2)}%
-          </Pill>
+          </div>
         </div>
 
-        <svg viewBox={`0 0 ${w} ${h}`} width="100%" height={height} preserveAspectRatio="none">
+        <svg
+          viewBox={`0 0 ${w} ${h}`}
+          style={{ width: "100%", height, display: "block" }}
+          preserveAspectRatio="none"
+        >
           <defs>
-            <linearGradient id="areaFill" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor={pct >= 0 ? "rgba(25,230,162,.38)" : "rgba(255,107,107,.30)"} />
-              <stop offset="100%" stopColor="rgba(255,255,255,0)" />
+            <linearGradient id="lineGradUp" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stopColor="#63F5C8" />
+              <stop offset="100%" stopColor="#8EDBFF" />
             </linearGradient>
+
+            <linearGradient id="lineGradDown" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stopColor="#FF7B93" />
+              <stop offset="100%" stopColor="#FFB199" />
+            </linearGradient>
+
+            <linearGradient id="areaFillUp" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="rgba(99,245,200,.26)" />
+              <stop offset="100%" stopColor="rgba(99,245,200,0)" />
+            </linearGradient>
+
+            <linearGradient id="areaFillDown" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="rgba(255,123,147,.22)" />
+              <stop offset="100%" stopColor="rgba(255,123,147,0)" />
+            </linearGradient>
+
+            <filter id="chartGlowUp" x="-20%" y="-20%" width="140%" height="140%">
+              <feGaussianBlur stdDeviation="4.5" result="blur" />
+              <feMerge>
+                <feMergeNode in="blur" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
+
+            <filter id="chartGlowDown" x="-20%" y="-20%" width="140%" height="140%">
+              <feGaussianBlur stdDeviation="4.5" result="blur" />
+              <feMerge>
+                <feMergeNode in="blur" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
           </defs>
 
-          <path d={area} fill="url(#areaFill)" />
           <path
-            d={d}
+            d={areaPath}
+            fill={chartUp ? "url(#areaFillUp)" : "url(#areaFillDown)"}
+            opacity="1"
+          />
+
+          <path
+            d={linePath}
             fill="none"
-            stroke={pct >= 0 ? "var(--primary)" : "var(--danger)"}
-            strokeWidth="4"
+            stroke={strokeColor}
+            strokeWidth="2.15"
             strokeLinecap="round"
             strokeLinejoin="round"
+            filter={`url(#${glowId})`}
+          />
+
+          <circle
+            cx={dotX}
+            cy={dotY}
+            r="4.4"
+            fill={chartUp ? "#63F5C8" : "#FF748D"}
+            stroke="rgba(255,255,255,.70)"
+            strokeWidth="1.2"
           />
         </svg>
       </div>
     );
   }
 
-  function openCoin(c) {
-    if (!c?.id) return;
-    setSelectedCoinId(c.id);
-    goScreen("COIN");
-  }
-
-  function openCreatorFromCoin(c) {
-    const cw = String(c?.creatorWallet || "").trim();
-    if (!cw) return;
-    setCreatorProfileId(cw);
-    goScreen("CREATOR");
-  }
-
   const toUsdFromSol = (sol) => fmtUsd(Number(sol || 0) * 80);
 
-  function renderBackButton() {
-    if (screen === "HOME") return null;
-
-    return (
-      <div style={{ marginBottom: 12 }}>
-        <button
-          onClick={goBack}
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 8,
-            padding: "10px 14px",
-            borderRadius: 14,
-            border: "1px solid var(--border)",
-            background: "var(--btnBg)",
-            color: "var(--text)",
-            cursor: "pointer",
-            backdropFilter: "blur(12px)",
-            WebkitBackdropFilter: "blur(12px)",
-            boxShadow: "0 10px 30px rgba(0,0,0,.22)",
-          }}
-        >
-          <span style={{ fontSize: 16, lineHeight: 1 }}>←</span>
-          <span style={{ fontWeight: 900 }}>Back</span>
-        </button>
-      </div>
-    );
-  }
-
-
-
-
-
-
-
-    return (
+  return (
     <>
       <ThemeStyles />
       <Toast text={toast} onClose={() => setToast("")} />
@@ -1917,170 +2048,98 @@ export default function App() {
           <div
             className="brand"
             style={{ cursor: "pointer" }}
-            onClick={() => {
-              goScreen("HOME");
-            }}
+            onClick={() => goScreen("HOME")}
           >
             <div className="brandLogo">
-              <img src={APP_LOGO_URL} alt="Fun.Run" />
+              <img src={APP_LOGO_URL} alt="logo" />
             </div>
-
             <div className="brandText">
               <div className="brandTitle">Fun.Run</div>
-              <div className="brandSub">Creator-first meme coin launchpad</div>
+              <div className="brandSub">Creator-first meme launchpad</div>
             </div>
           </div>
 
           <div className="topActions">
+            {authenticated && solAddr ? (
+              <>
+                <Pill>
+                  <WalletIcon /> {shortWallet(solAddr)}
+                </Pill>
+                <Pill>{fmtSol(walletSolBalance)} SOL</Pill>
+              </>
+            ) : null}
+
             {!authenticated ? (
               <MiniBtn
                 tone="good"
                 onClick={async () => {
                   try {
-                    if (ready) await login();
+                    await login?.();
                   } catch (e) {
-                    setToast(e?.message || "Login failed");
+                    setToast(e?.message || "Connect failed");
                   }
                 }}
               >
                 Connect
               </MiniBtn>
             ) : (
-              <>
-                <Pill>
-                  <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-                    <WalletIcon />
-                    {shortWallet(solAddr)}
-                  </span>
-                </Pill>
-
-                <MiniBtn
-                  onClick={async () => {
-                    try {
-                      await copyText(solAddr);
-                      setToast("Address copied");
-                    } catch {
-                      setToast("Copy failed");
-                    }
-                  }}
-                >
-                  Copy
-                </MiniBtn>
-
-                <MiniBtn
-                  onClick={async () => {
-                    try {
-                      await exportWallet();
-                      setToast("Wallet backup exported");
-                    } catch (e) {
-                      setToast(e?.message || "Export failed");
-                    }
-                  }}
-                >
-                  Export
-                </MiniBtn>
-
-                <MiniBtn
-                  onClick={async () => {
-                    try {
-                      await logout();
-                    } catch {}
-                  }}
-                >
-                  Logout
-                </MiniBtn>
-              </>
+              <MiniBtn
+                onClick={async () => {
+                  try {
+                    await logout?.();
+                    setToast("Disconnected");
+                  } catch (e) {
+                    setToast(e?.message || "Disconnect failed");
+                  }
+                }}
+              >
+                Logout
+              </MiniBtn>
             )}
-
-            <MiniBtn onClick={() => setSettingsOpen(true)}>
-              <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-                <CogIcon />
-                Settings
-              </span>
-            </MiniBtn>
           </div>
         </div>
       </div>
 
       <div className="appShell">
+
+
+
+
         {screen === "HOME" && (
-          <div className="grid">
-            <div className="leftCol">
-              <Card>
-                <div className="heroGlow" />
-                <Title sub="Creator-first meme coin launchpad">Fun.Run</Title>
+          <ScreenShell>
+            <Card className="hero">
+              <div className="heroGlow" />
+              <div className="heroTitle">Launch fast. Trade smooth. Earn rewards.</div>
+              <div className="heroText">
+                A premium mobile-first meme coin launchpad with creator rewards,
+                affiliate rewards, and instant SOL-only trading.
+              </div>
 
-                <div className="heroTitle">Fast. Clean. Smooth.</div>
-                <div className="heroText">
-                  Launch coins, trade instantly, track rewards, and grow your creator profile.
-                </div>
+              <div className="heroActions">
+                <MiniBtn tone="good" onClick={() => goScreen("CREATE")}>
+                  Create Coin
+                </MiniBtn>
+                <MiniBtn onClick={() => goScreen("SEARCH")}>Explore Coins</MiniBtn>
+              </div>
+            </Card>
 
-                <div className="pillRow" style={{ marginTop: 14 }}>
-                  <Pill>SOL Balance: {fmtSol(walletSolBalance)}</Pill>
-                  <Pill>Coins: {fmtNum(coins.length, 0)}</Pill>
-                  <Pill>Hot: {fmtNum(hot15m.length, 0)}</Pill>
-                </div>
-
-                <div className="heroActions">
-                  <MiniBtn tone="good" onClick={() => goScreen("CREATE")}>
-                    <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-                      <PlusIcon /> Create Coin
-                    </span>
-                  </MiniBtn>
-
-                  <MiniBtn onClick={() => goScreen("SEARCH")}>
-                    <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-                      <SearchIcon /> Explore
-                    </span>
-                  </MiniBtn>
-                </div>
-              </Card>
-            </div>
-
-            <ScreenShell>
-              <Card>
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    gap: 10,
-                    marginBottom: 14,
-                    flexWrap: "wrap",
-                  }}
-                >
-                  <SectionHeader
-                    title={
-                      homeFeedMode === "TOP_MOVERS"
-                        ? "Top Movers"
-                        : homeFeedMode === "LATEST"
-                        ? "Latest"
-                        : "All Coins"
-                    }
-                    sub={
-                      homeFeedMode === "TOP_MOVERS"
-                        ? "Top 50 by volume in last 4 hours"
-                        : homeFeedMode === "LATEST"
-                        ? "Latest 50 created coins"
-                        : "All users coins"
-                    }
-                  />
-
+            <Card>
+              <SectionHeader
+                title="Feed"
+                right={
                   <div className="tabs">
                     <button
                       className={`tabBtn ${homeFeedMode === "ALL" ? "active" : ""}`}
                       onClick={() => setHomeFeedMode("ALL")}
                     >
-                      All Coins
+                      All
                     </button>
-
                     <button
-                      className={`tabBtn ${homeFeedMode === "TOP_MOVERS" ? "active" : ""}`}
-                      onClick={() => setHomeFeedMode("TOP_MOVERS")}
+                      className={`tabBtn ${homeFeedMode === "HOT" ? "active" : ""}`}
+                      onClick={() => setHomeFeedMode("HOT")}
                     >
-                      Top Movers
+                      Hot 15m
                     </button>
-
                     <button
                       className={`tabBtn ${homeFeedMode === "LATEST" ? "active" : ""}`}
                       onClick={() => setHomeFeedMode("LATEST")}
@@ -2088,47 +2147,56 @@ export default function App() {
                       Latest
                     </button>
                   </div>
-                </div>
+                }
+              />
 
-                <div className="coinList">
-                  {(homeFeedMode === "TOP_MOVERS"
-                    ? topMovers4h.slice(0, 50)
-                    : homeFeedMode === "LATEST"
-                    ? latestCoins.slice(0, 50)
-                    : coins
-                  ).map((c) => (
-                    <CoinMiniCard
-                      key={c.id}
-                      c={c}
-                      subtitle={
-                        homeFeedMode === "TOP_MOVERS"
-                          ? `4h Volume • ${toUsdFromSol(c.volumeSol || 0)}`
-                          : homeFeedMode === "LATEST"
-                          ? `Created • ${new Date(c.createdAt || Date.now()).toLocaleString()}`
-                          : `Volume • ${toUsdFromSol(c.volumeSol || 0)}`
-                      }
-                      onOpen={() => openCoin(c)}
-                    />
-                  ))}
-                </div>
+              <div className="coinList">
+                {(homeFeedMode === "HOT" ? hot15m : homeFeedMode === "LATEST" ? latestCoins : coins).map((c) => (
+                  <CoinMiniCard
+                    key={c.id}
+                    c={c}
+                    subtitle={coinSubtitle(c)}
+                    onOpen={() => openCoin(c)}
+                  />
+                ))}
+              </div>
 
-                <div
-                  ref={coinsLoadMoreRef}
-                  style={{
-                    height: 24,
-                    display: homeFeedMode === "ALL" ? "flex" : "none",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    marginTop: 10,
-                    color: "var(--muted)",
-                    fontSize: 12,
-                  }}
-                >
-                  {loadingCoins ? "Loading..." : coinsHasMore ? "Scroll for more" : "No more coins"}
+              <div ref={coinsLoadMoreRef} style={{ height: 10 }} />
+              {loadingCoins ? (
+                <div className="miniMuted" style={{ marginTop: 10 }}>
+                  Loading...
                 </div>
-              </Card>
-            </ScreenShell>
-          </div>
+              ) : null}
+            </Card>
+
+            <Card>
+              <SectionHeader title="Trending by Volume" right={<Pill>{topVolume.length}</Pill>} />
+              <div className="hScroll">
+                {topVolume.map((c) => (
+                  <div key={c.id} className="tinyCard">
+                    <div className="row">
+                      <CoinLogo c={c} size={42} radius={14} />
+                      <div className="space">
+                        <div style={{ fontWeight: 1000, fontSize: 13 }}>{c.name}</div>
+                        <div className="miniMuted">{c.symbol}</div>
+                      </div>
+                    </div>
+
+                    <div style={{ marginTop: 12 }} className="pillRow">
+                      <Pill>MC {fmtUsd(c.mc || 0)}</Pill>
+                      <Pill>{fmtSol(c.volumeSol || 0)} SOL</Pill>
+                    </div>
+
+                    <div style={{ marginTop: 12 }}>
+                      <MiniBtn onClick={() => openCoin(c)} style={{ width: "100%" }}>
+                        Open
+                      </MiniBtn>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          </ScreenShell>
         )}
 
         {screen === "SEARCH" && (
@@ -2136,71 +2204,63 @@ export default function App() {
             {renderBackButton()}
 
             <Card>
-              <Title sub="Search, top volume, top moves">Search</Title>
+              <Title sub="Find by name, symbol, or creator wallet">Search</Title>
 
-              <div className="tabs" style={{ marginBottom: 12 }}>
-                {["SEARCH", "TOP_VOLUME", "TOP_MOVES"].map((m) => (
-                  <button
-                    key={m}
-                    className={`tabBtn ${searchMode === m ? "active" : ""}`}
-                    onClick={() => setSearchMode(m)}
-                  >
-                    {m === "SEARCH" ? "Search" : m === "TOP_VOLUME" ? "Top Volume" : "Top Moves 24h"}
-                  </button>
-                ))}
+              <div className="searchBox">
+                <SearchIcon />
+                <input
+                  value={searchQ}
+                  onChange={(e) => setSearchQ(e.target.value)}
+                  placeholder="Search coins..."
+                />
               </div>
 
-              {searchMode === "SEARCH" && (
-                <>
-                  <div className="searchBox">
-                    <SearchIcon />
-                    <input
-                      value={searchQ}
-                      onChange={(e) => setSearchQ(e.target.value)}
-                      placeholder="Search by name, symbol, or creator wallet"
-                    />
-                  </div>
+              <div className="tabs" style={{ marginTop: 12 }}>
+                <button
+                  className={`tabBtn ${searchMode === "SEARCH" ? "active" : ""}`}
+                  onClick={() => setSearchMode("SEARCH")}
+                >
+                  Search
+                </button>
+                <button
+                  className={`tabBtn ${searchMode === "VOLUME" ? "active" : ""}`}
+                  onClick={() => setSearchMode("VOLUME")}
+                >
+                  Top Volume
+                </button>
+                <button
+                  className={`tabBtn ${searchMode === "MOVES" ? "active" : ""}`}
+                  onClick={() => setSearchMode("MOVES")}
+                >
+                  Top Moves
+                </button>
+              </div>
 
-                  <div className="hr" />
+              <div className="coinList" style={{ marginTop: 14 }}>
+                {searchMode === "SEARCH" &&
+                  (filteredCoins.length ? (
+                    filteredCoins.map((c) => (
+                      <CoinMiniCard key={c.id} c={c} onOpen={() => openCoin(c)} />
+                    ))
+                  ) : (
+                    <div className="miniMuted">No coins found.</div>
+                  ))}
 
-                  <div className="coinList">
-                    {filteredCoins.map((c) => (
-                      <CoinMiniCard
-                        key={c.id}
-                        c={c}
-                        subtitle={coinSubtitle(c)}
-                        onOpen={() => openCoin(c)}
-                      />
-                    ))}
-                  </div>
-                </>
-              )}
+                {searchMode === "VOLUME" &&
+                  topVolume.map((c) => (
+                    <CoinMiniCard key={c.id} c={c} onOpen={() => openCoin(c)} />
+                  ))}
 
-              {searchMode === "TOP_VOLUME" && (
-                <div className="coinList">
-                  {topVolume.map((c) => (
+                {searchMode === "MOVES" &&
+                  topMoves20.map(({ c, pct }) => (
                     <CoinMiniCard
                       key={c.id}
                       c={c}
-                      subtitle={`Volume • ${toUsdFromSol(c.volumeSol || 0)}`}
+                      subtitle={`MC ${fmtUsd(c?.mc || 0)} • ${pct > 0 ? "+" : ""}${pct.toFixed(2)}%`}
                       onOpen={() => openCoin(c)}
                     />
                   ))}
-                </div>
-              )}
-
-              {searchMode === "TOP_MOVES" && (
-                <div className="coinList">
-                  {topMoves20.map(({ c, pct }) => (
-                    <CoinMiniCard
-                      key={c.id}
-                      c={c}
-                      subtitle={`${pct >= 0 ? "+" : ""}${pct.toFixed(2)}% • MC ${fmtUsd(c.mc || 0)}`}
-                      onOpen={() => openCoin(c)}
-                    />
-                  ))}
-                </div>
-              )}
+              </div>
             </Card>
           </ScreenShell>
         )}
@@ -2210,13 +2270,13 @@ export default function App() {
             {renderBackButton()}
 
             <Card>
-              <Title sub="Create a new coin">Create Coin</Title>
+              <Title sub="Launch your coin with optional first buy">Create Coin</Title>
 
               <div style={{ display: "grid", gap: 12 }}>
                 <Input
                   value={tokenName}
                   onChange={(e) => setTokenName(e.target.value)}
-                  placeholder="Coin name"
+                  placeholder="Token name"
                 />
 
                 <Input
@@ -2226,29 +2286,22 @@ export default function App() {
                 />
 
                 <Input
-                  textarea
-                  rows={4}
                   value={story}
                   onChange={(e) => setStory(e.target.value)}
                   placeholder="Story / description"
+                  textarea
+                  rows={5}
                 />
 
                 <Input
-                  type="number"
                   value={initialSol}
                   onChange={(e) => setInitialSol(e.target.value)}
-                  placeholder="Initial buy in SOL"
+                  placeholder="Initial buy (SOL)"
+                  type="number"
                 />
 
-                <div
-                  style={{
-                    border: "1px dashed rgba(255,255,255,.12)",
-                    borderRadius: 18,
-                    padding: 14,
-                    background: "rgba(255,255,255,.02)",
-                  }}
-                >
-                  <div style={{ fontSize: 12, color: "var(--muted2)", marginBottom: 10 }}>
+                <div>
+                  <div style={{ fontSize: 12, color: "var(--muted2)", marginBottom: 8 }}>
                     Logo
                   </div>
 
@@ -2272,6 +2325,10 @@ export default function App() {
             </Card>
           </ScreenShell>
         )}
+
+
+
+
 
         {screen === "COIN" && (
           <ScreenShell>
@@ -2298,7 +2355,7 @@ export default function App() {
                       <div className="pillRow" style={{ marginTop: 12 }}>
                         <Pill>MC {fmtUsd(selectedCoin.mc || 0)}</Pill>
                         <Pill>ATH {fmtUsd(selectedCoin.ath || 0)}</Pill>
-                        <Pill>Volume {toUsdFromSol(selectedCoin.volumeSol || 0)}</Pill>
+                        <Pill>Volume {fmtSol(selectedCoin.volumeSol || 0)} SOL</Pill>
                       </div>
                     </div>
 
@@ -2322,125 +2379,341 @@ export default function App() {
                   ) : null}
 
                   <div className="hr" />
-                  <PriceChart key={selectedCoin?.chart?.length} coin={selectedCoin} height={isMobile ? 240 : 320} />
+                  <PriceChart coin={selectedCoin} height={isMobile ? 240 : 320} />
 
-                  <div className="statsGrid" style={{ marginTop: 12 }}>
+                  <div className="hr" />
+
+                  <div className="statsGrid">
                     <div className="stat">
-                      <div className="statLabel">Your Tokens</div>
-                      <div className="statValue">
-                        {fmtNum((selectedCoin?.holders && selectedCoin.holders[solAddr]) || 0, 4)}
+                      <div className="statLabel">Price</div>
+                      <div className="statValue">{fmtUsd(currentCoinPriceUsd)}</div>
+                    </div>
+                    <div className="stat">
+                      <div className="statLabel">Change</div>
+                      <div
+                        className="statValue"
+                        style={{ color: isUp ? "var(--good)" : "var(--danger)" }}
+                      >
+                        {isUp ? "+" : ""}
+                        {currentCoinPnl.toFixed(2)}%
                       </div>
                     </div>
-
                     <div className="stat">
-                      <div className="statLabel">Coin Reward</div>
-                      <div className="statValue">
-                        {toUsdFromSol(selectedCoin?.creatorRewardsSol || 0)}
-                      </div>
+                      <div className="statLabel">Creator Reward</div>
+                      <div className="statValue">{fmtSol(selectedCoin.creatorRewardsSol || 0)} SOL</div>
+                    </div>
+                    <div className="stat">
+                      <div className="statLabel">Supply</div>
+                      <div className="statValue">{fmtNum(selectedCoin.totalSupply || 0)}</div>
                     </div>
                   </div>
                 </Card>
 
                 <Card>
-                  <SectionHeader title="Trade" sub="Buy / sell with SOL only" />
-
-                  <div className="tabs" style={{ marginBottom: 12 }}>
-                    {["BUY", "SELL"].map((m) => (
-                      <button
-                        key={m}
-                        className={`tabBtn ${tradeMode === m ? "active" : ""}`}
-                        onClick={() => setTradeMode(m)}
-                      >
-                        {m}
-                      </button>
-                    ))}
+                  <SectionHeader title="Trade" sub="Instant swap • SOL only" />                  <div className="tabs" style={{ marginBottom: 12 }}>
+                    <button
+                      className={`tabBtn ${tradeMode === "BUY" ? "active" : ""}`}
+                      onClick={() => setTradeMode("BUY")}
+                    >
+                      Buy
+                    </button>
+                    <button
+                      className={`tabBtn ${tradeMode === "SELL" ? "active" : ""}`}
+                      onClick={() => setTradeMode("SELL")}
+                    >
+                      Sell
+                    </button>
                   </div>
 
-                  <Input
-                    type="number"
-                    value={tradeAmount}
-                    onChange={(e) => setTradeAmount(e.target.value)}
-                    placeholder={tradeMode === "BUY" ? "Enter SOL amount to buy" : "Enter SOL amount to sell"}
+                  <div style={{ display: "grid", gap: 12 }}>
+                    <Input
+                      value={tradeAmount}
+                      onChange={(e) => setTradeAmount(e.target.value)}
+                      placeholder={tradeMode === "BUY" ? "SOL amount" : "SOL to receive"}
+                      type="number"
+                    />
+
+                    <div className="pillRow">
+                      <Pill>
+                        Fee {(1).toFixed(0)}%
+                      </Pill>
+                      <Pill>
+                        You type in SOL
+                      </Pill>
+                      <Pill>
+                        {tradeMode === "BUY" ? "Fast buy" : "SOL-based sell"}
+                      </Pill>
+                    </div>
+
+                    <PrimaryButton disabled={trading} onClick={handleTrade}>
+                      {trading
+                        ? tradeMode === "BUY"
+                          ? "Buying..."
+                          : "Selling..."
+                        : tradeMode === "BUY"
+                        ? "Buy Now"
+                        : "Sell Now"}
+                    </PrimaryButton>
+                  </div>
+                </Card>
+
+                <Card>
+                  <SectionHeader
+                    title="Holders / Activity"
+                    right={<Pill>{Object.keys(selectedCoin.holders || {}).length}</Pill>}
                   />
 
-                  <div className="pillRow" style={{ marginTop: 12 }}>
-                    <MiniBtn onClick={() => setTradeAmount("0.01")}>0.01</MiniBtn>
-                    <MiniBtn onClick={() => setTradeAmount("0.1")}>0.1</MiniBtn>
-                    <MiniBtn onClick={() => setTradeAmount("1")}>1</MiniBtn>
-                    <MiniBtn onClick={() => setTradeAmount("10")}>10</MiniBtn>
-                  </div>
+                  <div className="scrollY">
+                    {(Object.entries(selectedCoin.holders || {}) || []).length === 0 ? (
+                      <div className="miniMuted">No holders yet.</div>
+                    ) : (
+                      Object.entries(selectedCoin.holders || {})
+                        .sort((a, b) => Number(b[1] || 0) - Number(a[1] || 0))
+                        .slice(0, 50)
+                        .map(([wallet, amount]) => {
+                          const pct =
+                            selectedCoin.totalSupply > 0
+                              ? (Number(amount || 0) / Number(selectedCoin.totalSupply || 1)) * 100
+                              : 0;
 
-                  <PrimaryButton style={{ marginTop: 14 }} disabled={trading} onClick={handleTrade}>
-                    {trading ? "Processing..." : tradeMode === "BUY" ? "Buy" : "Sell"}
-                  </PrimaryButton>
+                          return (
+                            <div
+                              key={wallet}
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "space-between",
+                                gap: 10,
+                                padding: "11px 0",
+                                borderBottom: "1px solid rgba(255,255,255,.06)",
+                              }}
+                            >
+                              <div style={{ minWidth: 0 }}>
+                                <div style={{ fontWeight: 900, fontSize: 13 }}>{shortWallet(wallet)}</div>
+                                <div className="miniMuted">{pct.toFixed(4)}% supply</div>
+                              </div>
+
+                              <div style={{ textAlign: "right" }}>
+                                <div style={{ fontWeight: 900, fontSize: 13 }}>{fmtNum(amount, 0)}</div>
+                                <div className="miniMuted">tokens</div>
+                              </div>
+                            </div>
+                          );
+                        })
+                    )}
+                  </div>
                 </Card>
               </>
             )}
           </ScreenShell>
         )}
 
-        {screen === "PROFILE" && (
+                {screen === "PROFILE" && (
           <ScreenShell>
-            {renderBackButton()}
+           <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+  {renderBackButton()}
 
-            <Card>
-              <Title
-                sub={authenticated ? shortWallet(solAddr) : "Connect wallet to view profile"}
-                right={
-                  authenticated ? (
-                    <div className="pillRow">
-                      <MiniBtn onClick={() => handleWithdraw("REF")}>Withdraw Affiliate</MiniBtn>
-                      <MiniBtn onClick={() => handleWithdraw("CREATOR")}>Withdraw Creator</MiniBtn>
-                    </div>
-                  ) : null
-                }
-              >
-                Profile
-              </Title>
+  <MiniBtn
+    onClick={async () => {
+      const link = getReferralLink(solAddr);
+      const ok = await copyText(link);
+      setToast(ok ? "Affiliate link copied" : "Copy failed");
+    }}
+    tone="good"
+  >
+    Copy Affiliate Link
+  </MiniBtn>
 
-              {!authenticated ? (
-                <div className="miniMuted">Wallet not connected.</div>
-              ) : (
-                <>
-                  <div className="pillRow" style={{ marginBottom: 14 }}>
-                    <Pill>SOL Balance: {fmtSol(walletSolBalance)}</Pill>
-                    <Pill>Affiliate Rewards: {toUsdFromSol(profile?.referralRewards?.totalSol || 0)}</Pill>
-                    <Pill>Creator Rewards: {toUsdFromSol(profile?.rewards?.totalSol || 0)}</Pill>
-                    <Pill>Affiliates: {fmtNum(profile?.referralCount || 0, 0)}</Pill>
-                  </div>
+  <div
+    style={{
+      maxWidth: 220,
+      padding: "10px 12px",
+      borderRadius: 14,
+      border: "1px solid rgba(255,255,255,.08)",
+      background: "rgba(255,255,255,.03)",
+      color: "var(--muted)",
+      fontSize: 12,
+      whiteSpace: "nowrap",
+      overflow: "hidden",
+      textOverflow: "ellipsis",
+    }}
+    title={getReferralLink(solAddr) || ""}
+  >
+    {getReferralLink(solAddr) || "—"}
+  </div>
+</div>
 
-                  <SectionHeader
-                    title="Affiliate Link"
-                    right={
-                      <MiniBtn
-                        onClick={async () => {
-                          const link = getReferralLink(solAddr);
-                          const ok = await copyText(link);
-                          setToast(ok ? "Affiliate link copied" : "Copy failed");
-                        }}
-                      >
-                        Copy
-                      </MiniBtn>
-                    }
-                  />
-                  <div
-                    style={{
-                      padding: 12,
-                      borderRadius: 16,
-                      border: "1px solid rgba(255,255,255,.08)",
-                      background: "rgba(255,255,255,.03)",
-                      fontSize: 12,
-                      color: "var(--muted)",
-                      wordBreak: "break-all",
-                    }}
-                  >
-                    {getReferralLink(solAddr) || "—"}
-                  </div>
+            {!authenticated || !solAddr ? (
+              <Card>
+                <div className="miniMuted">Connect wallet to view your profile.</div>
+              </Card>
+            ) : (
+              <>
+                <Card>
+                  <Title sub="Your wallet, rewards, creations, holdings and recent activity">
+                    Profile
+                  </Title>
+
+
+
+
+
+
+
+
+
+
+
+<div
+  style={{
+    display: "grid",
+    gridTemplateColumns: isMobile ? "1fr" : "1.2fr .8fr",
+    gap: 12,
+    alignItems: "stretch",
+  }}
+>
+  <div
+    style={{
+      padding: 14,
+      borderRadius: 18,
+      border: "1px solid rgba(255,255,255,.09)",
+      background:
+        "linear-gradient(135deg, rgba(99,245,200,.10), rgba(124,203,255,.08))",
+      boxShadow: "inset 0 1px 0 rgba(255,255,255,.04)",
+    }}
+  >
+    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+      <Pill>
+        <WalletIcon /> {shortWallet(solAddr)}
+      </Pill>
+    </div>
+
+    <div style={{ marginTop: 14, fontSize: 24, fontWeight: 1000, lineHeight: 1 }}>
+      {fmtSol(walletSolBalance)} SOL
+    </div>
+
+    <div style={{ marginTop: 8, fontSize: 12, color: "var(--muted)" }}>
+      ≈ {fmtUsd(Number(walletSolBalance || 0) * 80)}
+    </div>
+  </div>
+
+  <div
+    className="stat"
+    style={{
+      display: "flex",
+      flexDirection: "column",
+      justifyContent: "center",
+      gap: 6,
+      background:
+        "linear-gradient(135deg, rgba(255,184,0,.10), rgba(124,203,255,.08))",
+      border: "1px solid rgba(255,255,255,.12)",
+    }}
+  >
+    <div style={{ fontSize: 11, color: "var(--muted2)", fontWeight: 700 }}>
+      Coming Soon
+    </div>
+
+    <div style={{ fontSize: 15, fontWeight: 1000, letterSpacing: ".3px" }}>
+      BNB • Polygon
+    </div>
+
+    <div style={{ fontSize: 11, color: "var(--muted)" }}>
+      Multi-chain support arriving soon
+    </div>
+  </div>
+</div>
+
+<div className="hr" />
+
+<div className="statsGrid">
+  <div className="stat">
+    <div className="statLabel">Affiliate Rewards</div>
+    <div
+      style={{
+        marginTop: 8,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: 8,
+      }}
+    >
+      <div className="statValue" style={{ marginTop: 0 }}>
+        {fmtSol(profile?.referralRewards?.totalSol || 0)} SOL
+      </div>
+
+      <MiniBtn
+        onClick={() => handleWithdraw("REF")}
+        disabled={safeNum(profile?.referralRewards?.totalSol, 0) <= 0}
+        tone="good"
+        style={{ padding: "8px 12px", borderRadius: 12, fontSize: 11 }}
+      >
+        Claim
+      </MiniBtn>
+    </div>
+  </div>
+
+  <div className="stat">
+    <div className="statLabel">Creator Rewards</div>
+    <div
+      style={{
+        marginTop: 8,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: 8,
+      }}
+    >
+      <div className="statValue" style={{ marginTop: 0 }}>
+        {fmtSol(profile?.rewards?.totalSol || 0)} SOL
+      </div>
+
+      <MiniBtn
+        onClick={() => handleWithdraw("CREATOR")}
+        disabled={safeNum(profile?.rewards?.totalSol, 0) <= 0}
+        tone="good"
+        style={{ padding: "8px 12px", borderRadius: 12, fontSize: 11 }}
+      >
+        Claim
+      </MiniBtn>
+    </div>
+  </div>
+
+  <div className="stat">
+    <div className="statLabel">Affiliates</div>
+    <div className="statValue">{fmtNum(profile?.referralCount || 0, 0)}</div>
+  </div>
+</div>
+
+
+
+
+
+             
+
+<div className="hr" />
+
+                  
 
                   <div className="hr" />
 
+                  <div style={{ display: "grid", gap: 10 }}>
+                    <MiniBtn
+                      onClick={async () => {
+                        try {
+                          await exportWallet?.();
+                        } catch (e) {
+                          setToast(e?.message || "Export failed");
+                        }
+                      }}
+                    >
+                      Export Wallet
+                    </MiniBtn>
+                  </div>
+                </Card>
+
+                <Card>
                   <SectionHeader title="My Creations" right={<Pill>{myCreations.length}</Pill>} />
-                  <div className="scrollY" style={{ display: "grid", gap: 10 }}>
+                  <div className="scrollY">
                     {myCreations.length === 0 ? (
                       <div className="miniMuted">No created coins.</div>
                     ) : (
@@ -2450,281 +2723,555 @@ export default function App() {
                           onClick={() => openCoin(coin)}
                           style={{
                             width: "100%",
-                            padding: 12,
-                            borderRadius: 14,
-                            border: "1px solid var(--border)",
-                            background: "var(--card)",
+                            padding: 14,
+                            borderRadius: 18,
+                            border: "1px solid rgba(255,255,255,.08)",
+                            background:
+                              "linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.02))",
                             color: "var(--text)",
                             textAlign: "left",
                             cursor: "pointer",
+                            transition: "all .18s ease",
+                            boxShadow: "inset 0 1px 0 rgba(255,255,255,.03)",
+                            marginBottom: 10,
                           }}
                         >
-                          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                            <CoinLogo c={coin} size={44} radius={14} />
-                            <div style={{ minWidth: 0, flex: 1 }}>
-                              <div style={{ fontWeight: 1000, fontSize: 13 }}>{coin.name}</div>
-                              <div style={{ marginTop: 4, fontSize: 11, color: "var(--muted2)" }}>
-                                {coin.symbol} • MC {fmtUsd(coin.mc || 0)}
+                          <div className="coinRow">
+                            <CoinLogo c={coin} size={46} radius={16} />
+                            <div className="coinText">
+                              <div className="coinName">{coin.name}</div>
+                              <div className="coinMeta">
+                                Reward {fmtSol(coin.creatorRewardsSol || 0)} SOL
                               </div>
+                            </div>
+                            <div className="rightNum">
+                              <div className="rightNumMain">{fmtUsd(coin.mc || 0)}</div>
+                              <div className="rightNumSub">MC</div>
                             </div>
                           </div>
                         </button>
                       ))
                     )}
                   </div>
+                </Card>
 
-                  <div className="hr" />
+                <Card>
+                  <SectionHeader title="Holdings" right={<Pill>{profileHoldings.length}</Pill>} />
+                  <div className="scrollY">
 
-                  <SectionHeader title="My Holdings" right={<Pill>{profileHoldings.length}</Pill>} />
-                  <div className="scrollY" style={{ display: "grid", gap: 10 }}>
-                    {profileHoldings.length === 0 ? (
-                      <div className="miniMuted">No holdings found.</div>
-                    ) : (
-                      profileHoldings.map((h) => {
-                        const c = (coins || []).find((x) => String(x.id) === String(h.coinId));
-                        return (
-                          <button
-                            key={h.coinId}
-                            onClick={() => {
-                              if (c) openCoin(c);
-                            }}
-                            style={{
-                              width: "100%",
-                              textAlign: "left",
-                              padding: 12,
-                              borderRadius: 16,
-                              border: "1px solid rgba(255,255,255,.08)",
-                              background: "rgba(255,255,255,.03)",
-                              color: "var(--text)",
-                              cursor: "pointer",
-                            }}
-                          >
-                            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                              <CoinLogo
-                                c={c || { symbol: h.symbol, name: h.name, logo: h.logo }}
-                                size={44}
-                                radius={14}
-                              />
-                              <div style={{ minWidth: 0, flex: 1 }}>
-                                <div style={{ fontWeight: 1000, fontSize: 13 }}>
-                                  {h.name || h.symbol || "—"}
-                                </div>
-                                <div style={{ marginTop: 4, fontSize: 11, color: "var(--muted2)" }}>
-                                  {fmtNum(h.amount || 0, 4)} tokens • {safeNum(h.pct, 0).toFixed(4)}%
-                                </div>
-                              </div>
-                            </div>
-                          </button>
-                        );
-                      })
-                    )}
-                  </div>
 
-                  <div className="hr" />
+                   {profileHoldings.length === 0 ? (
+  <div className="miniMuted">No holdings found.</div>
+) : (
+  profileHoldings.map((h) => {
+    const c = (coins || []).find((x) => String(x.id) === String(h.coinId));
 
-                  <SectionHeader title="Last Transactions" right={<Pill>{profileTxs.length}</Pill>} />
-                  <div className="scrollY" style={{ display: "grid", gap: 10 }}>
-                    {profileTxs.length === 0 ? (
-                      <div className="miniMuted">No transactions found.</div>
-                    ) : (
-                      profileTxs.map((tx) => {
-                        const c = (coins || []).find((x) => String(x.id) === String(tx.coinId));
-                        return (
-                          <div
-                            key={tx.id}
-                            style={{
-                              padding: 12,
-                              borderRadius: 16,
-                              border: "1px solid rgba(255,255,255,.08)",
-                              background: "rgba(255,255,255,.03)",
-                            }}
-                          >
-                            <div
-                              style={{
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "space-between",
-                                gap: 10,
-                              }}
-                            >
-                              <div style={{ fontSize: 13, fontWeight: 1000 }}>
-                                {tx.side} • {c?.symbol || "COIN"}
-                              </div>
-                              <Pill>{new Date(tx.t || Date.now()).toLocaleString()}</Pill>
-                            </div>
+    return (
+      <button
+        key={h.coinId}
+        onClick={() => {
+          if (c) openCoin(c);
+        }}
+        style={{
+          width: "100%",
+          padding: 12,
+          borderRadius: 16,
+          border: "1px solid rgba(255,255,255,.08)",
+          background: "rgba(255,255,255,.03)",
+          color: "var(--text)",
+          textAlign: "left",
+          cursor: "pointer",
+          marginBottom: 10,
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0, flex: 1 }}>
+            <CoinLogo
+              c={c || { symbol: h.symbol, name: h.name, logo: h.logo }}
+              size={44}
+              radius={14}
+            />
 
-                            <div style={{ marginTop: 8, fontSize: 12, color: "var(--muted)" }}>
-                              SOL: {fmtSol(tx.sol || 0)} • Tokens: {fmtNum(tx.tokens || 0, 4)} • Fee: {fmtSol(tx.fee || 0)}
-                            </div>
-                          </div>
-                        );
-                      })
-                    )}
-                  </div>
-                </>
-              )}
-            </Card>
-          </ScreenShell>
-        )}
-
-        {screen === "CREATOR" && (
-          <ScreenShell>
-            {renderBackButton()}
-
-            <Card>
-              <Title sub={shortWallet(creatorProfileId || creatorCoin?.creatorWallet || "")}>
-                Creator Profile
-              </Title>
-
-              <div className="pillRow" style={{ marginBottom: 14 }}>
-                <Pill>Coins Created: {fmtNum(creatorCoins.length, 0)}</Pill>
-                <Pill>Lifetime Reward: {toUsdFromSol(creatorRewards || 0)}</Pill>
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <div style={{ fontWeight: 1000, fontSize: 13, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                {h.name || h.symbol || "—"}
               </div>
-
-              <SectionHeader title="Coins Created" right={<Pill>{creatorCoins.length}</Pill>} />
-              <div className="hScroll" style={{ marginBottom: 14 }}>
-                {creatorCoins.length === 0 ? (
-                  <div className="miniMuted">No created coins.</div>
-                ) : (
-                  creatorCoins.map((coin) => (
-                    <button
-                      key={coin.id}
-                      className="tinyCard"
-                      onClick={() => openCoin(coin)}
-                      style={{ textAlign: "left", color: "var(--text)", cursor: "pointer" }}
-                    >
-                      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                        <CoinLogo c={coin} size={42} radius={14} />
-                        <div style={{ minWidth: 0 }}>
-                          <div style={{ fontWeight: 1000, fontSize: 13 }}>{coin.name}</div>
-                          <div style={{ marginTop: 3, fontSize: 11, color: "var(--muted2)" }}>
-                            {coin.symbol}
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="pillRow" style={{ marginTop: 12 }}>
-                        <Pill>MC {fmtUsd(coin.mc || 0)}</Pill>
-                        <Pill>Reward {toUsdFromSol(coin.creatorRewardsSol || 0)}</Pill>
-                      </div>
-                    </button>
-                  ))
-                )}
+              <div style={{ marginTop: 4, fontSize: 11, color: "var(--muted2)" }}>
+                {fmtNum(h.amount, 0)} tokens • {safeNum(h.pct, 0).toFixed(4)}%
               </div>
-
-              <SectionHeader title="Creator Holdings" right={<Pill>{creatorHoldings.length}</Pill>} />
-              <div
-                className="creatorScroll"
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: 10,
-                  maxHeight: 320,
-                  overflowY: "auto",
-                  paddingRight: 4,
-                  scrollbarWidth: "none",
-                  msOverflowStyle: "none",
-                }}
-              >
-                {creatorHoldings.length === 0 ? (
-                  <div style={{ color: "var(--muted2)", fontSize: 13 }}>No holdings found.</div>
-                ) : (
-                  creatorHoldings.map(({ coin, amt, pct }) => (
-                    <button
-                      key={coin.id}
-                      onClick={() => {
-                        setSelectedCoinId(coin.id);
-                        goScreen("COIN");
-                      }}
-                      style={{
-                        width: "100%",
-                        padding: 12,
-                        borderRadius: 14,
-                        border: "1px solid rgba(255,255,255,.08)",
-                        background: "rgba(255,255,255,.03)",
-                        color: "var(--text)",
-                        textAlign: "left",
-                        cursor: "pointer",
-                      }}
-                    >
-                      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                        <CoinLogo c={coin} size={44} radius={14} />
-                        <div style={{ minWidth: 0, flex: 1 }}>
-                          <div style={{ fontWeight: 1000, fontSize: 13 }}>{coin.name}</div>
-                          <div style={{ marginTop: 4, fontSize: 11, color: "var(--muted2)" }}>
-                            {fmtNum(amt, 4)} tokens • {safeNum(pct, 0).toFixed(4)}%
-                          </div>
-                        </div>
-                      </div>
-                    </button>
-                  ))
-                )}
-              </div>
-            </Card>
-          </ScreenShell>
-        )}
-      </div>
-
-      <div className="footerNav">
-        <button className={`footerBtn ${screen === "HOME" ? "active" : ""}`} onClick={() => goScreen("HOME")}>
-          <div style={{ display: "grid", gap: 5, justifyItems: "center" }}>
-            <HomeIcon />
-            <span>Home</span>
-          </div>
-        </button>
-
-        <button className={`footerBtn ${screen === "SEARCH" ? "active" : ""}`} onClick={() => goScreen("SEARCH")}>
-          <div style={{ display: "grid", gap: 5, justifyItems: "center" }}>
-            <SearchIcon />
-            <span>Search</span>
-          </div>
-        </button>
-
-        <button className={`footerBtn ${screen === "CREATE" ? "active" : ""}`} onClick={() => goScreen("CREATE")}>
-          <div style={{ display: "grid", gap: 5, justifyItems: "center" }}>
-            <PlusIcon />
-            <span>Create</span>
-          </div>
-        </button>
-
-        <button className={`footerBtn ${screen === "PROFILE" ? "active" : ""}`} onClick={() => goScreen("PROFILE")}>
-          <div style={{ display: "grid", gap: 5, justifyItems: "center" }}>
-            <UserIcon />
-            <span>Profile</span>
-          </div>
-        </button>
-
-        <button className="footerBtn" onClick={() => setSettingsOpen(true)}>
-          <div style={{ display: "grid", gap: 5, justifyItems: "center" }}>
-            <CogIcon />
-            <span>Settings</span>
-          </div>
-        </button>
-      </div>
-
-      {settingsOpen ? (
-        <div className="modalBack" onClick={() => setSettingsOpen(false)}>
-          <div className="modalCard" onClick={(e) => e.stopPropagation()}>
-            <div className="modalHead">
-              <div className="modalTitle">Settings</div>
-              <MiniBtn onClick={() => setSettingsOpen(false)}>Close</MiniBtn>
             </div>
+          </div>
 
-            <div className="modalBody">
-              <Card style={{ background: "transparent", boxShadow: "none", border: "none" }}>
-                <SectionHeader title="Theme" sub="Choose your app style" />
-                <div className="themeGrid">
-                  <ThemeOption theme="calm" current={theme} setTheme={setTheme} label="Calm (Default)" />
-                  <ThemeOption theme="neon" current={theme} setTheme={setTheme} label="Neon" />
-                  <ThemeOption theme="ocean" current={theme} setTheme={setTheme} label="Ocean" />
-                  <ThemeOption theme="rose" current={theme} setTheme={setTheme} label="Rose" />
-                  <ThemeOption theme="royal" current={theme} setTheme={setTheme} label="Royal" />
-                </div>
-              </Card>
-            </div>
+          <div style={{ textAlign: "right", flex: "0 0 auto" }}>
+            <div style={{ fontWeight: 1000, fontSize: 13 }}>{h.symbol}</div>
+            <div className="miniMuted">Holding</div>
           </div>
         </div>
-      ) : null}
-    </>
-  );
+      </button>
+    );
+  })
+)}
+
+
+                  </div>
+                </Card>
+
+                <Card>
+                  <SectionHeader title="Recent Transactions" right={<Pill>{profileTxs.length}</Pill>} />
+                  <div className="scrollY">
+
+
+{profileTxs.length === 0 ? (
+  <div className="miniMuted">No transactions yet.</div>
+) : (
+  profileTxs.map((tx) => {
+    const coin = (coins || []).find((x) => String(x.id) === String(tx.coinId));
+
+    return (
+      <div
+        key={tx.id}
+        style={{
+          padding: 12,
+          borderRadius: 16,
+          border: "1px solid rgba(255,255,255,.08)",
+          background: "rgba(255,255,255,.03)",
+          marginBottom: 10,
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 10,
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0, flex: 1 }}>
+            <CoinLogo
+              c={coin || { symbol: "COIN", name: "Coin", logo: "" }}
+              size={42}
+              radius={14}
+            />
+
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <div style={{ fontSize: 13, fontWeight: 1000 }}>
+                {tx.side} {coin?.symbol || "COIN"}
+              </div>
+              <div className="miniMuted">
+                {new Date(Number(tx.t || 0)).toLocaleString()}
+              </div>
+            </div>
+          </div>
+
+          <div style={{ textAlign: "right", flex: "0 0 auto" }}>
+            <div style={{ fontWeight: 1000 }}>{fmtSol(tx.sol || 0)} SOL</div>
+            <div className="miniMuted">Fee {fmtSol(tx.fee || 0)}</div>
+          </div>
+        </div>
+      </div>
+    );
+  })
+)}
+                    
+
+                  </div>
+                </Card>
+              </>
+            )}
+          </ScreenShell>
+        )}
+
+
+
+
+
+
+
+{screen === "CREATOR" && (
+  <ScreenShell>
+    {renderBackButton()}
+
+    <Card>
+      <Title sub="Creator profile, rewards and holdings">
+        Creator Profile
+      </Title>
+
+      <div className="pillRow">
+        <Pill>{shortWallet(creatorProfileId || creatorCoin?.creatorWallet || "")}</Pill>
+        <Pill>{creatorCoins.length} creations</Pill>
+        <Pill>{fmtSol(creatorRewards)} SOL rewards</Pill>
+      </div>
+    </Card>
+
+    <Card>
+      <SectionHeader title="Created Coins" right={<Pill>{creatorCoins.length}</Pill>} />
+      <div className="scrollY">
+        {creatorCoins.length === 0 ? (
+          <div className="miniMuted">No created coins found.</div>
+        ) : (
+          creatorCoins.map((coin) => (
+            <button
+              key={coin.id}
+              onClick={() => openCoin(coin)}
+              style={{
+                width: "100%",
+                padding: 12,
+                borderRadius: 16,
+                border: "1px solid rgba(255,255,255,.08)",
+                background: "rgba(255,255,255,.03)",
+                color: "var(--text)",
+                textAlign: "left",
+                cursor: "pointer",
+                marginBottom: 10,
+              }}
+            >
+              <div className="coinRow">
+                <CoinLogo c={coin} size={44} radius={15} />
+                <div className="coinText">
+                  <div className="coinName">{coin.name}</div>
+                  <div className="coinMeta">
+                    Reward {fmtSol(coin.creatorRewardsSol || 0)} SOL
+                  </div>
+                </div>
+                <div className="rightNum">
+                  <div className="rightNumMain">{fmtUsd(coin.mc || 0)}</div>
+                  <div className="rightNumSub">MC</div>
+                </div>
+              </div>
+            </button>
+          ))
+        )}
+      </div>
+    </Card>
+
+    <Card>
+      <SectionHeader title="Creator Holdings" right={<Pill>{creatorHoldings.length}</Pill>} />
+      <div
+        className="creatorScroll"
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: 10,
+          maxHeight: 320,
+          overflowY: "auto",
+          paddingRight: 4,
+          scrollbarWidth: "none",
+          msOverflowStyle: "none",
+        }}
+      >
+        {creatorHoldings.length === 0 ? (
+          <div style={{ color: "var(--muted2)", fontSize: 13 }}>No holdings found.</div>
+        ) : (
+          creatorHoldings.map(({ coin, amt, pct }) => (
+            <button
+              key={coin.id}
+              onClick={() => {
+                setSelectedCoinId(coin.id);
+                setScreen("COIN");
+              }}
+              style={{
+                width: "100%",
+                padding: 12,
+                borderRadius: 14,
+                border: "1px solid rgba(255,255,255,.08)",
+                background:
+                  "linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.02))",
+                color: "var(--text)",
+                textAlign: "left",
+                cursor: "pointer",
+              }}
+            >
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
+                <div>
+                  <div style={{ fontWeight: 1000 }}>{coin.name}</div>
+                  <div style={{ color: "var(--muted2)", fontSize: 12 }}>
+                    {fmtNum(amt, 0)} tokens
+                  </div>
+                </div>
+                <div style={{ textAlign: "right" }}>
+                  <div style={{ fontWeight: 1000 }}>{pct.toFixed(4)}%</div>
+                  <div style={{ color: "var(--muted2)", fontSize: 12 }}>Supply</div>
+                </div>
+              </div>
+            </button>
+          ))
+        )}
+      </div>
+    </Card>
+  </ScreenShell>
+)}
+
+{screen === "SETTINGS" && (
+  <ScreenShell>
+    {renderBackButton()}
+
+    <Card>
+      <Title sub="Theme, appearance and quick actions">Settings</Title>
+
+      <div style={{ display: "grid", gap: 12 }}>
+        <div>
+          <div style={{ fontSize: 12, color: "var(--muted2)", marginBottom: 10 }}>
+            Theme
+          </div>
+
+          <div className="themeGrid">
+            <ThemeOption
+              theme="calm"
+              current={theme}
+              setTheme={setTheme}
+              label="Calm (Default)"
+            />
+            <ThemeOption
+              theme="neon"
+              current={theme}
+              setTheme={setTheme}
+              label="Neon"
+            />
+            <ThemeOption
+              theme="ocean"
+              current={theme}
+              setTheme={setTheme}
+              label="Ocean"
+            />
+            <ThemeOption
+              theme="rose"
+              current={theme}
+              setTheme={setTheme}
+              label="Rose"
+            />
+            <ThemeOption
+              theme="royal"
+              current={theme}
+              setTheme={setTheme}
+              label="Royal"
+            />
+          </div>
+        </div>
+
+        <div className="hr" />
+
+        <div style={{ display: "grid", gap: 10 }}>
+          <MiniBtn
+            onClick={async () => {
+              if (!solAddr) {
+                setToast("No wallet connected");
+                return;
+              }
+              const ok = await copyText(solAddr);
+              setToast(ok ? "Wallet copied" : "Copy failed");
+            }}
+          >
+            Copy Wallet Address
+          </MiniBtn>
+
+          <MiniBtn
+            onClick={async () => {
+              if (!solAddr) {
+                setToast("No wallet connected");
+                return;
+              }
+              const ok = await copyText(getReferralLink(solAddr));
+              setToast(ok ? "Referral link copied" : "Copy failed");
+            }}
+          >
+            Copy Referral Link
+          </MiniBtn>
+
+          <MiniBtn
+            onClick={async () => {
+              try {
+                await exportWallet?.();
+                setToast("Wallet export opened");
+              } catch (e) {
+                setToast(e?.message || "Export failed");
+              }
+            }}
+          >
+            Export Wallet
+          </MiniBtn>
+
+          {authenticated ? (
+            <MiniBtn
+              tone="danger"
+              onClick={async () => {
+                try {
+                  await logout?.();
+                  setToast("Logged out");
+                  goScreen("HOME");
+                } catch (e) {
+                  setToast(e?.message || "Logout failed");
+                }
+              }}
+            >
+              Logout
+            </MiniBtn>
+          ) : null}
+        </div>
+      </div>
+    </Card>
+  </ScreenShell>
+)}
+</div>
+
+<div className="footerNav">
+  <button
+    className={`footerBtn ${screen === "HOME" ? "active" : ""}`}
+    onClick={() => goScreen("HOME")}
+  >
+    <div style={{ display: "grid", placeItems: "center", gap: 6 }}>
+      <HomeIcon />
+      <span>Home</span>
+    </div>
+  </button>
+
+  <button
+    className={`footerBtn ${screen === "SEARCH" ? "active" : ""}`}
+    onClick={() => goScreen("SEARCH")}
+  >
+    <div style={{ display: "grid", placeItems: "center", gap: 6 }}>
+      <SearchIcon />
+      <span>Search</span>
+    </div>
+  </button>
+
+  <button
+    className={`footerBtn ${screen === "CREATE" ? "active" : ""}`}
+    onClick={() => goScreen("CREATE")}
+  >
+    <div style={{ display: "grid", placeItems: "center", gap: 6 }}>
+      <PlusIcon />
+      <span>Create</span>
+    </div>
+  </button>
+
+  <button
+    className={`footerBtn ${screen === "PROFILE" ? "active" : ""}`}
+    onClick={() => goScreen("PROFILE")}
+  >
+    <div style={{ display: "grid", placeItems: "center", gap: 6 }}>
+      <UserIcon />
+      <span>Profile</span>
+    </div>
+  </button>
+
+  <button
+    className={`footerBtn ${screen === "SETTINGS" ? "active" : ""}`}
+    onClick={() => goScreen("SETTINGS")}
+  >
+    <div style={{ display: "grid", placeItems: "center", gap: 6 }}>
+      <CogIcon />
+      <span>Settings</span>
+    </div>
+  </button>
+</div>
+
+{settingsOpen ? (
+  <div className="modalBack" onClick={() => setSettingsOpen(false)}>
+    <div className="modalCard" onClick={(e) => e.stopPropagation()}>
+      <div className="modalHead">
+        <div className="modalTitle">Quick Settings</div>
+        <MiniBtn onClick={() => setSettingsOpen(false)}>Close</MiniBtn>
+      </div>
+
+      <div className="modalBody">
+        <div className="themeGrid">
+          <ThemeOption
+            theme="calm"
+            current={theme}
+            setTheme={setTheme}
+            label="Calm (Default)"
+          />
+          <ThemeOption
+            theme="neon"
+            current={theme}
+            setTheme={setTheme}
+            label="Neon"
+          />
+          <ThemeOption
+            theme="ocean"
+            current={theme}
+            setTheme={setTheme}
+            label="Ocean"
+          />
+          <ThemeOption
+            theme="rose"
+            current={theme}
+            setTheme={setTheme}
+            label="Rose"
+          />
+          <ThemeOption
+            theme="royal"
+            current={theme}
+            setTheme={setTheme}
+            label="Royal"
+          />
+        </div>
+
+        <div className="hr" />
+
+        <div style={{ display: "grid", gap: 10 }}>
+          <MiniBtn
+            onClick={async () => {
+              if (!solAddr) {
+                setToast("No wallet connected");
+                return;
+              }
+              const ok = await copyText(solAddr);
+              setToast(ok ? "Wallet copied" : "Copy failed");
+            }}
+          >
+            Copy Wallet
+          </MiniBtn>
+
+          <MiniBtn
+            onClick={async () => {
+              if (!solAddr) {
+                setToast("No wallet connected");
+                return;
+              }
+              const ok = await copyText(getReferralLink(solAddr));
+              setToast(ok ? "Referral link copied" : "Copy failed");
+            }}
+          >
+            Copy Referral Link
+          </MiniBtn>
+
+          {authenticated ? (
+            <MiniBtn
+              tone="danger"
+              onClick={async () => {
+                try {
+                  await logout?.();
+                  setSettingsOpen(false);
+                  setToast("Logged out");
+                  goScreen("HOME");
+                } catch (e) {
+                  setToast(e?.message || "Logout failed");
+                }
+              }}
+            >
+              Logout
+            </MiniBtn>
+          ) : (
+            <MiniBtn
+              tone="good"
+              onClick={async () => {
+                try {
+                  if (ready) await login?.();
+                  setSettingsOpen(false);
+                } catch (e) {
+                  setToast(e?.message || "Login failed");
+                }
+              }}
+            >
+              Connect Wallet
+            </MiniBtn>
+          )}
+        </div>
+      </div>
+    </div>
+  </div>
+) : null}
+</>
+);
 }

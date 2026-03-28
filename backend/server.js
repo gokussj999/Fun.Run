@@ -548,6 +548,7 @@ async function loadStoreOnce() {
   }
 }
 
+
 async function flushStoreNow() {
   if (DB_MODE !== "supabase" || !supabase) return;
 
@@ -587,7 +588,10 @@ async function flushStoreNow() {
         last_trade_at: coin.lastTradeAt || 0,
         total_supply: coin.totalSupply || TOTAL_SUPPLY,
         reserve_sol: coin.solReserve || 0,
-        reserve_token: coin.tokenReserve || coin.curveSupply || saleSupplyFromTotal(coin.totalSupply || TOTAL_SUPPLY),
+        reserve_token:
+          coin.tokenReserve ||
+          coin.curveSupply ||
+          saleSupplyFromTotal(coin.totalSupply || TOTAL_SUPPLY),
         market_cap: coin.mc || 0,
         last_price: coin.priceSol || 0,
         ath_market_cap: coin.ath || 0,
@@ -630,7 +634,7 @@ function scheduleStoreWrite() {
         scheduleStoreWrite();
       }
     }
-  }, 250);
+  }, 180);
 }
 
 // -------------------- AMM --------------------
@@ -718,8 +722,12 @@ function recalcCoin(coin, opts = {}) {
   const shouldAppend = opts.appendChart !== false;
 
   fixed.chart = shouldAppend
-    ? (prev.length ? prev.slice(-(MAX_CHART_POINTS - 1)).concat([point]) : [point, point, point, point, point])
-    : (prev.length ? prev.slice(-MAX_CHART_POINTS) : [point, point, point, point, point]);
+    ? prev.length
+      ? prev.slice(-(MAX_CHART_POINTS - 1)).concat([point])
+      : [point, point, point, point, point]
+    : prev.length
+    ? prev.slice(-MAX_CHART_POINTS)
+    : [point, point, point, point, point];
 
   fixed.lastTradeAt = nowMS();
   fixed.ath = Math.max(safeNum(fixed.ath, 0), pricing.mcUsd);
@@ -957,11 +965,12 @@ app.get("/api/coin/list", async (req, res) => {
         .from("coins")
         .select("*", { count: "exact" })
         .order("created_at", { ascending: false })
-        .limit(5000);
+        .range(from, to);
 
       if (error) throw error;
 
-      allCoins = (data || []).map((r) =>
+      const rows = Array.isArray(data) ? data : [];
+      allCoins = rows.map((r) =>
         ensureCoin({
           id: r.id,
           name: r.name || "",
@@ -978,8 +987,7 @@ app.get("/api/coin/list", async (req, res) => {
           totalSupply: r.total_supply || TOTAL_SUPPLY,
           curveSupply: saleSupplyFromTotal(r.total_supply || TOTAL_SUPPLY),
           solReserve: r.reserve_sol || 0,
-          tokenReserve:
-            r.reserve_token || saleSupplyFromTotal(r.total_supply || TOTAL_SUPPLY),
+          tokenReserve: r.reserve_token || saleSupplyFromTotal(r.total_supply || TOTAL_SUPPLY),
           mc: r.market_cap || 0,
           ath: r.ath_market_cap || 0,
           priceSol: r.last_price || 0,
@@ -1015,21 +1023,20 @@ app.get("/api/coin/list", async (req, res) => {
         });
       });
 
-      const hotCutoff = nowMS() - 15 * 60 * 1000;
-
-      const hot15m = allCoins
-        .filter((c) => safeNum(c.lastTradeAt, 0) >= hotCutoff)
-        .sort((a, b) => safeNum(b.volumeSol, 0) - safeNum(a.volumeSol, 0))
-        .slice(0, 10);
-
-      const latest = allCoins
-        .slice()
-        .sort((a, b) => safeNum(b.createdAt, 0) - safeNum(a.createdAt, 0));
+      let hot15m = [];
+      try {
+        const hotCutoff = nowMS() - 15 * 60 * 1000;
+        hot15m = (store.coins || [])
+          .map(ensureCoin)
+          .filter((c) => safeNum(c.lastTradeAt, 0) >= hotCutoff)
+          .sort((a, b) => safeNum(b.volumeSol, 0) - safeNum(a.volumeSol, 0))
+          .slice(0, 10);
+      } catch {}
 
       return res.json({
         ok: true,
-        coins: latest.slice(from, to + 1),
-        count: count || latest.length,
+        coins: allCoins,
+        count: count || 0,
         page,
         pageSize,
         hot15m,
@@ -1037,18 +1044,16 @@ app.get("/api/coin/list", async (req, res) => {
     }
 
     const store = await loadStoreOnce();
-    allCoins = (store.coins || []).map(ensureCoin);
+    const latest = (store.coins || [])
+      .map(ensureCoin)
+      .sort((a, b) => safeNum(b.createdAt, 0) - safeNum(a.createdAt, 0));
 
     const hotCutoff = nowMS() - 15 * 60 * 1000;
 
-    const hot15m = allCoins
+    const hot15m = latest
       .filter((c) => safeNum(c.lastTradeAt, 0) >= hotCutoff)
       .sort((a, b) => safeNum(b.volumeSol, 0) - safeNum(a.volumeSol, 0))
       .slice(0, 10);
-
-    const latest = allCoins
-      .slice()
-      .sort((a, b) => safeNum(b.createdAt, 0) - safeNum(a.createdAt, 0));
 
     return res.json({
       ok: true,
@@ -1083,7 +1088,8 @@ app.get("/api/migrate-coins", async (req, res) => {
       last_trade_at: c.lastTradeAt || 0,
       total_supply: c.totalSupply || TOTAL_SUPPLY,
       reserve_sol: c.solReserve || 0,
-      reserve_token: c.tokenReserve || c.curveSupply || saleSupplyFromTotal(c.totalSupply || TOTAL_SUPPLY),
+      reserve_token:
+        c.tokenReserve || c.curveSupply || saleSupplyFromTotal(c.totalSupply || TOTAL_SUPPLY),
       market_cap: c.mc || 0,
       last_price: c.priceSol || 0,
       ath_market_cap: c.ath || 0,
@@ -1120,7 +1126,10 @@ app.post("/api/coin/create", async (req, res) => {
     let metadataUri = "";
 
     if (logo && process.env.PINATA_JWT) {
-      const uploadedLogo = await uploadLogoToIPFS(logo, `${symbol || "coin"}-${Date.now()}.webp`);
+      const uploadedLogo = await uploadLogoToIPFS(
+        logo,
+        `${symbol || "coin"}-${Date.now()}.webp`
+      );
       finalLogo = uploadedLogo.url;
       imageUri = uploadedLogo.ipfs;
 
@@ -1191,7 +1200,10 @@ app.post("/api/coin/create", async (req, res) => {
 
     syncCreatorRewardsFromCoins(STORE_CACHE, creatorWallet);
 
-    const finalCoin = ensureCoin(STORE_CACHE.coins[findCoinIndex(STORE_CACHE, createdCoin.id)]);
+    const finalCoin = ensureCoin(
+      STORE_CACHE.coins[findCoinIndex(STORE_CACHE, createdCoin.id)]
+    );
+
     await flushStoreNow();
 
     return res.json({ ok: true, coin: finalCoin, imageUri, metadataUri });
@@ -1206,9 +1218,15 @@ app.post("/api/referral/set", async (req, res) => {
     const wallet = String(req.body?.wallet || "").trim();
     const referrer = String(req.body?.referrer || "").trim();
 
-    if (!wallet || !referrer) return res.json({ ok: false, error: "wallet/referrer required" });
-    if (wallet === referrer) return res.json({ ok: false, error: "invalid referrer" });
-    if (referrer.length < 20) return res.json({ ok: false, error: "invalid referrer" });
+    if (!wallet || !referrer) {
+      return res.json({ ok: false, error: "wallet/referrer required" });
+    }
+    if (wallet === referrer) {
+      return res.json({ ok: false, error: "invalid referrer" });
+    }
+    if (referrer.length < 20) {
+      return res.json({ ok: false, error: "invalid referrer" });
+    }
 
     const store = await loadStoreOnce();
     const p = ensureProfile(store, wallet);
@@ -1231,6 +1249,9 @@ app.post("/api/referral/set", async (req, res) => {
     return res.status(500).json({ ok: false, error: String(e?.message || e) });
   }
 });
+
+
+
 
 // -------------------- TRADE LOCK --------------------
 const COIN_TRADE_LOCKS = new Map();
@@ -1300,7 +1321,10 @@ async function doTrade(req, res, side) {
       coin = recalcCoin(coin);
 
       store.coins[idx] = coin;
-      syncCreatorRewardsFromCoins(store, String(coin.creatorWallet || coin.owner || "").trim());
+      syncCreatorRewardsFromCoins(
+        store,
+        String(coin.creatorWallet || coin.owner || "").trim()
+      );
 
       pushLastTx(store, {
         id: uid(),
@@ -1321,7 +1345,7 @@ async function doTrade(req, res, side) {
       });
 
       STORE_CACHE = sanitizeStore(store);
-      await flushStoreNow();
+      scheduleStoreWrite();
 
       return {
         ok: true,
@@ -1335,6 +1359,10 @@ async function doTrade(req, res, side) {
           sideLower === "buy"
             ? Math.max(0, safeNum(tradeResult.netSol, 0))
             : Math.max(0, safeNum(tradeResult.solOutNet, 0)),
+        grossSol:
+          sideLower === "sell"
+            ? Math.max(0, safeNum(tradeResult.solOutGross, 0))
+            : Math.max(0, safeNum(sol, 0)),
       };
     });
 
@@ -1427,11 +1455,19 @@ app.get("/api/profile/:wallet", async (req, res) => {
             safeNum(mem.volumeSol, 0),
             safeNum(c.volumeSol, 0)
           ),
+          mc: Math.max(
+            safeNum(mem.mc, 0),
+            safeNum(c.mc, 0)
+          ),
+          ath: Math.max(
+            safeNum(mem.ath, 0),
+            safeNum(c.ath, 0)
+          ),
         });
       });
     }
 
-    let myCreations = coins
+    const myCreations = coins
       .filter((c) => String(c.creatorWallet || c.owner || "").trim() === wallet)
       .sort((a, b) => safeNum(b.createdAt, 0) - safeNum(a.createdAt, 0));
 
@@ -1493,6 +1529,9 @@ app.get("/api/profile/:wallet", async (req, res) => {
         referralRewards: {
           totalSol: Math.max(0, safeNum(p?.referralRewardsSol, 0)),
         },
+        ownerRewards: {
+          totalSol: Math.max(0, safeNum(p?.ownerRewardsSol, 0)),
+        },
         rewards: {
           totalSol: Math.max(0, safeNum(p?.creatorRewardsSol, 0)),
           byCoin: rewardsByCoin,
@@ -1528,8 +1567,12 @@ async function handleWithdraw(req, res, forcedKind = "") {
         ? "MANUAL"
         : "";
 
-    if (!kind) return res.json({ ok: false, error: "Unsupported kind (use REF or CREATOR)" });
-    if (kind === "MANUAL") return res.json({ ok: false, error: "Manual withdraw not enabled in demo backend" });
+    if (!kind) {
+      return res.json({ ok: false, error: "Unsupported kind (use REF or CREATOR)" });
+    }
+    if (kind === "MANUAL") {
+      return res.json({ ok: false, error: "Manual withdraw not enabled in demo backend" });
+    }
 
     const store = await loadStoreOnce();
     const p = ensureProfile(store, wallet);
@@ -1588,12 +1631,16 @@ async function start() {
       console.log("✅ Fee:", FEE_PCT + "%");
       console.log(
         "✅ Rewards: creator",
-        CREATOR_PCT_OF_FEE + "% of fee, referral",
+        CREATOR_PCT_OF_FEE + "% of fee, owner",
+        OWNER_PCT_OF_FEE + "% of fee, referral",
         REFERRAL_PCT_OF_FEE + "% of fee"
       );
       console.log("✅ AMM virtual:", "vSOL", VIRTUAL_SOL, "vTOK%", VIRTUAL_TOKEN_PCT);
       console.log("✅ SOL_USD:", SOL_USD);
-      console.log("✅ Cached coins:", Array.isArray(STORE_CACHE?.coins) ? STORE_CACHE.coins.length : 0);
+      console.log(
+        "✅ Cached coins:",
+        Array.isArray(STORE_CACHE?.coins) ? STORE_CACHE.coins.length : 0
+      );
     });
   } catch (e) {
     console.error("❌ Startup failed:", e?.message || e);
