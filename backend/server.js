@@ -44,6 +44,7 @@ const SALE_SUPPLY_PCT = clampNum(Number(process.env.SALE_SUPPLY_PCT || 80), 1, 1
 const TOTAL_SUPPLY = Math.max(1, Number(process.env.TOTAL_SUPPLY || 1_000_000_000));
 const MAX_LAST_TX = 400;
 const MAX_COINS = 5000;
+const MAX_CHART_POINTS = 140;
 
 // -------------------- APP SETUP --------------------
 if (TRUST_PROXY) app.set("trust proxy", 1);
@@ -144,16 +145,23 @@ function saleSupplyFromTotal(totalSupply) {
   return Math.max(1, Math.floor(total * (SALE_SUPPLY_PCT / 100)));
 }
 
+function calcVirtualTokens(totalSupply, curveSupply, explicitVTokens) {
+  const total = Math.max(1, safeNum(totalSupply, TOTAL_SUPPLY));
+  const curve = Math.max(1, safeNum(curveSupply, saleSupplyFromTotal(total)));
+  return Math.max(1, safeNum(explicitVTokens, (curve * VIRTUAL_TOKEN_PCT) / 100));
+}
+
 function calcPricing(input) {
   const totalSupply = Math.max(1, safeNum(input?.totalSupply, TOTAL_SUPPLY));
+  const curveSupply = Math.max(
+    1,
+    safeNum(input?.curveSupply, saleSupplyFromTotal(totalSupply))
+  );
   const solReserve = Math.max(0, safeNum(input?.solReserve, 0));
-  const tokenReserve = Math.max(1, safeNum(input?.tokenReserve, saleSupplyFromTotal(totalSupply)));
+  const tokenReserve = Math.max(1, safeNum(input?.tokenReserve, curveSupply));
 
   const vSol = Math.max(1e-9, safeNum(input?.vSol, VIRTUAL_SOL));
-  const vTokens = Math.max(
-    1,
-    safeNum(input?.vTokens, (tokenReserve * VIRTUAL_TOKEN_PCT) / 100)
-  );
+  const vTokens = calcVirtualTokens(totalSupply, curveSupply, input?.vTokens);
 
   const priceSol = (solReserve + vSol) / (tokenReserve + vTokens);
   const priceUsd = priceSol * SOL_USD;
@@ -229,7 +237,7 @@ function ensureCoin(input = {}) {
     input.curveSupply,
     safeNum(input.tokenReserve, curveSupplyDefault)
   );
-  const curveSupply = clampNum(rawCurveSupply, 0, totalSupply);
+  const curveSupply = clampNum(rawCurveSupply, 1, totalSupply);
 
   const rawCurveSold = safeNum(
     input.curveSold,
@@ -239,19 +247,17 @@ function ensureCoin(input = {}) {
 
   const tokenReserve = clampNum(
     safeNum(input.tokenReserve, curveSupply - curveSold),
-    0,
-    totalSupply
+    1,
+    curveSupply
   );
 
-  const vTokens = Math.max(
-    1,
-    safeNum(input.vTokens, (curveSupply * VIRTUAL_TOKEN_PCT) / 100)
-  );
+  const vTokens = calcVirtualTokens(totalSupply, curveSupply, input.vTokens);
   const vSol = Math.max(1e-9, safeNum(input.vSol, VIRTUAL_SOL));
   const solReserve = Math.max(0, safeNum(input.solReserve, 0));
 
   const pricing = calcPricing({
     totalSupply,
+    curveSupply,
     solReserve,
     tokenReserve,
     vSol,
@@ -262,10 +268,11 @@ function ensureCoin(input = {}) {
     ? input.chart.filter((n) => Number.isFinite(Number(n))).map(Number)
     : [];
 
+  const seedPrice = Math.max(0, safeNum(pricing.priceUsd, 0));
   const chart =
     chartInput.length > 0
-      ? chartInput.slice(-120)
-      : [pricing.priceUsd, pricing.priceUsd, pricing.priceUsd, pricing.priceUsd, pricing.priceUsd];
+      ? chartInput.slice(-MAX_CHART_POINTS)
+      : [seedPrice, seedPrice, seedPrice, seedPrice, seedPrice];
 
   return {
     id: String(input.id || uid()),
@@ -293,6 +300,8 @@ function ensureCoin(input = {}) {
 
     priceSol: pricing.priceSol,
     priceUsd: pricing.priceUsd,
+    price: pricing.priceUsd,
+    lastPriceUsd: pricing.priceUsd,
     mc: Math.max(0, safeNum(input.mc, pricing.mcUsd)),
     ath: Math.max(
       Math.max(0, safeNum(input.ath, 0)),
@@ -377,6 +386,54 @@ function countReferrals(store, wallet) {
   return count;
 }
 
+function syncCreatorRewardsFromCoins(store, wallet) {
+  const w = String(wallet || "").trim();
+  if (!w) return 0;
+
+  const total = (store.coins || []).reduce((sum, coin) => {
+    const c = ensureCoin(coin);
+    if (String(c.creatorWallet || c.owner || "").trim() !== w) return sum;
+    return sum + Math.max(0, safeNum(c.creatorRewardsSol, 0));
+  }, 0);
+
+  const profile = ensureProfile(store, w);
+  if (profile) {
+    profile.creatorRewardsSol = Math.max(0, total);
+    profile.updatedAt = nowMS();
+  }
+
+  return total;
+}
+
+function deductCreatorRewardsFromCoins(store, wallet, amountSol) {
+  const w = String(wallet || "").trim();
+  let remaining = Math.max(0, safeNum(amountSol, 0));
+  if (!w || remaining <= 0) return 0;
+
+  const creations = (store.coins || [])
+    .map((coin, idx) => ({ idx, coin: ensureCoin(coin) }))
+    .filter(({ coin }) => String(coin.creatorWallet || coin.owner || "").trim() === w)
+    .sort((a, b) => safeNum(b.coin.creatorRewardsSol, 0) - safeNum(a.coin.creatorRewardsSol, 0));
+
+  let deducted = 0;
+
+  for (const row of creations) {
+    if (remaining <= 0) break;
+    const current = Math.max(0, safeNum(row.coin.creatorRewardsSol, 0));
+    if (current <= 0) continue;
+
+    const take = Math.min(current, remaining);
+    row.coin.creatorRewardsSol = Math.max(0, current - take);
+    store.coins[row.idx] = ensureCoin(row.coin);
+
+    deducted += take;
+    remaining -= take;
+  }
+
+  syncCreatorRewardsFromCoins(store, w);
+  return deducted;
+}
+
 // -------------------- STORE CACHE --------------------
 let STORE_CACHE = null;
 let WRITE_TIMER = null;
@@ -413,6 +470,7 @@ async function loadLegacyCoinsIfNeeded(store) {
         volumeSol: r.volume_sol || 0,
         lastTradeAt: r.last_trade_at || 0,
         totalSupply: r.total_supply || TOTAL_SUPPLY,
+        curveSupply: saleSupplyFromTotal(r.total_supply || TOTAL_SUPPLY),
         solReserve: r.reserve_sol || 0,
         tokenReserve: r.reserve_token || saleSupplyFromTotal(r.total_supply || TOTAL_SUPPLY),
         mc: r.market_cap || 0,
@@ -495,6 +553,11 @@ async function flushStoreNow() {
 
   const store = sanitizeStore(STORE_CACHE || defaultStore());
   store.updatedAt = nowMS();
+
+  for (const wallet of Object.keys(store.profiles || {})) {
+    syncCreatorRewardsFromCoins(store, wallet);
+  }
+
   STORE_CACHE = store;
 
   const payload = {
@@ -510,26 +573,29 @@ async function flushStoreNow() {
   if (error) throw error;
 
   if (Array.isArray(store.coins) && store.coins.length) {
-    const coinRows = store.coins.map((c) => ({
-      id: c.id,
-      name: c.name || "",
-      symbol: c.symbol || "",
-      story: c.story || "",
-      logo: c.logo || "",
-      creator_wallet: c.creatorWallet || c.owner || "",
-      created_at: new Date(c.createdAt || Date.now()).toISOString(),
-      volume_sol: c.volumeSol || 0,
-      last_trade_at: c.lastTradeAt || 0,
-      total_supply: c.totalSupply || TOTAL_SUPPLY,
-      reserve_sol: c.solReserve || 0,
-      reserve_token: c.tokenReserve || c.curveSupply || saleSupplyFromTotal(c.totalSupply || TOTAL_SUPPLY),
-      market_cap: c.mc || 0,
-      last_price: c.priceSol || 0,
-      ath_market_cap: c.ath || 0,
-      creator_rewards: c.creatorRewardsSol || 0,
-      chart: Array.isArray(c.chart) ? c.chart : [],
-      holders: c.holders || {},
-    }));
+    const coinRows = store.coins.map((c) => {
+      const coin = ensureCoin(c);
+      return {
+        id: coin.id,
+        name: coin.name || "",
+        symbol: coin.symbol || "",
+        story: coin.story || "",
+        logo: coin.logo || "",
+        creator_wallet: coin.creatorWallet || coin.owner || "",
+        created_at: new Date(coin.createdAt || Date.now()).toISOString(),
+        volume_sol: coin.volumeSol || 0,
+        last_trade_at: coin.lastTradeAt || 0,
+        total_supply: coin.totalSupply || TOTAL_SUPPLY,
+        reserve_sol: coin.solReserve || 0,
+        reserve_token: coin.tokenReserve || coin.curveSupply || saleSupplyFromTotal(coin.totalSupply || TOTAL_SUPPLY),
+        market_cap: coin.mc || 0,
+        last_price: coin.priceSol || 0,
+        ath_market_cap: coin.ath || 0,
+        creator_rewards: coin.creatorRewardsSol || 0,
+        chart: Array.isArray(coin.chart) ? coin.chart.slice(-MAX_CHART_POINTS) : [],
+        holders: coin.holders || {},
+      };
+    });
 
     const { error: coinsSyncError } = await supabase
       .from("coins")
@@ -606,6 +672,7 @@ function distributeFee(store, coin, traderWallet, feeSol) {
 
   if (creatorWallet && creatorPart > 0) {
     const creatorProfile = ensureProfile(store, creatorWallet);
+
     creatorProfile.creatorRewardsSol = Math.max(
       0,
       safeNum(creatorProfile.creatorRewardsSol, 0) + creatorPart
@@ -628,44 +695,34 @@ function distributeFee(store, coin, traderWallet, feeSol) {
   }
 }
 
-function recalcCoin(coin) {
+function recalcCoin(coin, opts = {}) {
   const fixed = ensureCoin(coin);
 
-  const totalSupply = Math.max(1, safeNum(fixed.totalSupply, TOTAL_SUPPLY));
-  const reserveSol = Math.max(0, safeNum(fixed.reserveSol, 0));
-  const reserveToken = Math.max(1, safeNum(fixed.reserveToken, 0));
+  const pricing = calcPricing({
+    totalSupply: fixed.totalSupply,
+    curveSupply: fixed.curveSupply,
+    solReserve: fixed.solReserve,
+    tokenReserve: fixed.tokenReserve,
+    vSol: fixed.vSol,
+    vTokens: fixed.vTokens,
+  });
 
- const vSol = Math.max(0, safeNum(fixed.vSol, VIRTUAL_SOL));
-const vTokens = Math.max(
-  1,
-  safeNum(
-    fixed.vTokens,
-    Math.max(reserveToken * 0.02, totalSupply * 0.002)
-  )
-);
+  fixed.priceSol = pricing.priceSol;
+  fixed.priceUsd = pricing.priceUsd;
+  fixed.price = pricing.priceUsd;
+  fixed.lastPriceUsd = pricing.priceUsd;
+  fixed.mc = pricing.mcUsd;
 
-  const priceSol = (reserveSol + vSol) / (reserveToken + vTokens);
-  const priceUsd = priceSol * SOL_USD;
-
-  const circulating = Math.max(0, totalSupply - reserveToken);
-  const mcUsd = priceUsd * circulating;
-
-  fixed.priceSol = priceSol;
-  fixed.priceUsd = priceUsd;
-  fixed.price = priceUsd;
-  fixed.lastPriceUsd = priceUsd;
-  fixed.mc = mcUsd;
-
-  const point = Math.max(0, safeNum(priceUsd, 0));
-
+  const point = Math.max(0, safeNum(pricing.priceUsd, 0));
   const prev = Array.isArray(fixed.chart) ? fixed.chart : [];
-  fixed.chart = prev.length
-    ? prev.slice(-119).concat([point])
-    : [point, point, point, point, point];
+  const shouldAppend = opts.appendChart !== false;
 
-  fixed.chart = fixed.chart.slice(-120);
-  fixed.lastTradeAt = Date.now();
-  fixed.ath = Math.max(safeNum(fixed.ath, 0), mcUsd);
+  fixed.chart = shouldAppend
+    ? (prev.length ? prev.slice(-(MAX_CHART_POINTS - 1)).concat([point]) : [point, point, point, point, point])
+    : (prev.length ? prev.slice(-MAX_CHART_POINTS) : [point, point, point, point, point]);
+
+  fixed.lastTradeAt = nowMS();
+  fixed.ath = Math.max(safeNum(fixed.ath, 0), pricing.mcUsd);
 
   return fixed;
 }
@@ -675,23 +732,21 @@ function ammBuy(coin, wallet, solInGross) {
   if (net <= 0) return { ok: false, error: "Invalid amount" };
 
   const totalSupply = Math.max(1, safeNum(coin.totalSupply, TOTAL_SUPPLY));
+  const curveSupply = Math.max(1, safeNum(coin.curveSupply, saleSupplyFromTotal(totalSupply)));
 
   coin.holders = asObj(coin.holders, {});
   coin.solReserve = Math.max(0, safeNum(coin.solReserve, 0));
 
-  const currentTokenReserve = Math.max(
+  const currentTokenReserve = clampNum(
+    safeNum(coin.tokenReserve, curveSupply),
     1,
-    safeNum(coin.tokenReserve, saleSupplyFromTotal(totalSupply))
+    curveSupply
   );
 
   const vSol = Math.max(1e-9, safeNum(coin.vSol, VIRTUAL_SOL));
-  const vTokens = Math.max(
-    1,
-    safeNum(coin.vTokens, (totalSupply * VIRTUAL_TOKEN_PCT) / 100)
-  );
+  const vTokens = calcVirtualTokens(totalSupply, curveSupply, coin.vTokens);
 
-  // reserve floor: token reserve kabhi zero nahi hogi
-  const minTokenReserve = Math.max(1, totalSupply * 0.05); // 5% floor
+  const minTokenReserve = Math.max(1, Math.floor(curveSupply * 0.02));
 
   const x = coin.solReserve + vSol;
   const y = currentTokenReserve + vTokens;
@@ -702,7 +757,6 @@ function ammBuy(coin, wallet, solInGross) {
 
   let tokensOut = Math.max(0, y - newY);
 
-  // floor ke neeche kabhi mat jao
   const maxTokensOut = Math.max(0, currentTokenReserve - minTokenReserve);
   tokensOut = Math.min(tokensOut, maxTokensOut);
 
@@ -712,9 +766,11 @@ function ammBuy(coin, wallet, solInGross) {
 
   coin.vSol = vSol;
   coin.vTokens = vTokens;
+  coin.curveSupply = curveSupply;
 
   coin.solReserve = Math.max(0, coin.solReserve + net);
   coin.tokenReserve = Math.max(minTokenReserve, currentTokenReserve - tokensOut);
+  coin.curveSold = clampNum(curveSupply - coin.tokenReserve, 0, curveSupply);
 
   coin.holders[wallet] = Math.max(
     0,
@@ -727,6 +783,7 @@ function ammBuy(coin, wallet, solInGross) {
 
   const pricing = calcPricing({
     totalSupply,
+    curveSupply,
     solReserve: coin.solReserve,
     tokenReserve: coin.tokenReserve,
     vSol: coin.vSol,
@@ -754,51 +811,66 @@ function ammBuy(coin, wallet, solInGross) {
   };
 }
 
-function ammSellByTokenIn(coin, wallet, tokenIn) {
-  const tokens = Math.max(0, safeNum(tokenIn, 0));
-  if (tokens <= 0) return { ok: false, error: "invalid token amount" };
-
-  coin.holders = asObj(coin.holders, {});
-  const userBal = Math.max(0, safeNum(coin.holders[wallet], 0));
-  if (tokens > userBal) return { ok: false, error: "not enough tokens" };
+function ammSellBySolOut(coin, wallet, solOutGrossRequested) {
+  const requested = Math.max(0, safeNum(solOutGrossRequested, 0));
+  if (requested <= 0) return { ok: false, error: "Invalid amount" };
 
   const totalSupply = Math.max(1, safeNum(coin.totalSupply, TOTAL_SUPPLY));
   const curveSupply = Math.max(1, safeNum(coin.curveSupply, saleSupplyFromTotal(totalSupply)));
-  const curveSold = Math.max(0, safeNum(coin.curveSold, 0));
 
-  const vSol = Math.max(1e-9, safeNum(coin.vSol, VIRTUAL_SOL));
-  const vTokens = Math.max(
+  coin.holders = asObj(coin.holders, {});
+  coin.solReserve = Math.max(0, safeNum(coin.solReserve, 0));
+  coin.tokenReserve = clampNum(
+    safeNum(coin.tokenReserve, curveSupply),
     1,
-    safeNum(coin.vTokens, (curveSupply * VIRTUAL_TOKEN_PCT) / 100)
+    curveSupply
   );
 
-  coin.solReserve = Math.max(0, safeNum(coin.solReserve, 0));
+  const holderBal = Math.max(0, safeNum(coin.holders[wallet], 0));
+  if (holderBal <= 0) return { ok: false, error: "Not enough tokens" };
 
-  const remainingCurve = Math.max(0, curveSupply - curveSold);
-  const x = coin.solReserve + vSol;
-  const y = Math.max(1e-9, remainingCurve + vTokens);
-  const k = x * y;
+  const vSol = Math.max(1e-9, safeNum(coin.vSol, VIRTUAL_SOL));
+  const vTokens = calcVirtualTokens(totalSupply, curveSupply, coin.vTokens);
 
-  const newY = y + tokens;
-  const newX = k / Math.max(1e-9, newY);
-
-  let grossSolOut = Math.max(0, x - newX);
-  grossSolOut = Math.min(grossSolOut, coin.solReserve);
+  const maxGrossPossible = Math.max(0, coin.solReserve);
+  const grossSolOut = Math.min(requested, maxGrossPossible);
 
   if (grossSolOut <= 0.0000001) {
-    return { ok: false, error: "Trade too small" };
+    return { ok: false, error: "Pool has no SOL" };
+  }
+
+  const x = coin.solReserve + vSol;
+  const y = coin.tokenReserve + vTokens;
+  const k = x * y;
+
+  const newX = x - grossSolOut;
+  if (newX <= 1e-9) {
+    return { ok: false, error: "Sell too large" };
+  }
+
+  const newY = k / newX;
+  const tokensIn = Math.max(0, newY - y);
+
+  if (tokensIn <= 0.0000001) {
+    return { ok: false, error: "Sell too small" };
+  }
+
+  if (tokensIn > holderBal) {
+    return { ok: false, error: "Not enough tokens" };
   }
 
   const fee = grossSolOut * (FEE_PCT / 100);
   const netSol = Math.max(0, grossSolOut - fee);
 
-  coin.solReserve = Math.max(0, coin.solReserve - netSol);
+  coin.solReserve = Math.max(0, coin.solReserve - grossSolOut);
+  coin.tokenReserve = clampNum(coin.tokenReserve + tokensIn, 1, curveSupply);
   coin.curveSupply = curveSupply;
-  coin.curveSold = clampNum(curveSold - tokens, 0, curveSupply);
-  coin.tokenReserve = Math.max(1, curveSupply - coin.curveSold);
+  coin.curveSold = clampNum(curveSupply - coin.tokenReserve, 0, curveSupply);
+  coin.holders[wallet] = Math.max(0, holderBal - tokensIn);
 
-  coin.holders[wallet] = Math.max(0, userBal - tokens);
-  if (coin.holders[wallet] <= 0.0000001) delete coin.holders[wallet];
+  if (coin.holders[wallet] <= 0.0000001) {
+    delete coin.holders[wallet];
+  }
 
   coin.volumeSol = Math.max(0, safeNum(coin.volumeSol, 0) + grossSolOut);
   coin.lastTradeAt = nowMS();
@@ -806,83 +878,7 @@ function ammSellByTokenIn(coin, wallet, tokenIn) {
 
   const pricing = calcPricing({
     totalSupply,
-    solReserve: coin.solReserve,
-    tokenReserve: coin.tokenReserve,
-    vSol: coin.vSol,
-    vTokens: coin.vTokens,
-  });
-
-  coin.priceSol = pricing.priceSol;
-  coin.priceUsd = pricing.priceUsd;
-  coin.marketCapUsd = pricing.mcUsd;
-  coin.marketCapSol = pricing.priceSol * totalSupply;
-  coin.mc = pricing.mcUsd || coin.marketCapSol || 0;
-  coin.ath = Math.max(safeNum(coin.ath, 0), safeNum(coin.mc, 0));
-
-  return {
-    ok: true,
-    tokensIn: tokens,
-    solOut: grossSolOut,
-    feeSol: fee,
-    netSol,
-    priceSol: coin.priceSol,
-    priceUsd: coin.priceUsd,
-    marketCapSol: coin.marketCapSol,
-    marketCapUsd: coin.marketCapUsd,
-  };
-}
-
-
-function ammSellByTokens(coin, wallet, tokensIn) {
-  const totalSupply = Math.max(1, safeNum(coin.totalSupply, TOTAL_SUPPLY));
-
-  coin.holders = asObj(coin.holders, {});
-  coin.solReserve = Math.max(0, safeNum(coin.solReserve, 0));
-  coin.tokenReserve = Math.max(
-    1,
-    safeNum(coin.tokenReserve, saleSupplyFromTotal(totalSupply))
-  );
-
-  const holderBal = Math.max(0, safeNum(coin.holders[wallet], 0));
-  const tokens = Math.max(0, safeNum(tokensIn, 0));
-
-  if (tokens <= 0) return { ok: false, error: "Invalid token amount" };
-  if (tokens > holderBal) return { ok: false, error: "Not enough tokens" };
-
-  const vSol = Math.max(1e-9, safeNum(coin.vSol, VIRTUAL_SOL));
-  const vTokens = Math.max(
-    1,
-    safeNum(coin.vTokens, (totalSupply * VIRTUAL_TOKEN_PCT) / 100)
-  );
-
-  const x = coin.solReserve + vSol;
-  const y = coin.tokenReserve + vTokens;
-  const k = x * y;
-
-  const newY = y + tokens;
-  const newX = k / Math.max(1e-9, newY);
-
-  let solOutGross = Math.max(0, x - newX);
-
-  // 🔥 safety (ek trade me max 20%)
-  solOutGross = Math.min(solOutGross, coin.solReserve * 0.2);
-
-  if (solOutGross <= 0.0000001) {
-    return { ok: false, error: "Sell too small" };
-  }
-
-  const { fee, net } = applyFee(solOutGross);
-
-  coin.solReserve = Math.max(0, coin.solReserve - solOutGross);
-  coin.tokenReserve = Math.max(1, coin.tokenReserve + tokens);
-  coin.holders[wallet] = Math.max(0, holderBal - tokens);
-
-  coin.volumeSol = Math.max(0, safeNum(coin.volumeSol, 0) + net);
-  coin.lastTradeAt = nowMS();
-  coin.status = "LIVE";
-
-  const pricing = calcPricing({
-    totalSupply,
+    curveSupply,
     solReserve: coin.solReserve,
     tokenReserve: coin.tokenReserve,
     vSol,
@@ -902,25 +898,16 @@ function ammSellByTokens(coin, wallet, tokensIn) {
 
   return {
     ok: true,
-    tokensIn: tokens,
-    solOutGross,
-    solOutNet: net,
+    tokensIn,
+    solOut: grossSolOut,
+    solOutGross: grossSolOut,
+    solOutNet: netSol,
     feeSol: fee,
     priceSol: coin.priceSol,
     priceUsd: coin.priceUsd,
     marketCapSol: coin.marketCapSol,
     marketCapUsd: coin.marketCapUsd,
   };
-}
-
-// optional old helper
-function ammSellBySolOut(coin, wallet, solOutGross) {
-  const gross = Math.max(0, safeNum(solOutGross, 0));
-  if (gross <= 0) return { ok: false, error: "Invalid amount" };
-
-  const currentPriceSol = Math.max(1e-9, safeNum(coin.priceSol, 0));
-  const estimatedTokens = gross / currentPriceSol;
-  return ammSellByTokenIn(coin, wallet, estimatedTokens);
 }
 
 // -------------------- ROUTES --------------------
@@ -956,7 +943,6 @@ app.get("/api/balance/:wallet", async (req, res) => {
   }
 });
 
-
 app.get("/api/coin/list", async (req, res) => {
   try {
     const page = Math.max(0, Number(req.query?.page || 0));
@@ -990,6 +976,7 @@ app.get("/api/coin/list", async (req, res) => {
           volumeSol: r.volume_sol || 0,
           lastTradeAt: r.last_trade_at || 0,
           totalSupply: r.total_supply || TOTAL_SUPPLY,
+          curveSupply: saleSupplyFromTotal(r.total_supply || TOTAL_SUPPLY),
           solReserve: r.reserve_sol || 0,
           tokenReserve:
             r.reserve_token || saleSupplyFromTotal(r.total_supply || TOTAL_SUPPLY),
@@ -1202,36 +1189,10 @@ app.post("/api/coin/create", async (req, res) => {
       });
     }
 
+    syncCreatorRewardsFromCoins(STORE_CACHE, creatorWallet);
+
     const finalCoin = ensureCoin(STORE_CACHE.coins[findCoinIndex(STORE_CACHE, createdCoin.id)]);
     await flushStoreNow();
-
-    if (DB_MODE === "supabase" && supabase) {
-      const { error: coinUpsertError } = await supabase.from("coins").upsert({
-        id: finalCoin.id,
-        name: finalCoin.name || "",
-        symbol: finalCoin.symbol || "",
-        story: finalCoin.story || "",
-        logo: finalCoin.logo || "",
-        creator_wallet: finalCoin.creatorWallet || finalCoin.owner || "",
-        created_at: new Date(finalCoin.createdAt || Date.now()).toISOString(),
-        volume_sol: finalCoin.volumeSol || 0,
-        last_trade_at: finalCoin.lastTradeAt || 0,
-        total_supply: finalCoin.totalSupply || TOTAL_SUPPLY,
-        reserve_sol: finalCoin.solReserve || 0,
-        reserve_token: finalCoin.tokenReserve || finalCoin.curveSupply || saleSupplyFromTotal(finalCoin.totalSupply || TOTAL_SUPPLY),
-        market_cap: finalCoin.mc || 0,
-        last_price: finalCoin.priceSol || 0,
-        ath_market_cap: finalCoin.ath || 0,
-        creator_rewards: finalCoin.creatorRewardsSol || 0,
-        chart: Array.isArray(finalCoin.chart) ? finalCoin.chart : [],
-        holders: finalCoin.holders || {},
-      }, { onConflict: "id" });
-
-      if (coinUpsertError) {
-        console.log("SUPABASE CREATE UPSERT ERROR:", coinUpsertError);
-        throw new Error(`Coin save failed: ${coinUpsertError.message || coinUpsertError}`);
-      }
-    }
 
     return res.json({ ok: true, coin: finalCoin, imageUri, metadataUri });
   } catch (e) {
@@ -1300,16 +1261,14 @@ async function doTrade(req, res, side) {
   const wallet = String(req.body?.wallet || "").trim();
   const coinId = String(req.body?.coinId || "").trim();
   const sol = Math.max(0, safeNum(req.body?.sol, 0));
-  const tokens = Math.max(0, safeNum(req.body?.tokens, 0));
-
   const sideLower = String(side).toLowerCase();
 
-  if (
-    !wallet ||
-    !coinId ||
-    (sideLower === "buy" ? sol <= 0 : sol <= 0)
-  ) {
-    return res.json({ ok: false, error: "wallet/coinId/sol required" });
+  if (!wallet || !coinId) {
+    return res.json({ ok: false, error: "wallet/coinId required" });
+  }
+
+  if (sol <= 0) {
+    return res.json({ ok: false, error: "sol required" });
   }
 
   try {
@@ -1327,24 +1286,21 @@ async function doTrade(req, res, side) {
 
       if (sideLower === "buy") {
         tradeResult = ammBuy(coin, wallet, sol);
-        if (!tradeResult.ok) return { ok: false, error: tradeResult.error };
       } else if (sideLower === "sell") {
-        const currentPriceSol = Math.max(1e-9, safeNum(coin.priceSol, 0));
-        const estimatedTokens = sol / currentPriceSol;
-
-        console.log("SELL REQUEST SOL =", sol);
-console.log("SELL EST TOKENS =", estimatedTokens);
-
-        tradeResult = ammSellByTokens(coin, wallet, estimatedTokens);
-        if (!tradeResult.ok) return { ok: false, error: tradeResult.error };
+        tradeResult = ammSellBySolOut(coin, wallet, sol);
       } else {
         return { ok: false, error: "invalid side" };
+      }
+
+      if (!tradeResult?.ok) {
+        return { ok: false, error: tradeResult?.error || "Trade failed" };
       }
 
       distributeFee(store, coin, wallet, tradeResult.feeSol);
       coin = recalcCoin(coin);
 
       store.coins[idx] = coin;
+      syncCreatorRewardsFromCoins(store, String(coin.creatorWallet || coin.owner || "").trim());
 
       pushLastTx(store, {
         id: uid(),
@@ -1355,7 +1311,7 @@ console.log("SELL EST TOKENS =", estimatedTokens);
         sol:
           sideLower === "buy"
             ? sol
-            : Math.max(0, safeNum(tradeResult.solOutNet || tradeResult.netSol, 0)),
+            : Math.max(0, safeNum(tradeResult.solOutNet, 0)),
         tokens:
           sideLower === "buy"
             ? Math.max(0, safeNum(tradeResult.tokensOut, 0))
@@ -1372,13 +1328,13 @@ console.log("SELL EST TOKENS =", estimatedTokens);
         coin,
         tokens:
           sideLower === "buy"
-            ? Math.max(0, safeNum(tradeResult.tokensOut || tradeResult.cappedTokensOut, 0))
+            ? Math.max(0, safeNum(tradeResult.tokensOut, 0))
             : Math.max(0, safeNum(tradeResult.tokensIn, 0)),
         fee: Math.max(0, safeNum(tradeResult.feeSol, 0)),
         netSol:
           sideLower === "buy"
             ? Math.max(0, safeNum(tradeResult.netSol, 0))
-            : Math.max(0, safeNum(tradeResult.solOutNet || tradeResult.netSol, 0)),
+            : Math.max(0, safeNum(tradeResult.solOutNet, 0)),
       };
     });
 
@@ -1403,6 +1359,7 @@ app.get("/api/profile/:wallet", async (req, res) => {
 
     const store = await loadStoreOnce();
     const p = ensureProfile(store, wallet);
+    syncCreatorRewardsFromCoins(store, wallet);
 
     let coins = (store.coins || []).map(ensureCoin);
 
@@ -1433,6 +1390,7 @@ app.get("/api/profile/:wallet", async (req, res) => {
           volumeSol: r.volume_sol || 0,
           lastTradeAt: r.last_trade_at || 0,
           totalSupply: r.total_supply || TOTAL_SUPPLY,
+          curveSupply: saleSupplyFromTotal(r.total_supply || TOTAL_SUPPLY),
           solReserve: r.reserve_sol || 0,
           tokenReserve: r.reserve_token || saleSupplyFromTotal(r.total_supply || TOTAL_SUPPLY),
           mc: r.market_cap || 0,
@@ -1552,10 +1510,10 @@ app.get("/api/profile/:wallet", async (req, res) => {
   }
 });
 
-app.post("/api/withdraw", async (req, res) => {
+async function handleWithdraw(req, res, forcedKind = "") {
   try {
     const wallet = String(req.body?.wallet || "").trim();
-    const kindRaw = String(req.body?.kind || "").trim().toUpperCase();
+    const kindRaw = String(forcedKind || req.body?.kind || "").trim().toUpperCase();
 
     if (!wallet) return res.json({ ok: false, error: "wallet required" });
 
@@ -1584,7 +1542,7 @@ app.post("/api/withdraw", async (req, res) => {
       p.updatedAt = nowMS();
 
       STORE_CACHE = sanitizeStore(store);
-      scheduleStoreWrite();
+      await flushStoreNow();
 
       return res.json({ ok: true, kind: "REF", amountSol: amt, to: wallet });
     }
@@ -1593,11 +1551,14 @@ app.post("/api/withdraw", async (req, res) => {
       const amt = Math.max(0, safeNum(p.creatorRewardsSol, 0));
       if (amt <= 0) return res.json({ ok: false, error: "No creator rewards" });
 
-      p.creatorRewardsSol = 0;
-      p.updatedAt = nowMS();
+      deductCreatorRewardsFromCoins(store, wallet, amt);
+
+      const fresh = ensureProfile(store, wallet);
+      fresh.creatorRewardsSol = 0;
+      fresh.updatedAt = nowMS();
 
       STORE_CACHE = sanitizeStore(store);
-      scheduleStoreWrite();
+      await flushStoreNow();
 
       return res.json({ ok: true, kind: "CREATOR", amountSol: amt, to: wallet });
     }
@@ -1607,17 +1568,11 @@ app.post("/api/withdraw", async (req, res) => {
     console.log("withdraw error:", e?.message || e);
     return res.status(500).json({ ok: false, error: String(e?.message || e) });
   }
-});
+}
 
-app.post("/api/withdraw/creator", async (req, res) => {
-  req.body = { ...(req.body || {}), kind: "CREATOR" };
-  return app._router.handle(req, res, () => {});
-});
-
-app.post("/api/withdraw/referral", async (req, res) => {
-  req.body = { ...(req.body || {}), kind: "REF" };
-  return app._router.handle(req, res, () => {});
-});
+app.post("/api/withdraw", (req, res) => handleWithdraw(req, res));
+app.post("/api/withdraw/creator", (req, res) => handleWithdraw(req, res, "CREATOR"));
+app.post("/api/withdraw/referral", (req, res) => handleWithdraw(req, res, "REF"));
 
 // -------------------- START --------------------
 async function start() {
