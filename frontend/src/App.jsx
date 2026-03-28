@@ -1608,9 +1608,29 @@ function goBack() {
         setCoins((prev) => (prev || []).map((c) => (String(c.id) === String(updated.id) ? updated : c)));
         setSelectedCoinId(updated.id);
       }
+if (data?.coin?.id) {
+  setCoins((prev) =>
+    (prev || []).map((c) => (c.id === data.coin.id ? { ...c, ...data.coin } : c))
+  );
 
-      setTradeAmount("");
-      setToast(tradeMode === "BUY" ? "Buy successful" : "Sell successful");
+  if (selectedCoinId === data.coin.id) {
+    setSelectedCoin((prev) => ({ ...(prev || {}), ...data.coin }));
+  }
+}
+
+
+setTradeAmount("");
+setToast(tradeMode === "BUY" ? "Buy successful" : "Sell successful");
+
+// 🔥 IMPORTANT: data refresh
+loadCoins(0, false);
+loadProfile(solAddr);
+
+// selected coin refresh
+if (selectedCoin?.id) {
+  setSelectedCoinId(selectedCoin.id);
+}
+
 
       loadProfile(solAddr);
     } catch (e) {
@@ -1708,13 +1728,17 @@ function goBack() {
     ? coin.chart.map((n) => Math.max(0, safeNum(n, 0)))
     : [0, 0, 0, 0, 0];
 
-// 🔥 smoothing
 const basePoints =
   rawPoints.length >= 2 ? rawPoints.slice(-60) : [0, 0, 0, 0, 0];
 
 const points = basePoints.map((p, i, arr) => {
+  const isLastZone = i >= arr.length - 3;
+
+  if (isLastZone) return p;
+
   const prev = arr[i - 1] ?? p;
   const next = arr[i + 1] ?? p;
+
   return (prev + p + next) / 3;
 });
 
@@ -2934,7 +2958,11 @@ const homeLeft = null;
                   ) : null}
 
                   <div className="hr" />
-                  <PriceChart coin={selectedCoin} height={isMobile ? 240 : 320} />
+                  <PriceChart
+  key={selectedCoin?.chart?.length}
+  coin={selectedCoin}
+  height={isMobile ? 240 : 320}
+/>
 
   <div className="statsGrid" style={{ marginTop: 12 }}>
   <div className="stat">

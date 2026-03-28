@@ -635,11 +635,14 @@ function recalcCoin(coin) {
   const reserveSol = Math.max(0, safeNum(fixed.reserveSol, 0));
   const reserveToken = Math.max(1, safeNum(fixed.reserveToken, 0));
 
-  const vSol = Math.max(0, safeNum(fixed.vSol, VIRTUAL_SOL));
-  const vTokens = Math.max(
-    1,
-    safeNum(fixed.vTokens, (safeNum(VIRTUAL_TOKEN_PCT, 5) * totalSupply) / 100)
-  );
+ const vSol = Math.max(0, safeNum(fixed.vSol, VIRTUAL_SOL));
+const vTokens = Math.max(
+  1,
+  safeNum(
+    fixed.vTokens,
+    Math.max(reserveToken * 0.02, totalSupply * 0.002)
+  )
+);
 
   const priceSol = (reserveSol + vSol) / (reserveToken + vTokens);
   const priceUsd = priceSol * SOL_USD;
