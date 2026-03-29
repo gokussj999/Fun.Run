@@ -1275,6 +1275,7 @@ export default function App() {
   const isMobile = typeof window !== "undefined" && window.innerWidth < 520;
 
   const [toast, setToast] = useState("");
+  const [showIntroFlow, setShowIntroFlow] = useState(true);
   const [theme, setTheme] = useState(() => {
     try {
       return localStorage.getItem(LS_THEME) || "calm";
