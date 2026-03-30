@@ -214,16 +214,16 @@ export default function IntroSplash({
         }
 
         .frMainLogo{
-          width: min(220px, 46vw);
-          height: min(220px, 46vw);
-          object-fit: contain;
-          display: block;
-          filter:
-            drop-shadow(0 0 18px rgba(0,255,204,0.28))
-            drop-shadow(0 0 40px rgba(0,255,204,0.22))
-            drop-shadow(0 0 70px rgba(255,0,180,0.18));
-          animation: frLogoFloat 1.8s ease-in-out infinite alternate;
-        }
+  width: min(380px, 80vw);
+  height: min(380px, 80vw);
+  object-fit: contain;
+  display: block;
+  filter:
+    drop-shadow(0 0 18px rgba(0,255,204,0.28))
+    drop-shadow(0 0 40px rgba(0,255,204,0.22))
+    drop-shadow(0 0 70px rgba(255,0,180,0.18));
+  animation: frLogoFloat 1.8s ease-in-out infinite alternate;
+}
 
         @keyframes frLogoFloat{
           from{ transform: translateY(-4px) scale(1); }

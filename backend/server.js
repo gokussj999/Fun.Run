@@ -132,12 +132,28 @@ function ensureProfile(store, wallet) {
       referralRewardsSol: 0,
       creatorRewardsSol: 0,
       ownerRewardsSol: 0,
+
+      // 🔥 NEW
+      referralCode: w.slice(0, 6),
+      referralCount: 0,
+
       createdAt: nowMS(),
       updatedAt: nowMS(),
     };
   }
 
-  return store.profiles[w];
+  // 🔥 ensure fields exist (old users ke liye)
+  const p = store.profiles[w];
+
+  if (!p.referralCode) {
+    p.referralCode = w.slice(0, 6);
+  }
+
+  if (!p.referralCount) {
+    p.referralCount = 0;
+  }
+
+  return p;
 }
 
 function saleSupplyFromTotal(totalSupply) {
