@@ -1541,6 +1541,7 @@ app.get("/api/profile/:wallet", async (req, res) => {
       ok: true,
       profile: {
         referrer: p?.referrer || "",
+        referralCode: p?.referralCode || wallet.slice(0, 6),
         referralCount: countReferrals(store, wallet),
         referralRewards: {
           totalSol: Math.max(0, safeNum(p?.referralRewardsSol, 0)),
