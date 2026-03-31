@@ -1404,6 +1404,7 @@ app.post("/api/coin/sell", (req, res) => doTrade(req, res, "sell"));
 app.post("/api/claim", async (req, res) => {
   try {
     const { wallet, kind } = req.body;
+    console.log("CLAIM BODY:", req.body);
 
     const store = await loadStoreOnce();
     const profile = ensureProfile(store, wallet);
