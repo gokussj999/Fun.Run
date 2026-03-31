@@ -1396,6 +1396,61 @@ async function doTrade(req, res, side) {
 app.post("/api/coin/buy", (req, res) => doTrade(req, res, "buy"));
 app.post("/api/coin/sell", (req, res) => doTrade(req, res, "sell"));
 
+ app.post("/api/coin/buy", (req, res) => doTrade(req, res, "buy"));
+app.post("/api/coin/sell", (req, res) => doTrade(req, res, "sell"));
+
+
+
+app.post("/api/claim", async (req, res) => {
+  try {
+    const { wallet, kind } = req.body;
+
+    const store = await loadStoreOnce();
+    const profile = ensureProfile(store, wallet);
+
+    if (!profile) {
+      return res.status(400).json({ error: "Invalid wallet" });
+    }
+
+    let amount = 0;
+
+    if (kind === "CREATOR") {
+      amount = Math.max(0, profile.creatorRewardsSol);
+      if (amount <= 0) return res.json({ ok: true, amount: 0 });
+
+      deductCreatorRewardsFromCoins(store, wallet, amount);
+      profile.creatorRewardsSol = 0;
+    }
+
+    else if (kind === "REF") {
+      amount = Math.max(0, profile.referralRewardsSol);
+      if (amount <= 0) return res.json({ ok: true, amount: 0 });
+
+      profile.referralRewardsSol = 0;
+    }
+
+    else {
+      return res.status(400).json({ error: "Unsupported kind" });
+    }
+
+    profile.updatedAt = Date.now();
+
+    scheduleStoreWrite();
+
+    return res.json({
+      ok: true,
+      amount,
+    });
+
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+
+
+
+
 app.get("/api/profile/:wallet", async (req, res) => {
   try {
     const wallet = String(req.params.wallet || "").trim();
@@ -1569,9 +1624,13 @@ app.get("/api/profile/:wallet", async (req, res) => {
 async function handleWithdraw(req, res, forcedKind = "") {
   try {
     const wallet = String(req.body?.wallet || "").trim();
-    const kindRaw = String(forcedKind || req.body?.kind || "").trim().toUpperCase();
+    const kindRaw = String(forcedKind || req.body?.kind || "")
+      .trim()
+      .toUpperCase();
 
-    if (!wallet) return res.json({ ok: false, error: "wallet required" });
+    if (!wallet) {
+      return res.json({ ok: false, error: "wallet required" });
+    }
 
     const kind =
       kindRaw === "REFERRAL"
@@ -1580,15 +1639,21 @@ async function handleWithdraw(req, res, forcedKind = "") {
         ? "REF"
         : kindRaw === "CREATOR"
         ? "CREATOR"
+        : kindRaw === "OWNER"
+        ? "OWNER"
         : kindRaw === "MANUAL"
         ? "MANUAL"
         : "";
 
-    if (!kind) {
-      return res.json({ ok: false, error: "Unsupported kind (use REF or CREATOR)" });
-    }
     if (kind === "MANUAL") {
-      return res.json({ ok: false, error: "Manual withdraw not enabled in demo backend" });
+      return res.json({
+        ok: false,
+        error: "Manual withdraw not enabled in demo backend",
+      });
+    }
+
+    if (!["REF", "CREATOR", "OWNER"].includes(kind)) {
+      return res.json({ ok: false, error: "Unsupported kind" });
     }
 
     const store = await loadStoreOnce();
@@ -1596,8 +1661,11 @@ async function handleWithdraw(req, res, forcedKind = "") {
 
     if (kind === "REF") {
       const amt = Math.max(0, safeNum(p.referralRewardsSol, 0));
-      if (amt <= 0) return res.json({ ok: false, error: "No referral rewards" });
+      if (amt <= 0) {
+        return res.json({ ok: false, error: "No referral rewards" });
+      }
 
+      p.ownerRewardsSol = Math.max(0, safeNum(p.ownerRewardsSol, 0)) + amt;
       p.referralRewardsSol = 0;
       p.updatedAt = nowMS();
 
@@ -1609,21 +1677,47 @@ async function handleWithdraw(req, res, forcedKind = "") {
 
     if (kind === "CREATOR") {
       const amt = Math.max(0, safeNum(p.creatorRewardsSol, 0));
-      if (amt <= 0) return res.json({ ok: false, error: "No creator rewards" });
+      if (amt <= 0) {
+        return res.json({ ok: false, error: "No creator rewards" });
+      }
 
-      deductCreatorRewardsFromCoins(store, wallet, amt);
+      if (typeof deductCreatorRewardsFromCoins === "function") {
+        deductCreatorRewardsFromCoins(store, wallet, amt);
+      }
 
       const fresh = ensureProfile(store, wallet);
+      fresh.ownerRewardsSol =
+        Math.max(0, safeNum(fresh.ownerRewardsSol, 0)) + amt;
       fresh.creatorRewardsSol = 0;
       fresh.updatedAt = nowMS();
 
       STORE_CACHE = sanitizeStore(store);
       await flushStoreNow();
 
-      return res.json({ ok: true, kind: "CREATOR", amountSol: amt, to: wallet });
+      return res.json({
+        ok: true,
+        kind: "CREATOR",
+        amountSol: amt,
+        to: wallet,
+      });
     }
 
-    return res.json({ ok: false, error: "Unsupported kind (use REF or CREATOR)" });
+    if (kind === "OWNER") {
+      const amt = Math.max(0, safeNum(p.ownerRewardsSol, 0));
+      if (amt <= 0) {
+        return res.json({ ok: false, error: "No wallet balance" });
+      }
+
+      p.ownerRewardsSol = 0;
+      p.updatedAt = nowMS();
+
+      STORE_CACHE = sanitizeStore(store);
+      await flushStoreNow();
+
+      return res.json({ ok: true, kind: "OWNER", amountSol: amt, to: wallet });
+    }
+
+    return res.json({ ok: false, error: "Unsupported kind" });
   } catch (e) {
     console.log("withdraw error:", e?.message || e);
     return res.status(500).json({ ok: false, error: String(e?.message || e) });

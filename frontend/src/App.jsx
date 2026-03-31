@@ -1928,33 +1928,33 @@ async function handleTrade() {
     handleSetReferrer();
   }, [authenticated, solAddr]);
 
-  async function handleWithdraw(kind) {
-    if (!authenticated || !solAddr) {
-      setToast("Connect wallet first");
-      return;
-    }
-
-    try {
-      const json = await api("/api/withdraw", {
-        method: "POST",
-        body: JSON.stringify({
-          wallet: solAddr,
-          kind,
-        }),
-      });
-
-      if (json?.ok) {
-        setToast(`Withdraw ready: ${fmtSol(json.amountSol)} SOL`);
-        loadProfile(solAddr);
-        loadBalance(solAddr);
-        loadCoins(0, false);
-      } else {
-        setToast(json?.error || "Withdraw failed");
-      }
-    } catch (e) {
-      setToast(e?.message || "Withdraw failed");
-    }
+ async function handleClaim(kind) {
+  if (!authenticated || !solAddr) {
+    setToast("Connect wallet first");
+    return;
   }
+
+  try {
+    const json = await api("/api/claim", {
+      method: "POST",
+      body: JSON.stringify({
+        wallet: solAddr,
+        kind,
+      }),
+    });
+
+    if (json?.ok) {
+      setToast(`Claimed ${fmtSol(json.amount)} SOL 🚀`);
+      loadProfile(solAddr);
+      loadBalance(solAddr);
+      loadCoins(0, false);
+    } else {
+      setToast(json?.error || "Claim failed");
+    }
+  } catch (e) {
+    setToast(e?.message || "Claim failed");
+  }
+}
 
   const creatorCoin = selectedCoin || null;
   const creatorCoins = useMemo(() => {
@@ -2880,7 +2880,23 @@ async function handleTrade() {
           color: "var(--text)",
         }}
       >
-        {(profile && profile.referralCode) ? profile.referralCode : "No link"}
+        <div style={{ display: "flex", flexDirection: "column", lineHeight: 1.1 }}>
+  <span style={{ fontSize: 10, opacity: 0.65, marginBottom: 4 }}>
+    Affiliate Link
+  </span>
+  <span
+    style={{
+      overflow: "hidden",
+      textOverflow: "ellipsis",
+      whiteSpace: "nowrap",
+      fontSize: 12,
+      fontWeight: 700,
+      color: "var(--text)",
+    }}
+  >
+    {(profile && profile.referralCode) ? profile.referralCode : "No link"}
+  </span>
+</div>
       </span>
 
       <button
@@ -2906,49 +2922,100 @@ async function handleTrade() {
 </div>
 
     <Card>
-      <Title sub="Wallet, rewards, creations and positions">Profile</Title>
+  <Title sub="Wallet, rewards, creations and positions">Profile</Title>
 
-      <div className="statsGrid">
-        <div className="stat">
-          <div className="statLabel">Main Wallet</div>
-          <div className="statValue">{fmtSol(walletSolBalance)} SOL</div>
-          <div className="miniMuted" style={{ marginTop: 6 }}>{toUsdFromSol(walletSolBalance)}</div>
-          <div style={{ marginTop: 8 }}>
-            <MiniBtn onClick={() => handleWithdraw("wallet")} style={{ width: "100%" }}>
-              Withdraw
-            </MiniBtn>
-          </div>
-        </div>
+  <div className="statsGrid">
+  <div className="stat" style={{ gridColumn: "span 2", minHeight: 210 }}>
+    <div className="statLabel">Main Wallet</div>
+    <div className="statValue">{fmtSol(walletSolBalance)} SOL</div>
+    <div className="miniMuted" style={{ marginTop: 6 }}>
+      {toUsdFromSol(walletSolBalance)}
+    </div>
 
-        <div className="stat">
-          <div className="statLabel">Affiliate Reward</div>
-          <div className="statValue">{fmtSol(profile?.referralRewardsSol || 0)} SOL</div>
-          <div style={{ marginTop: 8 }}>
-            <MiniBtn onClick={() => handleWithdraw("referral")} style={{ width: "100%" }}>
-              Withdraw
-            </MiniBtn>
-          </div>
-        </div>
+    <div
+      style={{
+        marginTop: 10,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: 10,
+      }}
+    >
+      <span
+        style={{
+          fontSize: 12,
+          fontWeight: 700,
+          color: "var(--text)",
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          whiteSpace: "nowrap",
+          maxWidth: 120,
+        }}
+      >
+        {user?.wallet?.address
+          ? `${user.wallet.address.slice(0, 4)}...${user.wallet.address.slice(-4)}`
+          : "No wallet"}
+      </span>
 
-        <div className="stat">
-          <div className="statLabel">Creator Reward</div>
-          <div className="statValue">{fmtSol(profile?.creatorRewardsSol || creatorRewards || 0)} SOL</div>
-          <div style={{ marginTop: 8 }}>
-            <MiniBtn onClick={() => handleWithdraw("creator")} style={{ width: "100%" }}>
-              Withdraw
-            </MiniBtn>
-          </div>
-        </div>
+      <div style={{ display: "flex", gap: 6 }}>
+        <MiniBtn
+          onClick={() => {
+            navigator.clipboard.writeText(user?.wallet?.address || "");
+            setToast(`Deposit: ${user?.wallet?.address || "No wallet found"}`);
+          }}
+          style={{ padding: "6px 10px", width: "auto" }}
+        >
+          Deposit
+        </MiniBtn>
 
-        <div className="stat">
-          <div className="statLabel">Coming Soon</div>
-          <div className="statValue" style={{ fontSize: 16 }}>BNB • Polygon</div>
-          <div className="miniMuted" style={{ marginTop: 6 }}>
-            Multi-chain support arriving soon
-          </div>
-        </div>
+        <MiniBtn
+          onClick={() => {
+            navigator.clipboard.writeText(user?.wallet?.address || "");
+            setToast("Wallet copied");
+          }}
+          style={{ padding: "6px 10px", width: "auto" }}
+        >
+          Copy
+        </MiniBtn>
       </div>
-    </Card>
+    </div>
+
+    <div style={{ marginTop: 8 }}>
+      <MiniBtn onClick={() => handleClaim("owner")} style={{ width: "100%" }}>
+        Withdraw
+      </MiniBtn>
+    </div>
+  </div>
+
+  <div className="stat" style={{ gridColumn: "span 2", minHeight: 170 }}>
+    <div className="statLabel">Coming Soon</div>
+    <div className="statValue" style={{ fontSize: 18 }}>BNB • Polygon</div>
+    <div className="miniMuted" style={{ marginTop: 6 }}>
+      Multi-chain support arriving soon
+    </div>
+  </div>
+
+  <div className="stat" style={{ minHeight: 150 }}>
+    <div className="statLabel">Affiliate Reward</div>
+    <div className="statValue">{fmtSol(profile?.referralRewardsSol || 0)} SOL</div>
+    <div style={{ marginTop: 8 }}>
+      <MiniBtn onClick={() => handleClaim("REF")} style={{ width: "100%" }}>
+        Withdraw
+      </MiniBtn>
+    </div>
+  </div>
+
+  <div className="stat" style={{ minHeight: 150 }}>
+    <div className="statLabel">Creator Reward</div>
+    <div className="statValue">{fmtSol(profile?.creatorRewardsSol || creatorRewards || 0)} SOL</div>
+    <div style={{ marginTop: 8 }}>
+      <MiniBtn onClick={() => handleClaim("CREATOR")} style={{ width: "100%" }}>
+        Withdraw
+      </MiniBtn>
+    </div>
+  </div>
+</div>
+</Card>
 
     <Card>
       <SectionHeader title="My Creations" right={<Pill>{myCreations.length}</Pill>} />
