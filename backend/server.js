@@ -1450,6 +1450,30 @@ app.post("/api/claim", async (req, res) => {
 
 
 
+app.post("/api/withdraw", async (req, res) => {
+  try {
+    const { wallet, to, amount } = req.body;
+
+    if (!wallet || !to || !amount) {
+      return res.status(400).json({ error: "Missing fields" });
+    }
+
+    if (amount <= 0) {
+      return res.status(400).json({ error: "Invalid amount" });
+    }
+
+    // ⚠️ Abhi simulation
+    return res.json({
+      ok: true,
+      message: "Withdraw simulated",
+    });
+
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+
 
 
 app.get("/api/profile/:wallet", async (req, res) => {
