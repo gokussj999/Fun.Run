@@ -832,7 +832,12 @@ function Input({
   textarea = false,
   rows = 4,
   style,
+  rightLabel,
+  onRightLabelClick,
 }) {
+
+
+
   const baseStyle = {
     width: "100%",
     padding: "12px 13px",
@@ -862,14 +867,43 @@ function Input({
   }
 
   return (
+  <div style={{ position: "relative" }}>
     <input
       value={value}
       onChange={onChange}
       placeholder={placeholder}
-      type={type}
-      style={{ ...baseStyle, ...style }}
+      type={type === "number" ? "text" : type}
+      inputMode={type === "number" ? "decimal" : undefined}
+      style={{
+        ...baseStyle,
+        paddingRight: rightLabel ? 76 : undefined,
+        ...style,
+      }}
     />
-  );
+    {rightLabel ? (
+      <button
+        type="button"
+        onClick={onRightLabelClick}
+        style={{
+          position: "absolute",
+          right: 10,
+          top: "50%",
+          transform: "translateY(-50%)",
+          border: "1px solid rgba(255,255,255,.10)",
+          background: "linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.025))",
+          color: "var(--text)",
+          borderRadius: 12,
+          padding: "7px 10px",
+          fontSize: 11,
+          fontWeight: 1000,
+          cursor: "pointer",
+        }}
+      >
+        {rightLabel}
+      </button>
+    ) : null}
+  </div>
+);
 }
 
 function ScreenShell({ children }) {
@@ -1362,6 +1396,9 @@ export default function App() {
   const isMobile = typeof window !== "undefined" && window.innerWidth < 520;
 
   const [toast, setToast] = useState("");
+  const [withdrawOpen, setWithdrawOpen] = useState(false);
+const [withdrawAddr, setWithdrawAddr] = useState("");
+const [withdrawAmt, setWithdrawAmt] = useState("");
   const [showIntroFlow, setShowIntroFlow] = useState(true);
   const [theme, setTheme] = useState(() => {
     try {
@@ -1856,11 +1893,11 @@ async function handleTrade() {
 
     const path = tradeMode === "BUY" ? "/api/coin/buy" : "/api/coin/sell";
 
-    const payload = {
-      wallet: solAddr,
-      coinId: current.id,
-      sol: amount,
-    };
+   const payload = {
+  wallet: solAddr,
+  coinId: current.id,
+  ...(tradeMode === "BUY" ? { sol: amount } : { tokens: amount }),
+};
 
     const json = await api(path, {
       method: "POST",
@@ -1984,38 +2021,84 @@ async function handleTrade() {
 
   const currentCoinPriceUsd = getCoinPriceUsd(selectedCoin || {});
   const currentCoinPriceSol = Math.max(0, safeNum(selectedCoin?.priceSol, 0));
-  const tradePreview = useMemo(() => {
-    const amount = Math.max(0, safeNum(tradeAmount, 0));
-    const feePct = 0.01;
-    const priceSol = Math.max(0, safeNum(selectedCoin?.priceSol, 0));
 
-    if (!selectedCoin || amount <= 0 || priceSol <= 0) {
-      return {
-        feeSol: 0,
-        netSol: 0,
-        estTokens: 0,
-        ok: false,
-      };
-    }
 
-    if (tradeMode === "BUY") {
-      const feeSol = amount * feePct;
-      const netSol = Math.max(0, amount - feeSol);
-      const estTokens = netSol / priceSol;
-      return { feeSol, netSol, estTokens, ok: true };
-    }
 
-    const feeSol = amount * feePct;
-    const grossSolNeeded = amount + feeSol;
-    const estTokens = grossSolNeeded / priceSol;
+
+const tradePreview = useMemo(() => {
+  const amount = Math.max(0, safeNum(tradeAmount, 0));
+  const feePct = 0.01;
+
+  if (!selectedCoin || amount <= 0) {
     return {
-      feeSol,
-      netSol: amount,
-      grossSolNeeded,
-      estTokens,
-      ok: true,
+      ok: false,
+      estTokens: 0,
+      feeSol: 0,
+      netSol: 0,
+      grossSolNeeded: 0,
+      youReceiveSol: 0,
+      priceSol: Math.max(0, safeNum(selectedCoin?.priceSol, 0)),
     };
-  }, [selectedCoin, tradeAmount, tradeMode]);
+  }
+
+  const priceSol = Math.max(0.0000000001, safeNum(selectedCoin?.priceSol, 0));
+  const solReserve = Math.max(0, safeNum(selectedCoin?.solReserve, 0));
+  const tokenReserve = Math.max(1, safeNum(selectedCoin?.tokenReserve, 1));
+  const curveSupply = Math.max(1, safeNum(selectedCoin?.curveSupply, tokenReserve));
+  const vSol = Math.max(0.000000001, safeNum(selectedCoin?.vSol, 30));
+  const vTokens = Math.max(1, safeNum(selectedCoin?.vTokens, curveSupply * 0.02));
+
+  if (tradeMode === "BUY") {
+    const feeSol = amount * feePct;
+    const netSol = Math.max(0, amount - feeSol);
+
+    const x = solReserve + vSol;
+    const y = tokenReserve + vTokens;
+    const k = x * y;
+
+    const newX = x + netSol;
+    const newY = k / Math.max(0.000000001, newX);
+    const estTokens = Math.max(0, y - newY);
+
+    return {
+      ok: estTokens > 0,
+      estTokens,
+      feeSol,
+      netSol,
+      grossSolNeeded: amount,
+      youReceiveSol: 0,
+      priceSol,
+    };
+  }
+
+  const tokensIn = amount;
+  const x = solReserve + vSol;
+  const y = tokenReserve + vTokens;
+  const k = x * y;
+
+  const newY = y + tokensIn;
+  const newX = k / newY;
+  const solOut = Math.max(0, x - newX);
+
+  const feeSol = solOut * feePct;
+  const netSol = Math.max(0, solOut - feeSol);
+
+  return {
+    ok: netSol > 0,
+    estTokens: tokensIn,
+    feeSol,
+    netSol,
+    grossSolNeeded: 0,
+    youReceiveSol: netSol,
+    priceSol,
+  };
+}, [tradeAmount, tradeMode, selectedCoin]);
+
+ 
+
+
+
+
 
  function PriceChart({ coin, height = 280 }) {
   const visible = useMemo(() => {
@@ -2200,6 +2283,72 @@ async function handleTrade() {
   return (
     <>
       <ThemeStyles />
+
+      {withdrawOpen && (
+  <div className="modalBack">
+    <div className="modalCard">
+      <div className="modalHead">
+        <div className="modalTitle">Withdraw SOL</div>
+
+        <MiniBtn onClick={() => setWithdrawOpen(false)}>
+          Close
+        </MiniBtn>
+      </div>
+
+      <div className="modalBody">
+        <Input
+          value={withdrawAddr}
+          onChange={(e) => setWithdrawAddr(e.target.value)}
+          placeholder="Enter SOL address"
+        />
+
+        <div style={{ height: 10 }} />
+
+        <Input
+          value={withdrawAmt}
+          onChange={(e) => setWithdrawAmt(e.target.value)}
+          placeholder="Enter amount in SOL"
+          type="number"
+        />
+
+        <div style={{ height: 14 }} />
+
+       <PrimaryButton
+  onClick={async () => {
+    try {
+      if (!withdrawAddr || !withdrawAmt) {
+        setToast("Enter address & amount");
+        return;
+      }
+
+      const json = await api("/api/withdraw", {
+        method: "POST",
+        body: JSON.stringify({
+          wallet: solAddr,
+          to: withdrawAddr,
+          amount: Number(withdrawAmt),
+        }),
+      });
+
+      if (json?.ok) {
+        setToast(`Sent ${withdrawAmt} SOL 🚀`);
+        setWithdrawOpen(false);
+        setWithdrawAddr("");
+        setWithdrawAmt("");
+      } else {
+        setToast(json?.error || "Withdraw failed");
+      }
+    } catch (e) {
+      setToast(e.message || "Withdraw failed");
+    }
+  }}
+>
+  Confirm Withdraw
+</PrimaryButton>
+      </div>
+    </div>
+  </div>
+)}
       <Toast text={toast} onClose={() => setToast("")} />
 
       {showIntro ? (
@@ -2577,12 +2726,21 @@ async function handleTrade() {
           </div>
 
           <div style={{ display: "grid", gap: 12 }}>
-            <Input
-              value={tradeAmount}
-              onChange={(e) => setTradeAmount(e.target.value)}
-              placeholder={tradeMode === "BUY" ? "SOL amount" : "SOL to receive"}
-              type="number"
-            />
+
+
+           <Input
+  value={tradeAmount}
+  onChange={(e) => setTradeAmount(e.target.value)}
+  placeholder={tradeMode === "BUY" ? "SOL to spend" : "Sell token amount"}
+  type="number"
+  rightLabel={tradeMode === "SELL" ? "ALL" : undefined}
+  onRightLabelClick={() => {
+    if (tradeMode === "SELL" && selectedCoin && solAddr) {
+      const allTokens = Math.max(0, safeNum(selectedCoin?.holders?.[solAddr], 0));
+      setTradeAmount(allTokens > 0 ? String(Math.floor(allTokens)) : "");
+    }
+  }}
+/>
      
 
             {tradePreview.ok ? (
@@ -2595,21 +2753,13 @@ async function handleTrade() {
                 }}
               >
                 <div style={{ fontSize: 12, color: "var(--muted2)", marginBottom: 8 }}>
-                  {tradeMode === "BUY" ? "Estimated receive" : "Estimated tokens to sell"}
+                  {tradeMode === "BUY" ? "Estimated receive" : "Tokens required for this sell"}
                 </div>
                 <div style={{ fontSize: 18, fontWeight: 1000 }}>
                   {fmtNum(tradePreview.estTokens, 0)} tokens
                 </div>
-                <div className="pillRow" style={{ marginTop: 10 }}>
-                  <Pill>Fee {fmtSol(tradePreview.feeSol)} SOL</Pill>
-                  <Pill>
-                    {tradeMode === "BUY"
-                      ? `Net buy ${fmtSol(tradePreview.netSol)} SOL`
-                      : `You receive ${fmtSol(tradePreview.netSol)} SOL`}
-                  </Pill>                  {tradeMode === "SELL" ? (
-                    <Pill>Total outflow {fmtSol(tradePreview.grossSolNeeded || 0)} SOL</Pill>
-                  ) : null}
-                </div>
+
+                
               </div>
             ) : (
               <div className="miniMuted">
@@ -2712,12 +2862,6 @@ async function handleTrade() {
       <Title sub="Creator profile, rewards and holdings">
         Creator Profile
       </Title>
-
-      <div className="pillRow">
-        <Pill>{shortWallet(creatorProfileId || creatorCoin?.creatorWallet || "")}</Pill>
-        <Pill>{creatorCoins.length} creations</Pill>
-        <Pill>{fmtSol(creatorRewards)} SOL rewards</Pill>
-      </div>
     </Card>
 
     <Card>
@@ -2981,9 +3125,9 @@ async function handleTrade() {
     </div>
 
     <div style={{ marginTop: 8 }}>
-      <MiniBtn onClick={() => handleClaim("owner")} style={{ width: "100%" }}>
-        Withdraw
-      </MiniBtn>
+      <MiniBtn onClick={() => setWithdrawOpen(true)} style={{ width: "100%" }}>
+  Withdraw
+</MiniBtn>
     </div>
   </div>
 
@@ -2999,9 +3143,9 @@ async function handleTrade() {
     <div className="statLabel">Affiliate Reward</div>
     <div className="statValue">{fmtSol(profile?.referralRewardsSol || 0)} SOL</div>
     <div style={{ marginTop: 8 }}>
-      <MiniBtn onClick={() => handleClaim("REF")} style={{ width: "100%" }}>
-        Withdraw
-      </MiniBtn>
+     <MiniBtn onClick={() => handleClaim("REF")}>
+  Claim
+</MiniBtn>
     </div>
   </div>
 
@@ -3009,9 +3153,9 @@ async function handleTrade() {
     <div className="statLabel">Creator Reward</div>
     <div className="statValue">{fmtSol(profile?.creatorRewardsSol || creatorRewards || 0)} SOL</div>
     <div style={{ marginTop: 8 }}>
-      <MiniBtn onClick={() => handleClaim("CREATOR")} style={{ width: "100%" }}>
-        Withdraw
-      </MiniBtn>
+     <MiniBtn onClick={() => handleClaim("CREATOR")}>
+  Claim
+</MiniBtn>
     </div>
   </div>
 </div>
