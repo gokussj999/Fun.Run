@@ -654,6 +654,7 @@ function mapDbCoinToApi(row = {}) {
     creatorRewardsSol: Math.max(0, safeNum(row.creator_rewards, 0)),
     mintAddress: String(row.mint_address || ""),
     migrated: Boolean(row.migrated),
+    reserveWalletAddress: String(row.reserve_wallet_address || ""),
   };
 }
 
@@ -698,6 +699,8 @@ function coinToDbUpdate(coin = {}) {
     creator_rewards: coin.creatorRewardsSol || 0,
     holders: asObj(coin.holders, {}),
     chart: Array.isArray(coin.chart) ? coin.chart.slice(-MAX_CHART_POINTS) : [],
+    reserve_wallet_address: coin.reserveWalletAddress || "",
+    reserve_wallet_encrypted: coin.reserveWalletEncrypted || "",
   };
 }
 
@@ -822,6 +825,16 @@ await sql`
 await sql`
   alter table coins
   add column if not exists migrated boolean default false
+`;
+
+await sql`
+  alter table coins
+  add column if not exists reserve_wallet_address text
+`;
+
+await sql`
+  alter table coins
+  add column if not exists reserve_wallet_encrypted text
 `;
 
   await sql`
@@ -1306,19 +1319,21 @@ async function saveCoin(coin) {
       id, name, symbol, story, logo, metadata_uri, mint_address, mint_signature, creator_wallet, created_at,
       total_supply, curve_supply, curve_sold, v_sol, v_tokens,
       reserve_sol, reserve_token, market_cap, last_price, ath_market_cap,
-      volume_sol, last_trade_at, creator_rewards, chart, holders
+      volume_sol, last_trade_at, creator_rewards, chart, holders,
+      reserve_wallet_address, reserve_wallet_encrypted
     )
     values (
       ${payload.id}, ${payload.name}, ${payload.symbol}, ${payload.story},
       ${payload.logo}, ${payload.metadata_uri},
-${payload.mint_address}, ${payload.mint_signature},
-${payload.creator_wallet}, ${payload.created_at},
+      ${payload.mint_address}, ${payload.mint_signature},
+      ${payload.creator_wallet}, ${payload.created_at},
       ${payload.total_supply}, ${payload.curve_supply}, ${payload.curve_sold},
       ${payload.v_sol}, ${payload.v_tokens},
       ${payload.reserve_sol}, ${payload.reserve_token},
       ${payload.market_cap}, ${payload.last_price}, ${payload.ath_market_cap},
       ${payload.volume_sol}, ${payload.last_trade_at},
-      ${payload.creator_rewards}, ${payload.chart || []}, ${payload.holders || {}}
+      ${payload.creator_rewards}, ${payload.chart || []}, ${payload.holders || {}},
+      ${payload.reserve_wallet_address}, ${payload.reserve_wallet_encrypted}
     )
     on conflict (id) do update set
       name = excluded.name,
@@ -1327,7 +1342,7 @@ ${payload.creator_wallet}, ${payload.created_at},
       logo = excluded.logo,
       metadata_uri = excluded.metadata_uri,
       mint_address = excluded.mint_address,
-mint_signature = excluded.mint_signature,
+      mint_signature = excluded.mint_signature,
       creator_wallet = excluded.creator_wallet,
       created_at = excluded.created_at,
       total_supply = excluded.total_supply,
@@ -1344,7 +1359,9 @@ mint_signature = excluded.mint_signature,
       last_trade_at = excluded.last_trade_at,
       creator_rewards = excluded.creator_rewards,
       chart = excluded.chart,
-      holders = excluded.holders
+      holders = excluded.holders,
+      reserve_wallet_address = excluded.reserve_wallet_address,
+      reserve_wallet_encrypted = coalesce(nullif(excluded.reserve_wallet_encrypted, ''), coins.reserve_wallet_encrypted)
     returning *`;
 
   coinCache.set(payload.id, rows[0]);
@@ -2489,12 +2506,31 @@ app.post("/coin/create", createLimiter, async (req, res) => {
     const totalSupply = getSupplyFromInitialSol(initialSol);
     const curveSupply = saleSupplyFromTotal(totalSupply);
 
+    // Reserve wallet — isolated keypair per coin, never pool funds across coins
+    let reserveWalletAddress = "";
+    let reserveWalletEncrypted = "";
+    try {
+      const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY;
+      if (!ENCRYPTION_KEY || ENCRYPTION_KEY.length !== 32) throw new Error("ENCRYPTION_KEY missing or not 32 chars");
+      const reserveKeypair = Keypair.generate();
+      const iv = crypto.randomBytes(16);
+      const cipher = crypto.createCipheriv("aes-256-cbc", Buffer.from(ENCRYPTION_KEY), iv);
+      let enc = cipher.update(Buffer.from(reserveKeypair.secretKey));
+      enc = Buffer.concat([enc, cipher.final()]);
+      reserveWalletAddress = reserveKeypair.publicKey.toBase58();
+      reserveWalletEncrypted = iv.toString("hex") + ":" + enc.toString("hex");
+    } catch (rwErr) {
+      console.error("Reserve wallet generation failed:", rwErr?.message || rwErr);
+    }
+
     let coin = {
       id: uid(),
       name, symbol, story, logo: finalLogo,
       metadataUri, creatorWallet, owner: creatorWallet,
       mintAddress,
       mintSignature,
+      reserveWalletAddress,
+      reserveWalletEncrypted,
       createdAt: nowMS(), status: "LIVE",
       totalSupply, curveSupply, curveSold: 0,
       vTokens: calcVirtualTokens(totalSupply, curveSupply),
