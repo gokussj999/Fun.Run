@@ -2652,10 +2652,6 @@ const [connectingPhantom, setConnectingPhantom] = useState(false);
   }
 
   const solAddr = useMemo(() => {
-    console.log("[solAddr] wallets=", JSON.stringify(wallets?.map(w=>({type:w.walletClientType,chain:w.chainType,addr:w.address}))));
-    console.log("[solAddr] user.wallet=", user?.wallet?.address);
-    console.log("[solAddr] user.linkedAccounts=", JSON.stringify(user?.linkedAccounts?.map(a=>({type:a.type,chain:a.chainType,client:a.walletClientType,addr:a.address}))));
-
     const findAddr = (w) => w?.addr || w?.address || '';
     const isPrivy = (w) => w.client === 'privy' || w.walletClientType === 'privy';
     const isSolana = (w) => w.chain === 'solana' || w.chainType === 'solana';
@@ -2910,10 +2906,11 @@ const [connectingPhantom, setConnectingPhantom] = useState(false);
 
   useEffect(() => {
     if (!ready || !authenticated || !user) return;
-    if (wallets.length === 0 && !user.wallet) {
-      createWallet({ chainType: 'solana' }).catch(() =>
-        createWallet().catch(() => {})
-      );
+    const hasSolana = user?.linkedAccounts?.some(
+      a => a.type === 'wallet' && (a.chain === 'solana' || a.chainType === 'solana')
+    );
+    if (!hasSolana && wallets.length === 0) {
+      createWallet({ chainType: 'solana' }).catch(() => {});
     }
   }, [ready, authenticated, user?.id]);
 
