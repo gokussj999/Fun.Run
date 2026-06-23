@@ -1313,6 +1313,8 @@ async function saveCoin(coin) {
     id: String(coin.id || uid()),
     ...coinToDbUpdate(coin),
   };
+  console.log(`[trace-4] coinToDbUpdate payload: reserve_wallet_address="${payload.reserve_wallet_address}" encrypted_len=${payload.reserve_wallet_encrypted?.length || 0}`);
+  console.log(`[trace-5] about to INSERT coin id=${payload.id}`);
 
   const rows = await sql`
     insert into coins (
@@ -2534,7 +2536,7 @@ app.post("/coin/create", createLimiter, async (req, res) => {
     enc = Buffer.concat([enc, cipher.final()]);
     const reserveWalletAddress = reserveKeypair.publicKey.toBase58();
     const reserveWalletEncrypted = iv.toString("hex") + ":" + enc.toString("hex");
-    console.log(`[reserve-wallet] generated ok: ${reserveWalletAddress}`);
+    console.log(`[trace-1] keypair generated: address="${reserveWalletAddress}" encrypted_len=${reserveWalletEncrypted.length}`);
 
     let coin = {
       id: uid(),
@@ -2554,8 +2556,9 @@ app.post("/coin/create", createLimiter, async (req, res) => {
       mc: 0, ath: 0, creatorRewardsSol: 0, chart: [],
     };
 
+    console.log(`[trace-2] before recalcCoin: reserveWalletAddress="${coin.reserveWalletAddress}" encrypted_len=${coin.reserveWalletEncrypted?.length || 0}`);
     coin = recalcCoin(coin, { appendChart: false });
-    console.log(`[coin/create] +${Date.now()-_t0}ms — pre-save reserveWalletAddress="${coin.reserveWalletAddress}" encrypted_len=${coin.reserveWalletEncrypted?.length || 0}`);
+    console.log(`[trace-3] after recalcCoin: reserveWalletAddress="${coin.reserveWalletAddress}" encrypted_len=${coin.reserveWalletEncrypted?.length || 0}`);
     coin = await saveCoin(coin);
     console.log(`[coin/create] +${Date.now()-_t0}ms — saveCoin done`);
 
