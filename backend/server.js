@@ -2615,6 +2615,8 @@ app.post("/coin/create", createLimiter, async (req, res) => {
     const _coinId = coin.id;
     const _encMnemonic = profile?.encrypted_mnemonic;
     const _symbol = coin.symbol;
+    const _reserveWalletAddress = coin.reserveWalletAddress;
+    const _reserveWalletEncrypted = reserveWalletEncrypted;
     setImmediate(async () => {
       try {
         const { createSPLToken } = await import("./solana/create-token.js");
@@ -2638,8 +2640,10 @@ app.post("/coin/create", createLimiter, async (req, res) => {
             const c = mapDbCoinToApi(latestRow);
             c.mintAddress = onchainMint;
             c.mintSignature = onchainSig;
+            c.reserveWalletAddress = _reserveWalletAddress;
+            c.reserveWalletEncrypted = _reserveWalletEncrypted;
             await saveCoin(c);
-            console.log(`[onchain] mint saved for ${_coinId}: ${onchainMint}`);
+            console.log(`[onchain] mint saved for ${_coinId}: ${onchainMint} reserveWallet: ${_reserveWalletAddress}`);
           }
         }
       } catch (e) {
