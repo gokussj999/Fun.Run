@@ -1366,6 +1366,7 @@ async function saveCoin(coin) {
       reserve_wallet_encrypted = coalesce(nullif(excluded.reserve_wallet_encrypted, ''), coins.reserve_wallet_encrypted)
     returning *`;
 
+  console.log("[trace-db] INSERT result:", { reserve_wallet_address: rows?.[0]?.reserve_wallet_address, enc_len: rows?.[0]?.reserve_wallet_encrypted?.length || 0 });
   coinCache.set(payload.id, rows[0]);
   broadcast("coin:update", mapDbCoinToApi(rows[0]));
 
@@ -2561,6 +2562,7 @@ app.post("/coin/create", createLimiter, async (req, res) => {
     console.log(`[trace-3] after recalcCoin: reserveWalletAddress="${coin.reserveWalletAddress}" encrypted_len=${coin.reserveWalletEncrypted?.length || 0}`);
     coin = await saveCoin(coin);
     console.log(`[coin/create] +${Date.now()-_t0}ms — saveCoin done`);
+    console.log("[trace-6] after saveCoin:", { reserveWalletAddress: coin?.reserveWalletAddress, enc_len: coin?.reserveWalletEncrypted?.length || 0 });
 
     if (initialSol > 0) {
       const result = await runCoinLocked(coin.id, async () => {
