@@ -14,7 +14,9 @@ ReactDOM.createRoot(document.getElementById("root")).render(
         loginMethods: ["google"],
         embeddedWallets: {
           createOnLogin: "users-without-wallets",
+          solana: { createOnLogin: "users-without-wallets" },
         },
+        solanaClusters: [{ name: "devnet", rpcUrl: "https://api.devnet.solana.com" }],
         appearance: {
           theme: "dark",
           showWalletLoginFirst: false,

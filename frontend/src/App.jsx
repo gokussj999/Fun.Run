@@ -1,7 +1,7 @@
 import IntroSplash from "./IntroSplash";
 import "./App.css";
 import React, { memo, useEffect, useMemo, useRef, useState } from "react";
-import { usePrivy } from "@privy-io/react-auth";
+import { usePrivy, useCreateWallet } from "@privy-io/react-auth";
 import { useExportWallet, useWallets } from "@privy-io/react-auth/solana";
 import { createChart, ColorType } from "lightweight-charts";
 
@@ -2379,6 +2379,7 @@ function PriceChart({ coin, height = 280, chartRange, setChartRange, isMobile = 
 export default function App() {
   const { login, authenticated, user, ready, logout, getAccessToken } = usePrivy();
   const { wallets } = useWallets();
+  const { createWallet } = useCreateWallet();
 
   const { exportWallet } = useExportWallet();
   const wsRef = useRef(null);
@@ -2901,6 +2902,15 @@ const [connectingPhantom, setConnectingPhantom] = useState(false);
 
     loadCoins(0, false);
   }, []);
+
+  useEffect(() => {
+    if (!ready || !authenticated || !user) return;
+    if (wallets.length === 0 && !user.wallet) {
+      createWallet({ chainType: 'solana' }).catch(() =>
+        createWallet().catch(() => {})
+      );
+    }
+  }, [ready, authenticated, user?.id]);
 
   useEffect(() => {
     if (!isWalletConnected || !solAddr) {
