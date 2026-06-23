@@ -2472,21 +2472,33 @@ app.post("/coin/create", createLimiter, async (req, res) => {
     let metadataUri = "";
 
     if (logo && process.env.PINATA_JWT) {
-      const uploadedLogo = await uploadLogoToIPFS(
-        logo,
-        `${symbol || "coin"}-${Date.now()}.webp`
-      );
-      finalLogo = uploadedLogo.url;
-      imageUri = uploadedLogo.ipfs;
-
-      const uploadedMeta = await uploadMetadataToIPFS({
-        name,
-        symbol,
-        description: story || `${name} (${symbol})`,
-        image: uploadedLogo.ipfs,
-      });
-
-      metadataUri = uploadedMeta.ipfs;
+      const IPFS_TIMEOUT = 15000;
+      const withTimeout = (promise) =>
+        Promise.race([
+          promise,
+          new Promise((_, reject) =>
+            setTimeout(() => reject(new Error("IPFS timeout")), IPFS_TIMEOUT)
+          ),
+        ]);
+      try {
+        console.log(`[coin/create] +${Date.now()-_t0}ms — IPFS upload starting`);
+        const uploadedLogo = await withTimeout(
+          uploadLogoToIPFS(logo, `${symbol || "coin"}-${Date.now()}.webp`)
+        );
+        finalLogo = uploadedLogo.url;
+        imageUri = uploadedLogo.ipfs;
+        const uploadedMeta = await withTimeout(
+          uploadMetadataToIPFS({
+            name, symbol,
+            description: story || `${name} (${symbol})`,
+            image: uploadedLogo.ipfs,
+          })
+        );
+        metadataUri = uploadedMeta.ipfs;
+        console.log(`[coin/create] +${Date.now()-_t0}ms — IPFS done`);
+      } catch (ipfsErr) {
+        console.error(`[coin/create] IPFS skipped: ${ipfsErr?.message}`);
+      }
     }
 
 
@@ -2510,23 +2522,19 @@ app.post("/coin/create", createLimiter, async (req, res) => {
     const curveSupply = saleSupplyFromTotal(totalSupply);
 
     // Reserve wallet — isolated keypair per coin, never pool funds across coins
-    let reserveWalletAddress = "";
-    let reserveWalletEncrypted = "";
-    try {
-      const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY;
-      console.log(`[reserve-wallet] ENCRYPTION_KEY set=${!!ENCRYPTION_KEY} len=${ENCRYPTION_KEY?.length}`);
-      if (!ENCRYPTION_KEY || ENCRYPTION_KEY.length !== 32) throw new Error(`ENCRYPTION_KEY invalid (len=${ENCRYPTION_KEY?.length})`);
-      const reserveKeypair = Keypair.generate();
-      const iv = crypto.randomBytes(16);
-      const cipher = crypto.createCipheriv("aes-256-cbc", Buffer.from(ENCRYPTION_KEY), iv);
-      let enc = cipher.update(Buffer.from(reserveKeypair.secretKey));
-      enc = Buffer.concat([enc, cipher.final()]);
-      reserveWalletAddress = reserveKeypair.publicKey.toBase58();
-      reserveWalletEncrypted = iv.toString("hex") + ":" + enc.toString("hex");
-      console.log(`[reserve-wallet] generated ok: ${reserveWalletAddress}`);
-    } catch (rwErr) {
-      console.error("[reserve-wallet] generation failed:", rwErr?.message || rwErr);
+    const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY;
+    console.log(`[reserve-wallet] ENCRYPTION_KEY set=${!!ENCRYPTION_KEY} len=${ENCRYPTION_KEY?.length}`);
+    if (!ENCRYPTION_KEY || ENCRYPTION_KEY.length !== 32) {
+      return res.status(500).json({ ok: false, error: `Server misconfiguration: ENCRYPTION_KEY must be exactly 32 characters (got ${ENCRYPTION_KEY?.length ?? 0})` });
     }
+    const reserveKeypair = Keypair.generate();
+    const iv = crypto.randomBytes(16);
+    const cipher = crypto.createCipheriv("aes-256-cbc", Buffer.from(ENCRYPTION_KEY), iv);
+    let enc = cipher.update(Buffer.from(reserveKeypair.secretKey));
+    enc = Buffer.concat([enc, cipher.final()]);
+    const reserveWalletAddress = reserveKeypair.publicKey.toBase58();
+    const reserveWalletEncrypted = iv.toString("hex") + ":" + enc.toString("hex");
+    console.log(`[reserve-wallet] generated ok: ${reserveWalletAddress}`);
 
     let coin = {
       id: uid(),
