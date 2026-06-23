@@ -8,7 +8,7 @@ import { createChart, ColorType } from "lightweight-charts";
 
 const INTRO_MS = 5000;
 const APP_LOGO_URL = "/logo.png";
-const API_BASE = "https://zooming-solace-production-c360.up.railway.app";
+const API_BASE = import.meta.env.VITE_API_BASE || "https://funrun-production.up.railway.app";
 
 const WS_BASE = API_BASE
   .replace("https://", "wss://")
