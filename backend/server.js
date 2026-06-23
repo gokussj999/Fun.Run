@@ -2449,6 +2449,7 @@ app.get("/coin/:id/candles", async (req, res) => {
 app.post("/coin/create", createLimiter, async (req, res) => {
   try {
     await requireDb();
+    console.log("[coin/create] request received, body keys:", Object.keys(req.body || {}));
 
     const name = String(req.body?.name || "").trim();
     const symbol = String(req.body?.symbol || "").trim().toUpperCase();
