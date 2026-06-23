@@ -2656,13 +2656,17 @@ const [connectingPhantom, setConnectingPhantom] = useState(false);
     console.log("[solAddr] user.wallet=", user?.wallet?.address);
     console.log("[solAddr] user.linkedAccounts=", JSON.stringify(user?.linkedAccounts?.map(a=>({type:a.type,chain:a.chainType,client:a.walletClientType,addr:a.address}))));
 
-    const embedded = wallets?.find(w => w.walletClientType === 'privy' && w.chainType === 'solana')?.address
-      || wallets?.find(w => w.walletClientType === 'privy')?.address
-      || wallets?.find(w => w.chainType === 'solana')?.address
+    const findAddr = (w) => w?.addr || w?.address || '';
+    const isPrivy = (w) => w.client === 'privy' || w.walletClientType === 'privy';
+    const isSolana = (w) => w.chain === 'solana' || w.chainType === 'solana';
+
+    const embedded = findAddr(wallets?.find(w => isPrivy(w) && isSolana(w)))
+      || findAddr(wallets?.find(w => isPrivy(w)))
+      || findAddr(wallets?.find(w => isSolana(w)))
       || '';
     if (embedded) return String(embedded).trim();
 
-    const anyWallet = wallets?.[0]?.address || '';
+    const anyWallet = (wallets?.[0]?.addr || wallets?.[0]?.address) || '';
     if (anyWallet) return String(anyWallet).trim();
 
     const primary = String(user?.wallet?.address || "").trim();
