@@ -4319,12 +4319,15 @@ const walletHistory = [
 </MiniBtn>
 
                       <MiniBtn
+                        disabled={!selectedCoin?.mintAddress}
                         onClick={async () => {
-                          const ok = await copyText(selectedCoin?.id || "");
-                          setToast(ok ? "Coin address copied" : "Copy failed");
+                          if (!selectedCoin?.mintAddress) return;
+                          const ok = await copyText(selectedCoin.mintAddress);
+                          setToast(ok ? "Mint address copied" : "Copy failed");
                         }}
+                        style={!selectedCoin?.mintAddress ? { opacity: 0.45, cursor: "not-allowed" } : {}}
                       >
-                        Copy Coin Address
+                        {selectedCoin?.mintAddress ? "Copy Coin Address" : "Not minted yet"}
                       </MiniBtn>
 
                       {isSelectedCoinCreator ? (
