@@ -2511,7 +2511,8 @@ app.post("/coin/create", createLimiter, async (req, res) => {
     let reserveWalletEncrypted = "";
     try {
       const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY;
-      if (!ENCRYPTION_KEY || ENCRYPTION_KEY.length !== 32) throw new Error("ENCRYPTION_KEY missing or not 32 chars");
+      console.log(`[reserve-wallet] ENCRYPTION_KEY set=${!!ENCRYPTION_KEY} len=${ENCRYPTION_KEY?.length}`);
+      if (!ENCRYPTION_KEY || ENCRYPTION_KEY.length !== 32) throw new Error(`ENCRYPTION_KEY invalid (len=${ENCRYPTION_KEY?.length})`);
       const reserveKeypair = Keypair.generate();
       const iv = crypto.randomBytes(16);
       const cipher = crypto.createCipheriv("aes-256-cbc", Buffer.from(ENCRYPTION_KEY), iv);
@@ -2519,8 +2520,9 @@ app.post("/coin/create", createLimiter, async (req, res) => {
       enc = Buffer.concat([enc, cipher.final()]);
       reserveWalletAddress = reserveKeypair.publicKey.toBase58();
       reserveWalletEncrypted = iv.toString("hex") + ":" + enc.toString("hex");
+      console.log(`[reserve-wallet] generated ok: ${reserveWalletAddress}`);
     } catch (rwErr) {
-      console.error("Reserve wallet generation failed:", rwErr?.message || rwErr);
+      console.error("[reserve-wallet] generation failed:", rwErr?.message || rwErr);
     }
 
     let coin = {
@@ -2542,6 +2544,7 @@ app.post("/coin/create", createLimiter, async (req, res) => {
     };
 
     coin = recalcCoin(coin, { appendChart: false });
+    console.log(`[coin/create] pre-save reserveWalletAddress="${coin.reserveWalletAddress}" encrypted_len=${coin.reserveWalletEncrypted?.length || 0}`);
     coin = await saveCoin(coin);
 
     // On-chain: SPL token mint + Anchor create_coin (devnet)
