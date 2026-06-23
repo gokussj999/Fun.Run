@@ -2651,7 +2651,10 @@ const [connectingPhantom, setConnectingPhantom] = useState(false);
   }
 
   const solAddr = useMemo(() => {
-    const embedded = wallets?.find(w => w.walletClientType === 'privy')?.address || '';
+    const embedded = wallets?.find(w => w.walletClientType === 'privy' && w.chainType === 'solana')?.address
+      || wallets?.find(w => w.walletClientType === 'privy')?.address
+      || wallets?.find(w => w.chainType === 'solana')?.address
+      || '';
     if (embedded) return String(embedded).trim();
 
     const anyWallet = wallets?.[0]?.address || '';
@@ -3116,10 +3119,9 @@ const [connectingPhantom, setConnectingPhantom] = useState(false);
   }
 
   async function handleCreateCoin() {
-    if (!isWalletConnected || !solAddr) {
-      setToast("Connect wallet first");
-      return;
-    }
+    if (!authenticated) { login(); return; }
+    if (!solAddr) { setToast("Wallet initializing, please wait..."); return; }
+
 
     const n = tokenName.trim();
     const s = symbol.trim().toUpperCase();
@@ -3277,10 +3279,9 @@ const [connectingPhantom, setConnectingPhantom] = useState(false);
   }, [tradeAmount, tradeMode, selectedCoin]);
 
   async function handleTrade() {
-    if (!isWalletConnected || !solAddr) {
-      setToast("Connect wallet first");
-      return;
-    }
+    if (!authenticated) { login(); return; }
+    if (!solAddr) { setToast("Wallet initializing, please wait..."); return; }
+
 
     if (!selectedCoin?.id) {
       setToast("Select a coin first");
@@ -3418,10 +3419,9 @@ const [connectingPhantom, setConnectingPhantom] = useState(false);
   }, [isWalletConnected, solAddr]);
 
   async function handleClaim(kind) {
-    if (!isWalletConnected || !solAddr) {
-      setToast("Connect wallet first");
-      return;
-    }
+    if (!authenticated) { login(); return; }
+    if (!solAddr) { setToast("Wallet initializing, please wait..."); return; }
+
 
     try {
       const json = await api("/claim", {
