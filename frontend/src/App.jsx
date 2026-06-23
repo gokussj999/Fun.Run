@@ -1,7 +1,7 @@
 import IntroSplash from "./IntroSplash";
 import "./App.css";
 import React, { memo, useEffect, useMemo, useRef, useState } from "react";
-import { usePrivy } from "@privy-io/react-auth";
+import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { useExportWallet } from "@privy-io/react-auth/solana";
 import { createChart, ColorType } from "lightweight-charts";
 
@@ -2378,7 +2378,8 @@ function PriceChart({ coin, height = 280, chartRange, setChartRange, isMobile = 
 
 export default function App() {
   const { login, authenticated, user, ready, logout, getAccessToken } = usePrivy();
-  
+  const { wallets } = useWallets();
+
   const { exportWallet } = useExportWallet();
   const wsRef = useRef(null);
 
@@ -2650,6 +2651,9 @@ const [connectingPhantom, setConnectingPhantom] = useState(false);
   }
 
   const solAddr = useMemo(() => {
+    const embedded = wallets?.find(w => w.walletClientType === 'privy')?.address || '';
+    if (embedded) return String(embedded).trim();
+
     const primary = String(user?.wallet?.address || "").trim();
     if (primary) {
       return primary;
@@ -2668,7 +2672,7 @@ const [connectingPhantom, setConnectingPhantom] = useState(false);
       )?.address || "";
 
     return String(anyLinked).trim();
-  }, [user, phantomWallet]);
+  }, [user, phantomWallet, wallets]);
 
   const isWalletConnected = useMemo(() => Boolean(solAddr), [solAddr]);
 
