@@ -699,8 +699,8 @@ function coinToDbUpdate(coin = {}) {
     creator_rewards: coin.creatorRewardsSol || 0,
     holders: asObj(coin.holders, {}),
     chart: Array.isArray(coin.chart) ? coin.chart.slice(-MAX_CHART_POINTS) : [],
-    reserve_wallet_address: coin.reserveWalletAddress || "",
-    reserve_wallet_encrypted: coin.reserveWalletEncrypted || "",
+    reserve_wallet_address: coin.reserveWalletAddress || null,
+    reserve_wallet_encrypted: coin.reserveWalletEncrypted || null,
   };
 }
 
