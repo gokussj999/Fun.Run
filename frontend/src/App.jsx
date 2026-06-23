@@ -2651,6 +2651,10 @@ const [connectingPhantom, setConnectingPhantom] = useState(false);
   }
 
   const solAddr = useMemo(() => {
+    console.log("[solAddr] wallets=", JSON.stringify(wallets?.map(w=>({type:w.walletClientType,chain:w.chainType,addr:w.address}))));
+    console.log("[solAddr] user.wallet=", user?.wallet?.address);
+    console.log("[solAddr] user.linkedAccounts=", JSON.stringify(user?.linkedAccounts?.map(a=>({type:a.type,chain:a.chainType,client:a.walletClientType,addr:a.address}))));
+
     const embedded = wallets?.find(w => w.walletClientType === 'privy' && w.chainType === 'solana')?.address
       || wallets?.find(w => w.walletClientType === 'privy')?.address
       || wallets?.find(w => w.chainType === 'solana')?.address
@@ -2661,15 +2665,12 @@ const [connectingPhantom, setConnectingPhantom] = useState(false);
     if (anyWallet) return String(anyWallet).trim();
 
     const primary = String(user?.wallet?.address || "").trim();
-    if (primary) {
-      return primary;
-    }
+    if (primary) return primary;
 
     const solLinked =
       user?.linkedAccounts?.find(
         (a) => a?.type === "wallet" && a?.chainType === "solana" && a?.address
       )?.address || "";
-
     if (solLinked) return String(solLinked).trim();
 
     const anyLinked =
