@@ -18,3 +18,4 @@ backend/cache.json
 backend/test-ledger/
 **/test-ledger/
 
+backend/new-treasury.json
