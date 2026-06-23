@@ -2449,6 +2449,7 @@ app.get("/coin/:id/candles", async (req, res) => {
 app.post("/coin/create", createLimiter, async (req, res) => {
   try {
     await requireDb();
+    const _t0 = Date.now();
     console.log("[coin/create] request received, body keys:", Object.keys(req.body || {}));
 
     const name = String(req.body?.name || "").trim();
@@ -2492,6 +2493,7 @@ app.post("/coin/create", createLimiter, async (req, res) => {
     let mintAddress = "";
     let mintSignature = "";
 
+    console.log(`[coin/create] +${Date.now()-_t0}ms — starting profile+IPFS`);
     const profile = await getProfile(creatorWallet, true);
     const custodialWallet = String(profile?.wallet_address || creatorWallet).trim();
 
@@ -2545,8 +2547,9 @@ app.post("/coin/create", createLimiter, async (req, res) => {
     };
 
     coin = recalcCoin(coin, { appendChart: false });
-    console.log(`[coin/create] pre-save reserveWalletAddress="${coin.reserveWalletAddress}" encrypted_len=${coin.reserveWalletEncrypted?.length || 0}`);
+    console.log(`[coin/create] +${Date.now()-_t0}ms — pre-save reserveWalletAddress="${coin.reserveWalletAddress}" encrypted_len=${coin.reserveWalletEncrypted?.length || 0}`);
     coin = await saveCoin(coin);
+    console.log(`[coin/create] +${Date.now()-_t0}ms — saveCoin done`);
 
     if (initialSol > 0) {
       const result = await runCoinLocked(coin.id, async () => {
@@ -2599,6 +2602,7 @@ app.post("/coin/create", createLimiter, async (req, res) => {
       meta: { name: coin?.name, symbol: coin?.symbol, initialSol },
     });
 
+    console.log(`[coin/create] +${Date.now()-_t0}ms — sending response`);
     // On-chain: background mein — response ko block nahi karta
     const _coinId = coin.id;
     const _encMnemonic = profile?.encrypted_mnemonic;

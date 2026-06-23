@@ -1557,7 +1557,7 @@ function getReferralLink(addr) {
 
 async function api(path, options = {}) {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 30000);
+  const timer = setTimeout(() => controller.abort(), options.timeout || 30000);
   const base = String(API_BASE || "").replace(/\/$/, "");
   const url = base ? `${base}${path}` : path;
 
@@ -3139,6 +3139,7 @@ const [connectingPhantom, setConnectingPhantom] = useState(false);
       const json = await api("/coin/create", {
         method: "POST",
         body: JSON.stringify(payload),
+        timeout: 120000,
       });
 
       const created = normalizeCoin(json?.coin || {});
