@@ -2548,38 +2548,6 @@ app.post("/coin/create", createLimiter, async (req, res) => {
     console.log(`[coin/create] pre-save reserveWalletAddress="${coin.reserveWalletAddress}" encrypted_len=${coin.reserveWalletEncrypted?.length || 0}`);
     coin = await saveCoin(coin);
 
-    // On-chain: SPL token mint + Anchor create_coin (devnet)
-    try {
-      const { createSPLToken } = await import("./solana/create-token.js");
-      const { create_coin, Wallet } = await import("./solana/program.js");
-      if (profile?.encrypted_mnemonic) {
-        const keypair = await getCustodialKeypairFromMnemonic(profile.encrypted_mnemonic);
-        // Treasury se creator wallet ko 0.01 SOL fund karo (devnet)
-        try {
-          const { Connection: DevConnection, SystemProgram, Transaction, sendAndConfirmTransaction, LAMPORTS_PER_SOL } = await import("@solana/web3.js");
-          const devConn = new DevConnection("https://api.devnet.solana.com", "confirmed");
-          const fundTx = new Transaction().add(
-            SystemProgram.transfer({
-              fromPubkey: treasury.publicKey,
-              toPubkey: keypair.publicKey,
-              lamports: 0.01 * LAMPORTS_PER_SOL,
-            })
-          );
-          await sendAndConfirmTransaction(devConn, fundTx, [treasury]);
-        } catch (e) {
-          console.log("Treasury fund failed:", e.message);
-        }
-        const { mintAddress: onchainMint } = await createSPLToken(keypair);
-        mintAddress = onchainMint;
-        mintSignature = await create_coin(new Wallet(keypair), coin.symbol);
-        coin.mintAddress = mintAddress;
-        coin.mintSignature = mintSignature;
-        coin = await saveCoin(coin);
-      }
-    } catch (onchainErr) {
-      console.error("On-chain coin creation failed:", onchainErr?.message || onchainErr);
-    }
-
     if (initialSol > 0) {
       const result = await runCoinLocked(coin.id, async () => {
         const latestRow = await getCoinRowById(coin.id);
@@ -2629,6 +2597,42 @@ app.post("/coin/create", createLimiter, async (req, res) => {
     await writeAudit("COIN_CREATE", creatorWallet, initialSol, {
       coinId: coin?.id,
       meta: { name: coin?.name, symbol: coin?.symbol, initialSol },
+    });
+
+    // On-chain: background mein — response ko block nahi karta
+    const _coinId = coin.id;
+    const _encMnemonic = profile?.encrypted_mnemonic;
+    const _symbol = coin.symbol;
+    setImmediate(async () => {
+      try {
+        const { createSPLToken } = await import("./solana/create-token.js");
+        const { create_coin, Wallet } = await import("./solana/program.js");
+        if (_encMnemonic) {
+          const keypair = await getCustodialKeypairFromMnemonic(_encMnemonic);
+          try {
+            const { Connection: DevConnection, SystemProgram, Transaction, sendAndConfirmTransaction, LAMPORTS_PER_SOL } = await import("@solana/web3.js");
+            const devConn = new DevConnection("https://api.devnet.solana.com", "confirmed");
+            const fundTx = new Transaction().add(
+              SystemProgram.transfer({ fromPubkey: treasury.publicKey, toPubkey: keypair.publicKey, lamports: 0.01 * LAMPORTS_PER_SOL })
+            );
+            await sendAndConfirmTransaction(devConn, fundTx, [treasury]);
+          } catch (e) {
+            console.log("[onchain] Treasury fund failed:", e.message);
+          }
+          const { mintAddress: onchainMint } = await createSPLToken(keypair);
+          const onchainSig = await create_coin(new Wallet(keypair), _symbol);
+          const latestRow = await getCoinRowById(_coinId);
+          if (latestRow) {
+            const c = mapDbCoinToApi(latestRow);
+            c.mintAddress = onchainMint;
+            c.mintSignature = onchainSig;
+            await saveCoin(c);
+            console.log(`[onchain] mint saved for ${_coinId}: ${onchainMint}`);
+          }
+        }
+      } catch (e) {
+        console.error("[onchain] coin creation failed:", e?.message || e);
+      }
     });
 
     return res.json({
