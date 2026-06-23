@@ -4,6 +4,7 @@ import App from "./App.jsx";
 import "./index.css";
 
 import { PrivyProvider } from "@privy-io/react-auth";
+import { toSolanaWalletConnectors } from "@privy-io/react-auth/solana";
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
@@ -17,6 +18,11 @@ ReactDOM.createRoot(document.getElementById("root")).render(
         appearance: {
           theme: "dark",
           showWalletLoginFirst: false,
+        },
+        externalWallets: {
+          solana: {
+            connectors: toSolanaWalletConnectors(),
+          },
         },
       }}
     >

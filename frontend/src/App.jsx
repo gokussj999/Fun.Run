@@ -2654,6 +2654,9 @@ const [connectingPhantom, setConnectingPhantom] = useState(false);
     const embedded = wallets?.find(w => w.walletClientType === 'privy')?.address || '';
     if (embedded) return String(embedded).trim();
 
+    const anyWallet = wallets?.[0]?.address || '';
+    if (anyWallet) return String(anyWallet).trim();
+
     const primary = String(user?.wallet?.address || "").trim();
     if (primary) {
       return primary;
