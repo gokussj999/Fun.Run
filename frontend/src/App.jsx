@@ -2670,16 +2670,17 @@ const [connectingPhantom, setConnectingPhantom] = useState(false);
 
     const solLinked =
       user?.linkedAccounts?.find(
-        (a) => a?.type === "wallet" && a?.chainType === "solana" && a?.address
-      )?.address || "";
-    if (solLinked) return String(solLinked).trim();
+        (a) => a?.type === "wallet" && a?.chain === "solana" && (a?.addr || a?.address)
+      );
+    if (solLinked) return String(solLinked.addr || solLinked.address).trim();
 
     const anyLinked =
       user?.linkedAccounts?.find(
-        (a) => a?.type === "wallet" && a?.address
-      )?.address || "";
+        (a) => a?.type === "wallet" && (a?.addr || a?.address)
+      );
+    const anyLinkedAddr = anyLinked ? (anyLinked.addr || anyLinked.address) : "";
 
-    return String(anyLinked).trim();
+    return String(anyLinkedAddr).trim();
   }, [user, phantomWallet, wallets]);
 
   const isWalletConnected = useMemo(() => Boolean(solAddr), [solAddr]);
