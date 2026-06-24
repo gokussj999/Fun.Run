@@ -4828,6 +4828,7 @@ const walletHistory = [
       profile?.custodialWallet ||
       "";
 
+    if (!profile) return "Loading...";
     return custodialAddr
       ? `${String(custodialAddr).slice(0, 4)}...${String(custodialAddr).slice(-4)}`
       : "Generating wallet...";
