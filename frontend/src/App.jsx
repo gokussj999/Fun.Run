@@ -3154,7 +3154,7 @@ const [connectingPhantom, setConnectingPhantom] = useState(false);
       });
 
       const created = normalizeCoin(json?.coin || {});
-      if (!created?.id) throw new Error("Create failed");
+      if (!created?.id) throw new Error(json?.error || "Create failed");
 
       setCoins((prev) => [
         created,
@@ -4805,9 +4805,9 @@ const walletHistory = [
 
 
                   <div className="statLabel">Main Wallet</div>
-                  <div className="statValue">{fmtSol(profile?.solBalance ?? walletSolBalance)} SOL</div>
+                  <div className="statValue">{fmtSol(profile?.runBalance ?? 0)} SOL</div>
 <div className="miniMuted" style={{ marginTop: 6 }}>
-  {toUsdFromSol(profile?.solBalance ?? walletSolBalance)}
+  {toUsdFromSol(profile?.runBalance ?? 0)}
 </div>
 
                   <div
