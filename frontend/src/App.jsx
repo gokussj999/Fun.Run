@@ -2652,21 +2652,16 @@ const [connectingPhantom, setConnectingPhantom] = useState(false);
 
   const solAddr = useMemo(() => {
     const isSolAddr = (a) => a && !String(a).startsWith('0x');
-    const isSolana = (w) => w.chain === 'solana' || w.chainType === 'solana';
 
-    // wallets array — sirf Solana chain wala
-    const solWallet = wallets?.find(w => isSolana(w));
-    const walletAddr = solWallet?.addr || solWallet?.address || '';
-    if (isSolAddr(walletAddr)) return String(walletAddr).trim();
+    // useWallets() from @privy-io/react-auth/solana — already Solana-only, no chain field
+    const solWallet = wallets?.find(w => isSolAddr(w?.addr || w?.address || ''));
+    if (solWallet) return String(solWallet.addr || solWallet.address).trim();
 
-    // linkedAccounts — sirf chain === 'solana'
+    // linkedAccounts fallback — chain === 'solana'
     const solLinked = user?.linkedAccounts?.find(
-      (a) => a?.type === "wallet" && a?.chain === "solana" && (a?.addr || a?.address)
+      (a) => a?.type === "wallet" && a?.chain === "solana" && isSolAddr(a?.addr || a?.address)
     );
-    if (solLinked) {
-      const addr = solLinked.addr || solLinked.address;
-      if (isSolAddr(addr)) return String(addr).trim();
-    }
+    if (solLinked) return String(solLinked.addr || solLinked.address).trim();
 
     return "";
   }, [user, phantomWallet, wallets]);
