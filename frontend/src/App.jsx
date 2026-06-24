@@ -1,5 +1,4 @@
 import IntroSplash from "./IntroSplash";
-import LandingPage from "./LandingPage";
 import "./App.css";
 import React, { memo, useEffect, useMemo, useRef, useState } from "react";
 import { usePrivy } from "@privy-io/react-auth";
@@ -3573,7 +3572,39 @@ const walletHistory = [
   }
 
   if (!authenticated) {
-    return <LandingPage onLogin={async () => { try { await login?.(); } catch (e) { console.log(e); } }} />;
+    return (
+      <>
+        <ThemeStyles />
+        <div style={{
+          minHeight: "100dvh", display: "flex", flexDirection: "column",
+          alignItems: "center", justifyContent: "center",
+          background: "var(--bg)", gap: 24, padding: 32,
+        }}>
+          <div style={{ fontSize: 36, fontWeight: 900, color: "var(--accent)", letterSpacing: -1 }}>
+            Fun.Run
+          </div>
+          <div style={{
+            color: "var(--muted)", fontSize: 15, textAlign: "center", maxWidth: 280, lineHeight: 1.5,
+          }}>
+            Launch tokens. Trade instantly. Earn on every move.
+          </div>
+          <button
+            onClick={async () => { try { await login?.(); } catch (e) { console.log(e); } }}
+            style={{
+              background: "var(--accent)", color: "#fff", border: "none",
+              borderRadius: 14, padding: "14px 36px", fontSize: 16,
+              fontWeight: 700, cursor: "pointer", letterSpacing: 0.2,
+              boxShadow: "0 4px 24px var(--accent-glow, #0003)",
+            }}
+          >
+            Continue with Google
+          </button>
+          <div style={{ color: "var(--muted2)", fontSize: 12, textAlign: "center", maxWidth: 260 }}>
+            New here? Your account and wallet are created automatically.
+          </div>
+        </div>
+      </>
+    );
   }
 
   return (
