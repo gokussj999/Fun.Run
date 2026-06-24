@@ -5598,11 +5598,9 @@ const pnlUsd = holdingUsd - ((totalBuySol - totalSellSol) * 80);
 
                   <MiniBtn
                     onClick={async () => {
-                      if (!solAddr) {
-                        setToast("No wallet connected");
-                        return;
-                      }
-                      const ok = await copyText(solAddr);
+                      const addr = profile?.custodialWallet || profile?.depositAddress || "";
+                      if (!addr) { setToast("No deposit wallet yet"); return; }
+                      const ok = await copyText(addr);
                       setToast(ok ? "Wallet copied" : "Copy failed");
                     }}
                   >
@@ -5742,11 +5740,9 @@ const pnlUsd = holdingUsd - ((totalBuySol - totalSellSol) * 80);
               <div style={{ display: "grid", gap: 10 }}>
                 <MiniBtn
                   onClick={async () => {
-                    if (!solAddr) {
-                      setToast("No wallet connected");
-                      return;
-                    }
-                    const ok = await copyText(solAddr);
+                    const addr = profile?.custodialWallet || profile?.depositAddress || "";
+                    if (!addr) { setToast("No deposit wallet yet"); return; }
+                    const ok = await copyText(addr);
                     setToast(ok ? "Wallet copied" : "Copy failed");
                   }}
                 >
