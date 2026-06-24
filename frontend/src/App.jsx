@@ -2651,17 +2651,23 @@ const [connectingPhantom, setConnectingPhantom] = useState(false);
   }
 
   const solAddr = useMemo(() => {
-    const isSolAddr = (a) => a && !String(a).startsWith('0x');
+    const isSolAddr = (a) => {
+      const s = String(a || "");
+      return s.length > 30 && !s.startsWith("0x");
+    };
 
-    // useWallets() from @privy-io/react-auth/solana — already Solana-only, no chain field
-    const solWallet = wallets?.find(w => isSolAddr(w?.addr || w?.address || ''));
-    if (solWallet) return String(solWallet.addr || solWallet.address).trim();
-
-    // linkedAccounts fallback — chain === 'solana'
+    // PRIMARY: linkedAccounts — embedded Privy Solana wallet always here after auth
     const solLinked = user?.linkedAccounts?.find(
       (a) => a?.type === "wallet" && a?.chain === "solana" && isSolAddr(a?.addr || a?.address)
     );
     if (solLinked) return String(solLinked.addr || solLinked.address).trim();
+
+    // FALLBACK: useWallets() — external wallets (Phantom, etc.)
+    const solWallet = wallets?.find(w => isSolAddr(w?.addr || w?.address || ""));
+    if (solWallet) return String(solWallet.addr || solWallet.address).trim();
+
+    // FALLBACK: phantomWallet directly connected
+    if (phantomWallet && isSolAddr(phantomWallet)) return String(phantomWallet).trim();
 
     return "";
   }, [user, phantomWallet, wallets]);
