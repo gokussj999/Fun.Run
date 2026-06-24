@@ -3586,7 +3586,7 @@ const walletHistory = [
           <div style={{
             color: "var(--muted)", fontSize: 15, textAlign: "center", maxWidth: 280, lineHeight: 1.5,
           }}>
-            Solana meme-coin launchpad. Login karo aur trading shuru karo.
+            Launch tokens. Trade instantly. Earn on every move.
           </div>
           <button
             onClick={async () => { try { await login?.(); } catch (e) { console.log(e); } }}
@@ -3597,10 +3597,10 @@ const walletHistory = [
               boxShadow: "0 4px 24px var(--accent-glow, #0003)",
             }}
           >
-            Google se Login / Sign Up
+            Continue with Google
           </button>
           <div style={{ color: "var(--muted2)", fontSize: 12, textAlign: "center", maxWidth: 260 }}>
-            Naya account? Automatically ban jayega — koi extra step nahi.
+            New here? Your account and wallet are created automatically.
           </div>
         </div>
       </>
