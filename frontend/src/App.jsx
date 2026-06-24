@@ -2651,35 +2651,24 @@ const [connectingPhantom, setConnectingPhantom] = useState(false);
   }
 
   const solAddr = useMemo(() => {
-    const findAddr = (w) => w?.addr || w?.address || '';
-    const isPrivy = (w) => w.client === 'privy' || w.walletClientType === 'privy';
+    const isSolAddr = (a) => a && !String(a).startsWith('0x');
     const isSolana = (w) => w.chain === 'solana' || w.chainType === 'solana';
 
-    const embedded = findAddr(wallets?.find(w => isPrivy(w) && isSolana(w)))
-      || findAddr(wallets?.find(w => isPrivy(w)))
-      || findAddr(wallets?.find(w => isSolana(w)))
-      || '';
-    if (embedded) return String(embedded).trim();
+    // wallets array — sirf Solana chain wala
+    const solWallet = wallets?.find(w => isSolana(w));
+    const walletAddr = solWallet?.addr || solWallet?.address || '';
+    if (isSolAddr(walletAddr)) return String(walletAddr).trim();
 
-    const anyWallet = (wallets?.[0]?.addr || wallets?.[0]?.address) || '';
-    if (anyWallet) return String(anyWallet).trim();
+    // linkedAccounts — sirf chain === 'solana'
+    const solLinked = user?.linkedAccounts?.find(
+      (a) => a?.type === "wallet" && a?.chain === "solana" && (a?.addr || a?.address)
+    );
+    if (solLinked) {
+      const addr = solLinked.addr || solLinked.address;
+      if (isSolAddr(addr)) return String(addr).trim();
+    }
 
-    const primary = String(user?.wallet?.address || "").trim();
-    if (primary) return primary;
-
-    const solLinked =
-      user?.linkedAccounts?.find(
-        (a) => a?.type === "wallet" && a?.chain === "solana" && (a?.addr || a?.address)
-      );
-    if (solLinked) return String(solLinked.addr || solLinked.address).trim();
-
-    const anyLinked =
-      user?.linkedAccounts?.find(
-        (a) => a?.type === "wallet" && (a?.addr || a?.address)
-      );
-    const anyLinkedAddr = anyLinked ? (anyLinked.addr || anyLinked.address) : "";
-
-    return String(anyLinkedAddr).trim();
+    return "";
   }, [user, phantomWallet, wallets]);
 
   const isWalletConnected = useMemo(() => Boolean(solAddr), [solAddr]);
