@@ -1,0 +1,29 @@
+{
+  "name": "Fun.Run",
+  "short_name": "FunRun",
+  "description": "Solana meme-coin launchpad. Launch fast, trade smooth, earn rewards.",
+  "theme_color": "#7c3aed",
+  "background_color": "#0a0a0a",
+  "display": "standalone",
+  "orientation": "portrait",
+  "start_url": "/",
+  "scope": "/",
+  "icons": [
+    {
+      "src": "/logo.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/logo.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "/logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
