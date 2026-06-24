@@ -182,7 +182,16 @@ function Hero({ onLogin }) {
       </p>
       <div style={{ display: "flex", gap: 14, flexWrap: "wrap", justifyContent: "center" }}>
         <PrimaryBtn onClick={onLogin}>Launch App</PrimaryBtn>
-        <OutlineBtn onClick={() => window.open(APP_URL, "_blank")}>Install on Mobile</OutlineBtn>
+        <OutlineBtn onClick={() => {
+          if (window.deferredPrompt) {
+            window.deferredPrompt.prompt();
+            window.deferredPrompt.userChoice.then(() => {
+              window.deferredPrompt = null;
+            });
+          } else {
+            alert('To install: tap the browser menu (⋮) then "Add to Home Screen"');
+          }
+        }}>Install on Mobile</OutlineBtn>
       </div>
       <p style={{ color: C.muted2, fontSize: 12, marginTop: 28 }}>
         No seed phrase needed. Your embedded wallet is created on first login.
