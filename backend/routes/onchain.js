@@ -32,12 +32,13 @@ async function walletFromEncryptedMnemonic(encryptedMnemonic) {
 }
 
 // --- POST /api/onchain/create-coin ---
-// Body: { coinId, encryptedMnemonic }
+// Body: { coinId } — encryptedMnemonic comes from server-side DB lookup (req._encryptedMnemonic)
 router.post("/create-coin", async (req, res) => {
   try {
-    const { coinId, encryptedMnemonic } = req.body;
+    const { coinId } = req.body;
+    const encryptedMnemonic = req._encryptedMnemonic; // set by auth middleware in server.js
     if (!coinId || !encryptedMnemonic)
-      return res.status(400).json({ success: false, error: "coinId and encryptedMnemonic required" });
+      return res.status(400).json({ success: false, error: "coinId required" });
 
     const wallet = await walletFromEncryptedMnemonic(encryptedMnemonic);
     const txHash = await create_coin(wallet, coinId);
@@ -51,12 +52,13 @@ router.post("/create-coin", async (req, res) => {
 });
 
 // --- POST /api/onchain/buy ---
-// Body: { coinId, encryptedMnemonic, solAmount } (solAmount in lamports)
+// Body: { coinId, solAmount } — encryptedMnemonic from server-side DB lookup
 router.post("/buy", async (req, res) => {
   try {
-    const { coinId, encryptedMnemonic, solAmount } = req.body;
+    const { coinId, solAmount } = req.body;
+    const encryptedMnemonic = req._encryptedMnemonic;
     if (!coinId || !encryptedMnemonic || solAmount == null)
-      return res.status(400).json({ success: false, error: "coinId, encryptedMnemonic, solAmount required" });
+      return res.status(400).json({ success: false, error: "coinId and solAmount required" });
 
     const wallet = await walletFromEncryptedMnemonic(encryptedMnemonic);
     const program = getProgram(wallet);
@@ -75,12 +77,13 @@ router.post("/buy", async (req, res) => {
 });
 
 // --- POST /api/onchain/sell ---
-// Body: { coinId, encryptedMnemonic, tokenAmount }
+// Body: { coinId, tokenAmount } — encryptedMnemonic from server-side DB lookup
 router.post("/sell", async (req, res) => {
   try {
-    const { coinId, encryptedMnemonic, tokenAmount } = req.body;
+    const { coinId, tokenAmount } = req.body;
+    const encryptedMnemonic = req._encryptedMnemonic;
     if (!coinId || !encryptedMnemonic || tokenAmount == null)
-      return res.status(400).json({ success: false, error: "coinId, encryptedMnemonic, tokenAmount required" });
+      return res.status(400).json({ success: false, error: "coinId and tokenAmount required" });
 
     const wallet = await walletFromEncryptedMnemonic(encryptedMnemonic);
     const program = getProgram(wallet);

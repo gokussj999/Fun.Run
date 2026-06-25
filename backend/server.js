@@ -64,6 +64,17 @@ const CORS_ORIGINS = (process.env.CORS_ORIGINS || "http://localhost:5173")
   .filter(Boolean);
   console.log("CORS_ORIGINS:", CORS_ORIGINS);
 
+// Strict localhost pattern — only http://localhost:PORT (no subdomain tricks)
+const _localhostRe = /^http:\/\/localhost:\d{1,5}$/;
+
+function isAllowedOrigin(origin) {
+  if (!origin) return true; // non-browser requests (curl, server-to-server)
+  if (CORS_ORIGINS.includes(origin)) return true;
+  // In dev, allow any localhost port; in production ONLY CORS_ORIGINS is authoritative
+  if (process.env.NODE_ENV !== "production" && _localhostRe.test(origin)) return true;
+  return false;
+}
+
 const FEE_PCT = clampNum(Number(process.env.FEE_PCT || 1), 0, 10);
 const OWNER_PCT_OF_FEE = clampNum(Number(process.env.OWNER_PCT_OF_FEE || 40), 0, 100);
 const CREATOR_PCT_OF_FEE = clampNum(Number(process.env.CREATOR_PCT_OF_FEE || 40), 0, 100);
@@ -71,6 +82,38 @@ const REFERRAL_PCT_OF_FEE = clampNum(Number(process.env.REFERRAL_PCT_OF_FEE || 2
 
 const APP_OWNER_WALLET = String(process.env.APP_OWNER_WALLET || "HEBqdStfnZgygQVMxpq5CXjsfPPagytdZoAyY2WcC1ji").trim();
 const SOL_USD = clampNum(Number(process.env.SOL_USD || 80), 1, 100000);
+
+let currentSolUsd = SOL_USD;
+let _solPriceCache = { price: SOL_USD, ts: 0 };
+
+async function fetchLiveSolUsd() {
+  try {
+    const res = await fetch(
+      "https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd",
+      { signal: AbortSignal.timeout(5000) }
+    );
+    if (!res.ok) return null;
+    const data = await res.json();
+    const price = Number(data?.solana?.usd);
+    if (price > 1 && price < 100000) return price;
+  } catch {}
+  return null;
+}
+
+async function getLiveSolUsd() {
+  const now = Date.now();
+  if (now - _solPriceCache.ts < 45_000) return _solPriceCache.price;
+  const live = await fetchLiveSolUsd();
+  if (live) {
+    _solPriceCache = { price: live, ts: now };
+    currentSolUsd = live;
+  }
+  return _solPriceCache.price;
+}
+
+fetchLiveSolUsd()
+  .then((p) => { if (p) { currentSolUsd = p; _solPriceCache = { price: p, ts: Date.now() }; } })
+  .catch(() => {});
 
 const VIRTUAL_SOL = clampNum(Number(process.env.VIRTUAL_SOL || 15), 0, 1000000);
 const VIRTUAL_TOKEN_PCT = clampNum(Number(process.env.VIRTUAL_TOKEN_PCT || 30), 0.1, 95);
@@ -124,16 +167,54 @@ const DEX_OPTIONS = ["Raydium", "Orca", "Meteora"];
 // -------------------- APP SETUP --------------------
 if (TRUST_PROXY) app.set("trust proxy", 1);
 
-app.use(cors({
-  origin: (origin, cb) => {
-    if (!origin) return cb(null, true);
-    if (origin.endsWith(".vercel.app") || origin.includes("localhost")) return cb(null, true);
-    if (CORS_ORIGINS.includes(origin)) return cb(null, true);
-    return cb(null, false);
-  },
+// ---- Helmet security headers ----
+// Yeh server sirf JSON serve karta hai — koi HTML nahi.
+// CSP isliye restrictive hai; baaki headers sab responses par lagte hain.
+app.use(
+  helmet({
+    // Content-Security-Policy — JSON API ke liye strict defaults
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc:     ["'none'"],   // koi bhi external resource by default nahi
+        scriptSrc:      ["'none'"],
+        styleSrc:       ["'none'"],
+        imgSrc:         ["'none'"],
+        connectSrc:     ["'self'"],   // sirf same-origin connections
+        fontSrc:        ["'none'"],
+        objectSrc:      ["'none'"],
+        mediaSrc:       ["'none'"],
+        frameSrc:       ["'none'"],
+        frameAncestors: ["'none'"],   // yeh API kabhi frame nahi hogi
+        formAction:     ["'none'"],
+        baseUri:        ["'none'"],
+      },
+    },
+    // X-Frame-Options: DENY — CSP frameAncestors ka backup (older browsers ke liye)
+    frameguard: { action: "deny" },
+    // X-Content-Type-Options: nosniff — MIME sniffing band karo
+    noSniff: true,
+    // Referrer-Policy — API calls mein referrer URLs leak na hon
+    referrerPolicy: { policy: "no-referrer" },
+    // HSTS — sirf production mein; local HTTP dev ko nahi todega
+    hsts: process.env.NODE_ENV === "production"
+      ? { maxAge: 31_536_000, includeSubDomains: true, preload: true }
+      : false,
+    // Cross-Origin-Resource-Policy: cross-origin ZAROORI hai —
+    // helmet ka default "same-origin" Vercel frontend ko Railway API access se rokta hai
+    crossOriginResourcePolicy: { policy: "cross-origin" },
+    // Cross-Origin-Opener-Policy: off — Privy popup auth ke liye
+    crossOriginOpenerPolicy: false,
+    // Cross-Origin-Embedder-Policy: helmet v7 mein already off hai by default
+    crossOriginEmbedderPolicy: false,
+  })
+);
+
+const corsOptions = {
+  origin: (origin, cb) => cb(null, isAllowedOrigin(origin)),
   credentials: true,
-}));
-app.options("*", cors());
+};
+app.use(cors(corsOptions));
+app.options("*", cors(corsOptions)); // preflight — same policy, not a wildcard
 app.use(compression());
 
 const mnemonicLimiter = rateLimit({ windowMs: 60_000, max: 5 });
@@ -155,10 +236,50 @@ if (process.env.NODE_ENV !== "production") {
   app.use(morgan("tiny"));
 }
 
+// ---- C2: /wallet/create — auth required, encrypted_mnemonic never returned ----
+// This handler shadows the old unauthenticated route in routes/wallet.js
+app.post("/wallet/create", async (req, res) => {
+  const auth = await requireAuthWallet(req, res);
+  if (!auth) return;
+  try {
+    const walletData = await createCustodialWallet();
+    await requireDb();
+    // Link custodial wallet to the authenticated user's profile (only if not already set)
+    await sql`
+      update profiles
+      set wallet_address    = ${walletData.address},
+          encrypted_mnemonic = ${walletData.encryptedMnemonic},
+          updated_at         = now()
+      where wallet = ${auth.wallet}
+        and (wallet_address is null or wallet_address = '')
+    `;
+    return res.json({ ok: true, success: true, address: walletData.address });
+  } catch (e) {
+    return serverErr(e, res, "wallet/create");
+  }
+});
+
 // IMPORTANT: walletRoutes sirf /wallet pe mount karo
 app.use("/wallet", walletRoutes);
+
+// ---- C1: /api/onchain/* — auth + server-side encrypted_mnemonic lookup ----
+// POST routes require a valid Privy token; encrypted_mnemonic is NEVER accepted from client.
 const { default: onchainRoutes } = await import("./routes/onchain.js");
-app.use("/api/onchain", onchainRoutes);
+app.use("/api/onchain", async (req, res, next) => {
+  if (req.method === "GET") return next(); // read-only endpoints stay public
+  const auth = await requireAuthWallet(req, res);
+  if (!auth) return;
+  await requireDb();
+  const rows = await sql`
+    select encrypted_mnemonic from profiles where wallet = ${auth.wallet} limit 1
+  `;
+  if (!rows[0]?.encrypted_mnemonic) {
+    return res.status(400).json({ success: false, error: "No custodial wallet found" });
+  }
+  req._encryptedMnemonic = rows[0].encrypted_mnemonic;
+  req._authWallet = auth.wallet;
+  next();
+}, onchainRoutes);
 
 // -------------------- CLIENTS --------------------
 const sql = DATABASE_URL
@@ -324,67 +445,65 @@ async function scanWalletDeposits(wallet) {
     if (!w) return;
 
     const pub = new PublicKey(w);
-
     const lastSignature = await getLastDepositSignature(w);
 
-    const signatures = await connection.getSignaturesForAddress(pub, { limit: 10 });
+    // Paginate until we reach lastSignature or run out of results.
+    // Using `until` param: RPC stops AT lastSignature (exclusive), so we get only NEW sigs.
+    // If batch is full (100), there may be more — keep fetching with `before` cursor.
+    const allSignatures = [];
+    let before = undefined;
+    for (;;) {
+      const batch = await connection.getSignaturesForAddress(pub, {
+        limit: 100,
+        ...(before        ? { before }               : {}),
+        ...(lastSignature ? { until: lastSignature } : {}),
+      });
+      if (!batch?.length) break;
+      allSignatures.push(...batch);
+      if (batch.length < 100) break; // last page — no more to fetch
+      before = batch[batch.length - 1].signature; // cursor = oldest sig in batch
+    }
 
-    if (!signatures?.length) return;
+    if (!allSignatures.length) return;
 
     let creditedAny = false;
 
-    for (const sig of signatures) {
+    for (const sig of allSignatures) {
       const signature = String(sig?.signature || "").trim();
       if (!signature) continue;
-
-      if (lastSignature && signature === lastSignature) {
-        break;
-      }
 
       const tx = await connection.getParsedTransaction(signature, {
         maxSupportedTransactionVersion: 0,
       });
 
       const accountKeys = tx?.transaction?.message?.accountKeys || [];
-
       const walletIndex = accountKeys.findIndex(
         (k) => String(k?.pubkey?.toString?.() || "") === w
       );
-
       if (walletIndex === -1) continue;
 
-      const pre = safeNum(tx?.meta?.preBalances?.[walletIndex], 0) / 1_000_000_000;
+      // H4 fix: use actual on-chain balance diff as the authoritative amount.
+      // This captures ALL incoming SOL (SystemProgram transfers, staking payouts,
+      // program-mediated sends) — not just parsed `transfer` instructions.
+      const pre  = safeNum(tx?.meta?.preBalances?.[walletIndex],  0) / 1_000_000_000;
       const post = safeNum(tx?.meta?.postBalances?.[walletIndex], 0) / 1_000_000_000;
+      const diff = post - pre; // positive = wallet received SOL
 
-      const instructions = tx?.transaction?.message?.instructions || [];
-
-      let diff = 0;
-
-      for (const ix of instructions) {
-        const parsed = ix?.parsed;
-
-        if (parsed?.type === "transfer" && parsed?.info?.destination === w) {
-          diff = safeNum(parsed?.info?.lamports, 0) / 1_000_000_000;
-          break;
-        }
-      }
-
-      if (diff <= 0) continue;
+      if (diff <= 0) continue; // wallet sent SOL (not a deposit) or no change
 
       const ok = await creditDeposit({
         wallet: w,
         txHash: signature,
         amount: diff,
       });
-
       if (ok) creditedAny = true;
     }
 
-    if (signatures?.[0]?.signature) {
-      await setLastDepositSignature(w, signatures[0].signature);
+    // Advance cursor to the newest signature processed
+    if (allSignatures[0]?.signature) {
+      await setLastDepositSignature(w, allSignatures[0].signature);
     }
 
-    // Naya deposit credit hua to sweep karo (sirf agar ENABLE_SWEEP=1)
     if (creditedAny) {
       await sweepCustodialToTreasury(w);
     }
@@ -501,23 +620,61 @@ async function saveWithdrawal({ wallet, destination, amount, txHash, status = "c
 
 async function creditDeposit({ wallet, txHash, amount }) {
   const w = String(wallet || "").trim();
-  if (!w) return false;
+  const hash = String(txHash || "").trim();
+  if (!w || !hash) return false;
 
-  if (await hasDeposit(txHash)) {
-    return false;
-  }
+  const amt = Math.max(0, safeNum(amount, 0));
+  if (amt <= 0) return false;
 
-  await saveDeposit({ wallet: w, txHash, amount, token: "SOL" });
+  // Single atomic transaction: INSERT deposit + UPDATE balance.
+  // ON CONFLICT (tx_hash) DO NOTHING guarantees exactly-once credit even under
+  // concurrent workers or scan-loop overlap — PostgreSQL UNIQUE constraint on
+  // tx_hash ensures only one INSERT ever commits. If count === 0, this txHash
+  // was already processed by another worker; we return false without crediting.
+  // If the server crashes after INSERT but before UPDATE, the whole transaction
+  // rolls back, so tx_hash is NOT in deposits — the next scan re-processes it.
+  const primaryWallet = await sql.begin(async (tx) => {
+    const inserted = await tx`
+      insert into deposits (id, wallet, tx_hash, amount, token, status, created_at)
+      values (
+        ${crypto.randomUUID()},
+        ${w},
+        ${hash},
+        ${amt},
+        'SOL',
+        'confirmed',
+        now()
+      )
+      on conflict (tx_hash) do nothing
+    `;
 
-  // Deposit -> owner ke run_balance me credit
-  const ownerRows = await sql`
-    select wallet from profiles where wallet = ${w} or wallet_address = ${w} limit 1
-  `;
-  const primary = String(ownerRows?.[0]?.wallet || w).trim();
-  if (primary) {
-    await increaseRun(primary, amount);
-    await writeAudit("DEPOSIT", primary, amount, { meta: { txHash, custodial: w } });
-  }
+    // count === 0 → duplicate txHash already exists → skip
+    if (inserted.count === 0) return null;
+
+    // Resolve custodial wallet → primary profile wallet
+    const ownerRows = await tx`
+      select wallet from profiles
+      where wallet = ${w} or wallet_address = ${w}
+      limit 1
+    `;
+    const primary = String(ownerRows?.[0]?.wallet || w).trim();
+    if (!primary) return null;
+
+    // Credit balance in same transaction — atomic with the deposit insert
+    await tx`
+      update profiles
+      set run_balance = run_balance + ${amt},
+          updated_at  = now()
+      where wallet = ${primary}
+    `;
+
+    return primary;
+  });
+
+  if (!primaryWallet) return false;
+
+  // Audit log is fire-and-forget — failure here does not affect the credit
+  writeAudit("DEPOSIT", primaryWallet, amt, { meta: { txHash: hash, custodial: w } }).catch(() => {});
 
   return true;
 }
@@ -576,7 +733,7 @@ function calcPricing(input) {
   const vTokens = calcVirtualTokens(totalSupply, curveSupply, input?.vTokens);
 
   const priceSol = (solReserve + vSol) / (tokenReserve + vTokens);
-  const priceUsd = priceSol * SOL_USD;
+  const priceUsd = priceSol * currentSolUsd;
   const circulating = Math.max(0, totalSupply - tokenReserve);
   const mcUsd = priceUsd * circulating;
 
@@ -1675,21 +1832,43 @@ function ammSellByTokensIn(coin, wallet, tokensInRequested) {
 }
 
 // -------------------- TRADE LOCK --------------------
+// Two-layer locking:
+//   1. In-process queue (COIN_TRADE_LOCKS Map) — fast path, avoids DB round-trips
+//      for concurrent requests hitting the same instance.
+//   2. PostgreSQL advisory xact lock — cross-instance lock for Railway multi-process
+//      deploys. pg_advisory_xact_lock is held for the duration of a transaction;
+//      any other instance that calls pg_advisory_xact_lock with the same ID blocks
+//      until our transaction commits, guaranteeing serialized bonding curve updates.
+
 const COIN_TRADE_LOCKS = new Map();
+
+// Deterministic signed-bigint lock ID from a coinId string (fits pg int8).
+function _coinLockId(coinId) {
+  const h = crypto.createHash("sha256").update(String(coinId)).digest();
+  // Read first 8 bytes as a signed 64-bit big-endian integer.
+  return h.readBigInt64BE(0);
+}
 
 async function runCoinLocked(coinId, fn) {
   const key = String(coinId || "");
+
+  // Layer 1: same-instance serialization
   const prev = COIN_TRADE_LOCKS.get(key) || Promise.resolve();
-
   let release;
-  const next = new Promise((resolve) => {
-    release = resolve;
-  });
-
+  const next = new Promise((resolve) => { release = resolve; });
   COIN_TRADE_LOCKS.set(key, prev.then(() => next));
 
   try {
     await prev;
+
+    if (sql) {
+      // Layer 2: cross-instance DB advisory lock (transaction-scoped → auto-released on commit/rollback)
+      const lockId = _coinLockId(key);
+      return await sql.begin(async (_tx) => {
+        await _tx`SELECT pg_advisory_xact_lock(${lockId})`;
+        return await fn(); // fn() uses the global pool; lock is held at DB level
+      });
+    }
     return await fn();
   } finally {
     release();
@@ -1741,6 +1920,62 @@ async function requireAuth(req, res) {
   }
 }
 
+// userId → { wallet, expiresAt } — Privy getUser calls cache karo (5 min TTL)
+// Har ghante expired entries clean karo taake Map unbounded na badhay
+const _authWalletCache = new Map();
+setInterval(() => {
+  const now = Date.now();
+  for (const [id, entry] of _authWalletCache) {
+    if (entry.expiresAt <= now) _authWalletCache.delete(id);
+  }
+}, 60 * 60 * 1000);
+
+// Privy token verify karo + authenticated user ka Solana wallet address fetch karo.
+// Wallet REQ BODY SE KABHI NAHI AATA — sirf Privy session se.
+// Returns { claims, wallet } or null (auth fails → response already sent).
+async function requireAuthWallet(req, res) {
+  const claims = await requireAuth(req, res);
+  if (!claims) return null;
+
+  const userId = String(claims.userId || "").trim();
+  if (!userId) {
+    res.status(401).json({ ok: false, error: "invalid token" });
+    return null;
+  }
+
+  // Cache hit — extra Privy API call bachao
+  const cached = _authWalletCache.get(userId);
+  if (cached && cached.expiresAt > Date.now()) {
+    return { claims, wallet: cached.wallet };
+  }
+
+  try {
+    const client = await getPrivyClient();
+    const user = await client.getUser(userId);
+    // Privy embedded Solana wallet prefer karo; warna pehla linked Solana wallet
+    const solAccount =
+      user.linkedAccounts?.find(
+        (a) => a.type === "wallet" && a.chainType === "solana" && a.walletClient === "privy"
+      ) ||
+      user.linkedAccounts?.find(
+        (a) => a.type === "wallet" && a.chainType === "solana"
+      );
+
+    if (!solAccount?.address) {
+      res.status(403).json({ ok: false, error: "No Solana wallet linked to this account" });
+      return null;
+    }
+
+    const wallet = String(solAccount.address).trim();
+    _authWalletCache.set(userId, { wallet, expiresAt: Date.now() + 5 * 60 * 1000 });
+    return { claims, wallet };
+  } catch (e) {
+    console.error("[error:requireAuthWallet]", e?.message || e);
+    res.status(401).json({ ok: false, error: "Authentication failed" });
+    return null;
+  }
+}
+
 // -------------------- ROUTES --------------------
 app.get("/", async (req, res) => {
   return res.json({
@@ -1761,24 +1996,51 @@ app.get("/health", async (req, res) => {
 
     return res.json({
       ok: true,
-      dbMode: "neon-postgres",
       coins,
       ts: Date.now(),
     });
   } catch (e) {
-    return res.status(500).json({ ok: false, error: e?.message || "health failed" });
+    return serverErr(e, res, "health");
+  }
+});
+
+app.get("/sol-price", async (req, res) => {
+  try {
+    const price = await getLiveSolUsd();
+    return res.json({ ok: true, price, ts: _solPriceCache.ts });
+  } catch (e) {
+    console.error("[error:sol-price]", e?.stack || e?.message || e);
+    return res.status(500).json({ ok: false, price: currentSolUsd, error: "Internal server error" });
   }
 });
 
 // -------------------- ADMIN MONITORING --------------------
 // ADMIN_SECRET env var set karo — bina secret ke access nahi milega
 
+// Dono strings ko SHA-256 se hash karke timingSafeEqual se compare karo.
+// Isse response time se secret extract karna impossible hota hai:
+// — timingSafeEqual hamesha poore 32 bytes compare karta hai, chahe pehla char match ho ya na ho
+// — SHA-256 digest length hamesha 32 bytes hoti hai — string length bhi leak nahi hoti
+function checkAdminSecret(provided, expected) {
+  if (!expected) return false;
+  const a = crypto.createHash("sha256").update(String(provided)).digest();
+  const b = crypto.createHash("sha256").update(String(expected)).digest();
+  return crypto.timingSafeEqual(a, b);
+}
+
+// Client ko hamesha generic message bhejo — DB internals, table names, column names
+// kabhi bhi response mein nahi aane chahiye. Full error sirf server logs mein hota hai.
+function serverErr(e, res, label = "server") {
+  console.error(`[error:${label}]`, e?.stack || e?.message || e);
+  return res.status(500).json({ ok: false, error: "Internal server error" });
+}
+
 // Saare custodial wallets ka SOL ek baar treasury mein sweep karo (ENABLE_SWEEP bypass)
 app.post("/admin/sweep-all", async (req, res) => {
   try {
-    const secret = String(req.headers["x-admin-secret"] || req.body?.secret || "").trim();
+    const secret = String(req.headers["x-admin-secret"] || "").trim();
     const expected = String(process.env.ADMIN_SECRET || "").trim();
-    if (!expected || secret !== expected) {
+    if (!checkAdminSecret(secret, expected)) {
       return res.status(401).json({ ok: false, error: "unauthorized" });
     }
 
@@ -1814,22 +2076,23 @@ app.post("/admin/sweep-all", async (req, res) => {
         const sig = await sendAndConfirmTransaction(connection, tx, [kp]);
         results.push({ addr, swept: sendable, sig });
       } catch (e) {
-        results.push({ addr, swept: 0, error: e?.message });
+        console.error(`[error:admin/sweep addr=${addr}]`, e?.message || e);
+        results.push({ addr, swept: 0, error: "sweep failed" });
       }
     }
 
     const totalSwept = results.reduce((s, r) => s + (r.swept || 0), 0);
     return res.json({ ok: true, totalSwept, wallets: results.length, results });
   } catch (e) {
-    return res.status(500).json({ ok: false, error: String(e?.message || e) });
+    return serverErr(e, res, "admin/sweep-all");
   }
 });
 
 app.get("/admin/stats", async (req, res) => {
   try {
-    const secret = String(req.headers["x-admin-secret"] || req.query.secret || "").trim();
+    const secret = String(req.headers["x-admin-secret"] || "").trim();
     const expected = String(process.env.ADMIN_SECRET || "").trim();
-    if (!expected || secret !== expected) {
+    if (!checkAdminSecret(secret, expected)) {
       return res.status(401).json({ ok: false, error: "unauthorized" });
     }
 
@@ -1865,19 +2128,18 @@ app.get("/admin/stats", async (req, res) => {
       recentAudit: recentAuditRows || [],
     });
   } catch (e) {
-    return res.status(500).json({ ok: false, error: e?.message || "stats failed" });
+    return serverErr(e, res, "admin/stats");
   }
 });
 
 
 
 app.get("/balance/:wallet", async (req, res) => {
+  const auth = await requireAuthWallet(req, res);
+  if (!auth) return;
   try {
-    const wallet = String(req.params.wallet || "").trim();
-
-    if (!wallet) {
-      return res.json({ ok: false, error: "wallet required" });
-    }
+    // URL param ignore karo — sirf authenticated user ki balance
+    const wallet = auth.wallet;
 
     const profileRow = await sql`select wallet_address, sol_balance from profiles where wallet = ${String(wallet)} limit 1`;
     const custodialAddress = String(profileRow?.[0]?.wallet_address || "").trim();
@@ -1908,26 +2170,22 @@ app.get("/balance/:wallet", async (req, res) => {
 
 
 app.post("/withdraw", withdrawLimiter, async (req, res) => {
-  const claims = await requireAuth(req, res);
-  if (!claims) return;
+  const auth = await requireAuthWallet(req, res);
+  if (!auth) return;
   if (!WITHDRAWALS_ENABLED) {
     return res.status(503).json({ ok: false, error: "Withdrawals temporarily disabled" });
   }
   try {
-    const wallet = String(req.body?.wallet || "").trim();
+    const wallet = auth.wallet; // Privy session se — req.body.wallet kabhi trust nahi hota
     const destination = String(req.body?.destination || "").trim();
     const amount = Math.max(0, safeNum(req.body?.amount, 0));
     const kind = String(req.body?.kind || "").trim().toUpperCase();
     // Idempotency key (optional — client UUID bheje taake double-click safe ho)
     const idempotencyKey = String(req.body?.idempotencyKey || "").trim() || null;
 
-    if (!wallet) {
-      return res.status(400).json({ ok: false, error: "wallet required" });
-    }
-
-    // Reward-based withdrawal
+    // Reward-based withdrawal — auth wallet pass karo
     if (kind === "REF" || kind === "REFERRAL" || kind === "CREATOR" || kind === "OWNER") {
-      return handleRewardWithdraw(req, res, kind);
+      return handleRewardWithdraw(req, res, kind, wallet);
     }
 
     // Idempotency check: agar same key se pehle request aayi thi toh duplicate process mat karo
@@ -2061,7 +2319,8 @@ app.post("/withdraw", withdrawLimiter, async (req, res) => {
       await writeAudit("WITHDRAW_FAILED", wallet, amount, {
         meta: { error: sendErr?.message, destination, withdrawalId },
       });
-      return res.status(502).json({ ok: false, error: "On-chain transfer failed: " + (sendErr?.message || sendErr) });
+      console.error("[error:withdraw/sol onchain]", sendErr?.message || sendErr);
+      return res.status(502).json({ ok: false, error: "On-chain transfer failed" });
     }
 
     // STEP 3 — Confirm: record update + audit
@@ -2076,16 +2335,16 @@ app.post("/withdraw", withdrawLimiter, async (req, res) => {
     return res.json({ ok: true, txHash: signature });
 
   } catch (e) {
-    return res.status(500).json({ ok: false, error: String(e?.message || e) });
+    return serverErr(e, res, "withdraw/sol");
   }
 });
 
-async function handleRewardWithdraw(req, res, forcedKind = "") {
+async function handleRewardWithdraw(req, res, forcedKind = "", authWallet = null) {
   try {
     await requireDb();
 
-    const wallet = String(req.body?.wallet || "").trim();
-    if (!wallet) return res.status(400).json({ ok: false, error: "wallet required" });
+    if (!authWallet) return res.status(401).json({ ok: false, error: "Authentication required" });
+    const wallet = authWallet; // Privy session se — req.body.wallet kabhi trust nahi hota
 
     const kindRaw = String(forcedKind || req.body?.kind || "").trim().toUpperCase();
     const kind =
@@ -2139,13 +2398,20 @@ async function handleRewardWithdraw(req, res, forcedKind = "") {
 
     return res.json({ ok: true, kind, amountSol: result.amount, to: wallet });
   } catch (e) {
-    console.log("reward withdraw error:", e?.message || e);
-    return res.status(500).json({ ok: false, error: String(e?.message || e) });
+    return serverErr(e, res, "withdraw/reward");
   }
 }
 
-app.post("/withdraw/creator", (req, res) => handleRewardWithdraw(req, res, "CREATOR"));
-app.post("/withdraw/referral", (req, res) => handleRewardWithdraw(req, res, "REF"));
+app.post("/withdraw/creator", async (req, res) => {
+  const auth = await requireAuthWallet(req, res);
+  if (!auth) return;
+  return handleRewardWithdraw(req, res, "CREATOR", auth.wallet);
+});
+app.post("/withdraw/referral", async (req, res) => {
+  const auth = await requireAuthWallet(req, res);
+  if (!auth) return;
+  return handleRewardWithdraw(req, res, "REF", auth.wallet);
+});
 
 app.get("/coin/list*", async (req, res) => {
   try {
@@ -2172,7 +2438,7 @@ app.get("/coin/list*", async (req, res) => {
       hot15m: [],
     });
   } catch (e) {
-    return res.status(500).json({ ok: false, error: e?.message || "coin list failed" });
+    return serverErr(e, res, "coin/list");
   }
 });
 
@@ -2200,7 +2466,7 @@ app.get("/coin/:id/dex-preview", async (req, res) => {
       message: "DEX launch is a safe placeholder. Real pool creation will be enabled after Phase 2 audit.",
     });
   } catch (e) {
-    return res.status(500).json({ ok: false, error: e.message || "DEX preview failed" });
+    return serverErr(e, res, "coin/dex-preview");
   }
 });
 
@@ -2209,12 +2475,13 @@ app.get("/coin/:id/dex-preview", async (req, res) => {
 // Asli Meteora DAMM pool creation + SPL mint + LP lock yahan implement karna hai
 // (Meteora SDK ke saath, pehle DEVNET par test). Abhi ye sirf eligibility check karta hai.
 app.post("/coin/:id/migrate", async (req, res) => {
+  const auth = await requireAuthWallet(req, res);
+  if (!auth) return;
   try {
     await requireDb();
 
     const coinId = String(req.params.id || "").trim();
-    const wallet = String(req.body?.wallet || "").trim();
-    if (!wallet) return res.status(400).json({ ok: false, error: "wallet required" });
+    const wallet = auth.wallet; // Privy session se — req.body.wallet kabhi trust nahi hota
 
     const row = await getCoinRowById(coinId);
     const coin = row ? mapDbCoinToApi(row) : null;
@@ -2254,8 +2521,7 @@ app.post("/coin/:id/migrate", async (req, res) => {
       note: "Eligible. Meteora pool creation Phase 4 me implement hoga (devnet test ke baad).",
     });
   } catch (e) {
-    console.log("migrate error:", e?.message || e);
-    return res.status(500).json({ ok: false, error: String(e?.message || e) });
+    return serverErr(e, res, "coin/migrate");
   }
 });
 
@@ -2266,8 +2532,7 @@ app.get("/coin/:id", async (req, res) => {
     if (!coin) return res.status(404).json({ ok: false, error: "Coin not found" });
     return res.json({ ok: true, coin });
   } catch (e) {
-    console.log("coin/detail error:", e?.message || e);
-    return res.status(500).json({ ok: false, error: String(e?.message || e) });
+    return serverErr(e, res, "coin/detail");
   }
 });
 
@@ -2278,7 +2543,7 @@ app.get("/coin/:id/activity", async (req, res) => {
     const activity = await getRecentCoinActivity(req.params.id, limit);
     return res.json({ ok: true, activity });
   } catch (e) {
-    return res.status(500).json({ ok: false, error: e.message || "activity failed" });
+    return serverErr(e, res, "coin/activity");
   }
 });
 
@@ -2371,7 +2636,7 @@ app.get("/coin/:id/candles", async (req, res) => {
 
         const sol = Math.max(0, safeNum(tx.sol, 0));
         const tokens = Math.max(0, safeNum(tx.tokens, 0));
-        const price = tokens > 0 ? (sol / tokens) * SOL_USD : 0;
+        const price = tokens > 0 ? (sol / tokens) * currentSolUsd : 0;
         const px = Math.max(0.00000001, price || fallbackPrice);
 
         const bucket = Math.floor(ts / bucketMs) * bucketMs;
@@ -2444,12 +2709,13 @@ app.get("/coin/:id/candles", async (req, res) => {
 
     return res.json({ ok: true, candles, tf });
   } catch (e) {
-    console.log("coin/candles error:", e?.message || e);
-    return res.status(500).json({ ok: false, error: String(e?.message || e) });
+    return serverErr(e, res, "coin/candles");
   }
 });
 
 app.post("/coin/create", createLimiter, async (req, res) => {
+  const auth = await requireAuthWallet(req, res);
+  if (!auth) return;
   try {
     await requireDb();
     const _t0 = Date.now();
@@ -2459,11 +2725,11 @@ app.post("/coin/create", createLimiter, async (req, res) => {
     const symbol = String(req.body?.symbol || "").trim().toUpperCase();
     const story = String(req.body?.story || "").trim();
     const logo = String(req.body?.logo || "");
-    const creatorWallet = String(req.body?.creatorWallet || "").trim();
+    const creatorWallet = auth.wallet; // Privy session se — req.body.creatorWallet kabhi trust nahi hota
     const initialSol = Math.max(0, safeNum(req.body?.initialSol, 0));
 
-    if (!name || !symbol || !creatorWallet) {
-      return res.json({ ok: false, error: "name/symbol/creatorWallet required" });
+    if (!name || !symbol) {
+      return res.json({ ok: false, error: "name/symbol required" });
     }
 
     if (name.length > 60 || symbol.length > 12) {
@@ -2528,7 +2794,8 @@ app.post("/coin/create", createLimiter, async (req, res) => {
     const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY;
     console.log(`[reserve-wallet] ENCRYPTION_KEY set=${!!ENCRYPTION_KEY} len=${ENCRYPTION_KEY?.length}`);
     if (!ENCRYPTION_KEY || ENCRYPTION_KEY.length !== 32) {
-      return res.status(500).json({ ok: false, error: `Server misconfiguration: ENCRYPTION_KEY must be exactly 32 characters (got ${ENCRYPTION_KEY?.length ?? 0})` });
+      console.error("[error:coin/create] ENCRYPTION_KEY invalid, length:", ENCRYPTION_KEY?.length ?? 0);
+      return res.status(500).json({ ok: false, error: "Server configuration error" });
     }
     const reserveKeypair = Keypair.generate();
     const iv = crypto.randomBytes(16);
@@ -2666,20 +2933,21 @@ app.post("/coin/create", createLimiter, async (req, res) => {
     });
 
   } catch (e) {
-    console.log("coin/create error:", e?.message || e);
-    return res.status(500).json({ ok: false, error: String(e?.message || e) });
+    return serverErr(e, res, "coin/create");
   }
 });
 
 app.post("/referral/set", async (req, res) => {
+  const auth = await requireAuthWallet(req, res);
+  if (!auth) return;
   try {
     await requireDb();
 
-    const wallet = String(req.body?.wallet || "").trim();
+    const wallet = auth.wallet; // Privy session se — req.body.wallet kabhi trust nahi hota
     const referrer = String(req.body?.referrer || "").trim();
 
-    if (!wallet || !referrer) {
-      return res.json({ ok: false, error: "wallet/referrer required" });
+    if (!referrer) {
+      return res.json({ ok: false, error: "referrer required" });
     }
     if (wallet === referrer) {
       return res.json({ ok: false, error: "invalid referrer" });
@@ -2688,46 +2956,62 @@ app.post("/referral/set", async (req, res) => {
       return res.json({ ok: false, error: "invalid referrer" });
     }
 
-    const p = await getProfile(wallet, true);
+    // Referrer profile exist karta hai verify karo (read-only, tx se pehle)
+    await getProfile(referrer, true);
 
-    if (p.referrer) {
+    const REFERRAL_RUN_BONUS = 300000;
+
+    // Atomic: referrer set karo + bonus credit karo — dono ek hi tx mein
+    // WHERE referrer IS NULL guarantee karta hai ke concurrent requests mein
+    // sirf ek hi credit hoga, chahe kitni bhi parallel requests aayein
+    const credited = await sql.begin(async (tx) => {
+      const updated = await tx`
+        update profiles
+        set referrer = ${referrer}, updated_at = now()
+        where wallet = ${wallet} and referrer is null
+      `;
+      if (updated.count === 0) return false; // already set tha
+
+      await tx`
+        update profiles
+        set run_balance = run_balance + ${REFERRAL_RUN_BONUS}, updated_at = now()
+        where wallet = ${referrer}
+      `;
+      return true;
+    });
+
+    if (!credited) {
       return res.json({ ok: false, error: "immutable: already set" });
     }
 
-    await getProfile(referrer, true);
-    await patchProfile(wallet, { referrer });
-    await syncReferralCount(referrer);
+    // Cache invalidate karo taake agle read pe fresh data mile
+    profileCache.del(wallet);
 
-    // Har naye referral par referrer ko 300000 RUN bonus
-    const REFERRAL_RUN_BONUS = 300000;
-    await sql`
-      update profiles
-      set run_balance = run_balance + ${REFERRAL_RUN_BONUS}, updated_at = now()
-      where wallet = ${referrer}
-    `;
+    // Referral count sync (non-financial, tx ke baad safe hai)
+    await syncReferralCount(referrer);
 
     return res.json({ ok: true, referrer });
   } catch (e) {
-    console.log("referral/set error:", e?.message || e);
-    return res.status(500).json({ ok: false, error: String(e?.message || e) });
+    return serverErr(e, res, "referral/set");
   }
 });
 
-async function doTrade(req, res, side) {
+async function doTrade(req, res, side, authWallet = null) {
   try {
     await requireDb();
     if (!TRADING_ENABLED) {
       return res.status(503).json({ ok: false, error: "Trading temporarily disabled" });
     }
 
-    const wallet = String(req.body?.wallet || "").trim();
+    if (!authWallet) return res.status(401).json({ ok: false, error: "Authentication required" });
+    const wallet = authWallet; // Privy session se — req.body.wallet kabhi trust nahi hota
     const coinId = String(req.body?.coinId || "").trim();
     const sol = Math.max(0, safeNum(req.body?.sol, 0));
     const tokens = Math.max(0, safeNum(req.body?.tokens, 0));
     const sideLower = String(side || "").trim().toLowerCase();
 
-    if (!wallet || !coinId) {
-      return res.json({ ok: false, error: "wallet/coinId required" });
+    if (!coinId) {
+      return res.json({ ok: false, error: "coinId required" });
     }
 
     if (sideLower === "buy" && sol <= 0) {
@@ -2846,22 +3130,29 @@ async function doTrade(req, res, side) {
 
     return res.json(result);
   } catch (e) {
-    console.log("trade error:", e?.message || e);
-    return res.status(500).json({ ok: false, error: String(e?.message || e) });
+    return serverErr(e, res, "trade");
   }
 }
 
-app.post("/coin/buy",  tradeLimiter,    (req, res) => doTrade(req, res, "buy"));
-app.post("/coin/sell", tradeLimiter,    (req, res) => doTrade(req, res, "sell"));
+app.post("/coin/buy", tradeLimiter, async (req, res) => {
+  const auth = await requireAuthWallet(req, res);
+  if (!auth) return;
+  return doTrade(req, res, "buy", auth.wallet);
+});
+app.post("/coin/sell", tradeLimiter, async (req, res) => {
+  const auth = await requireAuthWallet(req, res);
+  if (!auth) return;
+  return doTrade(req, res, "sell", auth.wallet);
+});
 
 app.post("/claim", claimLimiter, async (req, res) => {
+  const auth = await requireAuthWallet(req, res);
+  if (!auth) return;
   try {
     await requireDb();
 
-    const wallet = String(req.body?.wallet || "").trim();
+    const wallet = auth.wallet; // Privy session se — req.body.wallet kabhi trust nahi hota
     const kind = String(req.body?.kind || "").trim().toUpperCase();
-
-    if (!wallet) return res.status(400).json({ error: "wallet required" });
 
     const col =
       kind === "CREATOR" ? "creator_rewards" :
@@ -2901,8 +3192,7 @@ app.post("/claim", claimLimiter, async (req, res) => {
 
     return res.json({ ok: true, amount: result.amount });
   } catch (e) {
-    console.log("claim error:", e?.message || e);
-    res.status(500).json({ error: e?.message || "Claim failed" });
+    return serverErr(e, res, "claim");
   }
 });
 
@@ -2913,12 +3203,10 @@ app.post("/claim", claimLimiter, async (req, res) => {
 // Privy setup ke mutabiq adjust karna; bina match ke kabhi mnemonic mat do.
 
 app.post("/wallet/reveal-mnemonic", mnemonicLimiter, async (req, res) => {
+  const auth = await requireAuthWallet(req, res);
+  if (!auth) return;
   try {
-    const claims = await requireAuth(req, res);
-    if (!claims) return; // requireAuth ne already respond kar diya
-
-    const wallet = String(req.body?.wallet || "").trim();
-    if (!wallet) return res.status(400).json({ ok: false, error: "wallet required" });
+    const wallet = auth.wallet; // Privy session se — req.body.wallet kabhi trust nahi hota
 
     // SECURITY: token ka user isi wallet ka malik hai ye verify karo.
     // Yahan apne Privy linkage ke mutabiq check lagao (e.g. profile me privy_user_id save
@@ -3076,8 +3364,7 @@ depositAddress: custodialWallet,
       feePct: FEE_PCT,
     });
   } catch (e) {
-    console.log("profile error:", e?.message || e);
-    return res.status(500).json({ ok: false, error: String(e?.message || e) });
+    return serverErr(e, res, "profile");
   }
 });
 
@@ -3244,20 +3531,31 @@ const server = app.listen(PORT, () => {
   );
   setInterval(async () => {
     try {
-      const rows = await sql`
-        select wallet_address from profiles
-        where wallet_address is not null
-          and wallet_address != ''
-        limit 100
-      `;
-      for (const row of rows || []) {
-        const wallet = String(row?.wallet_address || "").trim();
-        if (!wallet) continue;
-        try {
-          await scanWalletDeposits(wallet);
-        } catch (walletErr) {
-          console.log(`deposit scanner wallet error ${wallet}:`, walletErr?.message || walletErr);
+      // Paginate through ALL custodial wallets so none are skipped.
+      // Each scanWalletDeposits call is cursor-based (lastSignature), so scanning
+      // a wallet that received no new deposits is an RPC no-op.
+      let offset = 0;
+      const batchSize = 200;
+      for (;;) {
+        const rows = await sql`
+          select wallet_address from profiles
+          where wallet_address is not null
+            and wallet_address != ''
+          order by wallet_address
+          limit ${batchSize} offset ${offset}
+        `;
+        if (!rows?.length) break;
+        for (const row of rows) {
+          const wallet = String(row?.wallet_address || "").trim();
+          if (!wallet) continue;
+          try {
+            await scanWalletDeposits(wallet);
+          } catch (walletErr) {
+            console.log(`deposit scanner wallet error ${wallet}:`, walletErr?.message || walletErr);
+          }
         }
+        if (rows.length < batchSize) break; // last page
+        offset += batchSize;
       }
     } catch (e) {
       console.log("deposit scanner error:", e?.message || e);

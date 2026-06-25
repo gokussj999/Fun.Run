@@ -60,13 +60,8 @@ router.post("/create", async (req, res) => {
       encryptedMnemonic,
     });
   } catch (error) {
-    console.log("❌ /wallet/create error:", error?.message || error);
-
-    return res.status(500).json({
-      success: false,
-      ok: false,
-      error: error?.message || "wallet create failed",
-    });
+    console.error("[error:wallet/create]", error?.stack || error?.message || error);
+    return res.status(500).json({ ok: false, success: false, error: "Internal server error" });
   }
 });
 
