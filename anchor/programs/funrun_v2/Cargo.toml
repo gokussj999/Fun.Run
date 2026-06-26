@@ -1,0 +1,20 @@
+[package]
+name = "funrun_v2"
+version = "0.1.0"
+description = "Fun.Run Bonding Curve Program V2 — SPL token bonding curve with on-chain fee distribution and DEX graduation"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "funrun_v2"
+
+[features]
+no-entrypoint = []
+no-idl = []
+no-log-ix-name = []
+cpi = ["no-entrypoint"]
+default = []
+
+[dependencies]
+anchor-lang = { version = "0.30.1", features = ["init-if-needed"] }
+# anchor-spl added in Phase 2 when SPL token instructions are implemented
