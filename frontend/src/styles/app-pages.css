@@ -1,0 +1,1303 @@
+/* F14 — Search, Profile, Create, Settings design system */
+
+@keyframes pulseRunCoin {
+  0%,
+  100% {
+    transform: scale(1);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.28);
+  }
+  50% {
+    transform: scale(1.04);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.34);
+  }
+}
+
+/* ── Page headers ── */
+
+.pageHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.pageHeaderMain {
+  min-width: 0;
+  flex: 1;
+}
+
+.pageHeaderTitle {
+  margin: 0;
+  font-size: clamp(1.25rem, 3.2vw, 1.5rem);
+  font-weight: 1000;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+
+.pageHeaderSub {
+  margin: 6px 0 0;
+  font-size: 13px;
+  color: var(--muted2);
+  line-height: 1.55;
+  max-width: 52ch;
+}
+
+.pageHeaderRight {
+  flex-shrink: 0;
+}
+
+/* ── Search ── */
+
+.searchPageCard .discoverySearchBox {
+  margin-bottom: 4px;
+}
+
+.searchResultsList {
+  margin-top: 14px;
+}
+
+.searchPageCard .filterChipsWrap:first-of-type {
+  margin-top: 14px;
+}
+
+/* ── Create coin ── */
+
+.createCoinCard {
+  border-color: var(--border);
+  background: var(--card);
+  box-shadow: var(--shadow1, 0 4px 20px rgba(0, 0, 0, 0.32));
+}
+
+.createCoinForm {
+  display: grid;
+  gap: 14px;
+}
+
+.createCoinField input,
+.createCoinField textarea {
+  background: rgba(255, 255, 255, 0.055);
+  border-color: rgba(252, 213, 53, 0.12);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.createCoinLogoPanel {
+  padding: 14px;
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  background: var(--bg2);
+  box-shadow: none;
+}
+
+.createCoinLogoLabel {
+  font-size: 12px;
+  color: rgba(238, 248, 255, 0.78);
+  margin-bottom: 10px;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.createCoinLogoInput {
+  width: 100%;
+  color: var(--text);
+  font-size: 12px;
+}
+
+.createCoinLogoPreview {
+  margin-top: 12px;
+}
+
+.createCoinSubmit {
+  background: var(--primary) !important;
+  color: var(--btnText) !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.28) !important;
+}
+
+/* ── Settings ── */
+
+.settingsCard {
+  overflow: visible;
+}
+
+.settingsSection {
+  display: grid;
+  gap: 12px;
+}
+
+.settingsSectionLabel {
+  font-size: 11px;
+  color: var(--muted2);
+  font-weight: 1000;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin-bottom: 2px;
+}
+
+.settingsDivider {
+  height: 1px;
+  background: rgba(148, 163, 184, 0.12);
+  margin: 4px 0;
+}
+
+.settingsActions {
+  display: grid;
+  gap: 10px;
+}
+
+.themeGrid {
+  display: grid;
+  gap: 10px;
+}
+
+.themeGroupLabel {
+  font-size: 11px;
+  color: var(--muted2);
+  font-weight: 1000;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  margin: 2px 0;
+}
+
+.themeGroupLabel + .themeOption {
+  margin-top: 0;
+}
+
+.themeGroupLabel:not(:first-child) {
+  margin-top: 8px;
+}
+
+.themeOption {
+  width: 100%;
+  text-align: left;
+  padding: 13px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text);
+  cursor: pointer;
+  transition:
+    border-color 0.16s ease,
+    background 0.16s ease,
+    box-shadow 0.16s ease,
+    transform 0.12s ease;
+}
+
+.themeOption:hover:not(.active) {
+  border-color: color-mix(in srgb, var(--primary) 18%, transparent);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.themeOption.active {
+  border-color: color-mix(in srgb, var(--primary) 32%, transparent);
+  background: color-mix(in srgb, var(--primary) 12%, transparent);
+  box-shadow: 0 10px 28px color-mix(in srgb, var(--primary) 12%, transparent);
+}
+
+.themeOptionInner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.themeOptionLabel {
+  font-weight: 1000;
+  font-size: 13px;
+}
+
+.themeOptionMeta {
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--muted2);
+}
+
+.themeOptionSwatches {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.themeOptionSwatch {
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+}
+
+/* ── Profile ── */
+
+.profileTopBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+
+.profileTopActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  flex: 1;
+}
+
+.profileAffiliatePill {
+  padding: 9px 12px;
+  border-radius: 999px;
+  background: rgba(252, 213, 53, 0.1);
+  border: 1px solid rgba(252, 213, 53, 0.22);
+  color: var(--primary);
+  font-size: 12px;
+  font-weight: 1000;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+/* ── Profile dashboard (exchange-style) ── */
+
+.profileDashboardCard {
+  border-color: var(--border);
+  background: var(--card);
+}
+
+.profileDashboardStack {
+  display: grid;
+  gap: 14px;
+}
+
+.profileStatsGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.profileWalletCard {
+  display: flex;
+  align-items: stretch;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 20px;
+  border-radius: 16px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow1, 0 4px 20px rgba(0, 0, 0, 0.32));
+  text-align: left;
+}
+
+.profileWalletMain {
+  flex: 1;
+  min-width: 0;
+}
+
+.profileWalletArt {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.profileWalletIllustration {
+  position: relative;
+  width: 118px;
+  height: 96px;
+}
+
+.profileWalletIllustrationBody {
+  position: absolute;
+  left: 8px;
+  bottom: 0;
+  width: 82px;
+  height: 58px;
+  border-radius: 12px 12px 10px 10px;
+  background: linear-gradient(160deg, #343a42 0%, #171a1f 100%);
+  border: 1px solid #3f4652;
+  box-shadow: 0 14px 32px rgba(0, 0, 0, 0.42);
+}
+
+.profileWalletIllustrationFlap {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  right: 8px;
+  height: 18px;
+  border-radius: 6px 6px 4px 4px;
+  background: linear-gradient(180deg, #4a515c, #262b32);
+  border: 1px solid #565e6a;
+}
+
+.profileWalletIllustrationSlot {
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  bottom: 10px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--good);
+  opacity: 0.55;
+}
+
+.profileWalletIllustrationCoin {
+  position: absolute;
+  border-radius: 50%;
+  border: 2px solid #e4c04a;
+  background: radial-gradient(circle at 32% 28%, #fff8d0 0%, var(--primary) 42%, #c9a227 100%);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.34);
+}
+
+.profileWalletIllustrationCoin--back {
+  width: 30px;
+  height: 30px;
+  top: 2px;
+  right: 10px;
+  opacity: 0.92;
+}
+
+.profileWalletIllustrationCoin--front {
+  width: 38px;
+  height: 38px;
+  top: 18px;
+  right: 0;
+  display: grid;
+  place-items: center;
+  font-size: 14px;
+  font-weight: 1000;
+  color: var(--btnText);
+}
+
+.profileWalletIllustrationCoin--front span {
+  line-height: 1;
+  transform: translateY(-1px);
+}
+
+.profilePortfolioBlock {
+  margin-bottom: 16px;
+}
+
+.profilePortfolioValue {
+  font-size: clamp(1.75rem, 5vw, 2.35rem);
+  font-weight: 1000;
+  margin-top: 6px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+  color: var(--text);
+}
+
+.profilePortfolioSol {
+  margin-top: 6px;
+  font-size: 13px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.profileWalletBalanceBlock {
+  margin-bottom: 12px;
+}
+
+.profileWalletBalance {
+  margin-top: 4px;
+  font-size: 18px;
+  font-weight: 1000;
+  font-variant-numeric: tabular-nums;
+}
+
+.profileWalletAddrField {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  margin-bottom: 14px;
+}
+
+.profileWalletAddrText {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.profileWalletCopyIcon {
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 14px;
+  padding: 2px 4px;
+  line-height: 1;
+}
+
+.profileWalletBtnRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
+}
+
+.profileWalletBtn {
+  padding: 10px 12px !important;
+  width: 100% !important;
+  border-radius: 12px !important;
+  font-size: 11px !important;
+  min-width: 0;
+}
+
+.profileWalletBtn--deposit {
+  min-width: 0;
+}
+
+.profileWalletBtn--depositActive {
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18) !important;
+  filter: brightness(1.05);
+}
+
+.profileSolanaLive {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 10px 8px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--bg2);
+}
+
+.profileSolanaLiveLogo {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+.profileSolanaLivePulse {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--good);
+  flex-shrink: 0;
+  animation: profileSolLivePulse 1.8s ease-in-out infinite;
+}
+
+.profileSolanaLiveText {
+  font-size: 10px;
+  font-weight: 900;
+  color: var(--muted2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@keyframes profileSolLivePulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(14, 203, 129, 0.45);
+  }
+
+  50% {
+    opacity: 0.85;
+    transform: scale(0.92);
+    box-shadow: 0 0 0 5px rgba(14, 203, 129, 0);
+  }
+}
+
+.profileDepositPanel {
+  margin-top: 12px;
+  padding: 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(14, 203, 129, 0.28);
+  background: rgba(14, 203, 129, 0.06);
+  display: grid;
+  gap: 10px;
+}
+
+.profileDepositPanelHint {
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--muted2);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.profileDepositPanelAddr {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text);
+  word-break: break-all;
+  line-height: 1.5;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+}
+
+.profileDepositCopyBtn {
+  width: 100% !important;
+  background: var(--primary) !important;
+  color: var(--btnText) !important;
+  border: 1px solid var(--primary) !important;
+}
+
+.profileWalletBtn--ghost {
+  background: var(--bg2) !important;
+  border: 1px solid var(--border) !important;
+  color: var(--text) !important;
+  box-shadow: none !important;
+}
+
+.profileWalletRow {
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.profileWalletAddr {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 140px;
+}
+
+.profileWalletActions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.profileWalletBtn--primary {
+  background: var(--good) !important;
+  color: var(--btnText) !important;
+  border: 1px solid var(--good) !important;
+  box-shadow: none !important;
+}
+
+.profileWithdrawBtn {
+  width: 100%;
+  margin-top: 8px;
+  background: var(--bg2) !important;
+  border: 1px solid var(--border) !important;
+  box-shadow: none !important;
+}
+
+.profileRunCard {
+  padding: 20px;
+  border-radius: 16px;
+  background: var(--card);
+  border: 1px solid rgba(14, 203, 129, 0.28);
+  box-shadow: var(--shadow1, 0 4px 20px rgba(0, 0, 0, 0.32));
+}
+
+.profileRunGrid {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 20px;
+}
+
+.profileRunContent {
+  min-width: 0;
+}
+
+.profileRunAside {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  flex-shrink: 0;
+}
+
+.profileRunHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.profileRunBadge {
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 900;
+  background: rgba(252, 213, 53, 0.1);
+  border: 1px solid rgba(252, 213, 53, 0.28);
+  color: var(--primary);
+  white-space: nowrap;
+}
+
+.profileRunValue {
+  font-size: clamp(1.5rem, 4.5vw, 2rem);
+  font-weight: 1000;
+  margin-top: 8px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+
+.profileRunTokens {
+  margin-top: 6px;
+  color: var(--good);
+  font-weight: 900;
+  font-size: 15px;
+}
+
+.profileRunBreakdown {
+  margin-top: 14px;
+  display: grid;
+  gap: 6px;
+}
+
+.profileRunRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 800;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+}
+
+.profileRunRowLabel {
+  color: var(--muted2);
+}
+
+.profileRunRowValue--good {
+  color: var(--good);
+}
+
+.profileRunRowValue--accent {
+  color: var(--primary);
+}
+
+.profileRunRowValue--muted {
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.profileRunUnlock {
+  margin-top: 10px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.profileRunCoin {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: var(--primary);
+  border: 2px solid rgba(252, 213, 53, 0.45);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.28);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  font-weight: 1000;
+  color: var(--btnText);
+  letter-spacing: 0.5px;
+  animation: pulseRunCoin 3s ease-in-out infinite;
+  flex-shrink: 0;
+}
+
+.profileCountdown {
+  text-align: center;
+}
+
+.profileCountdownLabel {
+  font-size: 11px;
+  color: var(--muted);
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 800;
+}
+
+.profileCountdownValue {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: clamp(1rem, 2.8vw, 1.25rem);
+  font-weight: 1000;
+  color: var(--good);
+  line-height: 1.35;
+  font-variant-numeric: tabular-nums;
+}
+
+.profileMetricGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.profileMetricCard {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 14px;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+}
+
+.profileMetricCardTop {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  min-width: 0;
+}
+
+.profileMetricCard--claimable .profileMetricBody {
+  padding-right: 0;
+}
+
+.profileMetricIcon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  font-size: 16px;
+  flex-shrink: 0;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border);
+}
+
+.profileMetricIcon--good {
+  color: var(--good);
+  background: rgba(14, 203, 129, 0.1);
+  border-color: rgba(14, 203, 129, 0.22);
+}
+
+.profileMetricIcon--accent {
+  color: var(--primary);
+  background: rgba(252, 213, 53, 0.1);
+  border-color: rgba(252, 213, 53, 0.22);
+}
+
+.profileMetricBody {
+  flex: 1;
+  min-width: 0;
+}
+
+.profileMetricLabel {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.profileMetricValue {
+  margin-top: 6px;
+  font-size: 17px;
+  font-weight: 1000;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+}
+
+.profileMetricSub {
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.profileMetricSub--good {
+  color: var(--good);
+}
+
+.profileMetricClaim {
+  width: 100%;
+  margin-top: auto;
+  padding: 9px 12px !important;
+  font-size: 11px !important;
+  border-radius: 10px !important;
+  background: var(--primary) !important;
+  color: var(--btnText) !important;
+  border: 1px solid var(--primary) !important;
+  box-shadow: none !important;
+}
+
+.profileActivitySection {
+  padding-top: 4px;
+}
+
+.profileActivityHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.profileActivityViewAll {
+  border: none;
+  background: transparent;
+  color: var(--primary);
+  font-size: 12px;
+  font-weight: 900;
+  cursor: pointer;
+  padding: 4px 0;
+}
+
+.profileActivityList {
+  display: grid;
+  gap: 0;
+}
+
+.profileActivityRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.profileActivityRow:last-child {
+  border-bottom: none;
+}
+
+.profileActivityMain {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.profileActivityIcon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  font-size: 14px;
+  font-weight: 1000;
+  flex-shrink: 0;
+}
+
+.profileActivityIcon.deposit {
+  color: var(--good);
+  background: rgba(14, 203, 129, 0.1);
+  border: 1px solid rgba(14, 203, 129, 0.22);
+}
+
+.profileActivityIcon.withdraw {
+  color: var(--danger);
+  background: rgba(246, 70, 93, 0.1);
+  border: 1px solid rgba(246, 70, 93, 0.22);
+}
+
+.profileActivityIcon.reward {
+  color: var(--primary);
+  background: rgba(252, 213, 53, 0.1);
+  border: 1px solid rgba(252, 213, 53, 0.22);
+}
+
+.profileActivityTitle {
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.profileActivityRight {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.profileActivityAmount--good {
+  font-size: 13px;
+  font-weight: 1000;
+  color: var(--good);
+  font-variant-numeric: tabular-nums;
+}
+
+.profileActivityAmount--danger {
+  font-size: 13px;
+  font-weight: 1000;
+  color: var(--danger);
+  font-variant-numeric: tabular-nums;
+}
+
+.profileActivityChevron {
+  color: var(--muted);
+  font-size: 18px;
+  line-height: 1;
+}
+
+.profileRewardCard {
+  min-height: 158px;
+  padding: 14px;
+  text-align: left;
+  position: relative;
+  overflow: hidden;
+  border-radius: 16px;
+}
+
+.profileRewardCard--affiliate {
+  background: var(--card);
+  border: 1px solid rgba(14, 203, 129, 0.28);
+  box-shadow: var(--shadow1, 0 4px 20px rgba(0, 0, 0, 0.32));
+}
+
+.profileRewardCard--creator {
+  background: var(--card);
+  border: 1px solid rgba(252, 213, 53, 0.28);
+  box-shadow: var(--shadow1, 0 4px 20px rgba(0, 0, 0, 0.32));
+}
+
+.profileRewardGlow {
+  display: none;
+}
+
+.profileRewardHead {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.profileRewardPct {
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 1000;
+  color: var(--btnText);
+  background: var(--primary);
+  box-shadow: none;
+}
+
+.profileRewardValue {
+  position: relative;
+  z-index: 1;
+  margin-top: 8px;
+  font-size: 19px;
+  font-weight: 1000;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+}
+
+.profileRewardValue--affiliate {
+  color: var(--good);
+  text-shadow: none;
+}
+
+.profileRewardValue--creator {
+  color: var(--primary);
+  text-shadow: none;
+}
+
+.profileRewardActions {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 11px;
+}
+
+.profileRewardActions--single {
+  display: flex;
+  justify-content: center;
+  margin-top: 11px;
+}
+
+.profileClaimBtn {
+  padding: 8px 8px !important;
+  border-radius: 13px !important;
+}
+
+.profileClaimBtn--primary {
+  color: var(--btnText) !important;
+  background: var(--primary) !important;
+  border: 1px solid var(--primary) !important;
+  box-shadow: none !important;
+}
+
+.profileClaimBtn--ghost {
+  color: var(--text) !important;
+  background: var(--bg2) !important;
+  border: 1px solid var(--border) !important;
+  box-shadow: none !important;
+}
+
+.profileClaimBtn--creator {
+  padding: 8px 18px !important;
+  color: var(--btnText) !important;
+  background: var(--primary) !important;
+  border: 1px solid var(--primary) !important;
+  box-shadow: none !important;
+}
+
+.profileExpansionCard {
+  position: relative;
+  overflow: hidden;
+}
+
+.profileExpansionCard--dark {
+  background: var(--card);
+  border: 1px solid var(--border);
+  backdrop-filter: none;
+}
+
+.profileExpansionCard--light {
+  background: rgba(255, 255, 255, 0.97);
+  border: 1px solid rgba(15, 23, 42, 0.14);
+}
+
+.profileExpansionGlow {
+  display: none;
+}
+
+.profileExpansionBody {
+  position: relative;
+  z-index: 1;
+  text-align: center;
+  padding: 20px 14px;
+}
+
+.profileExpansionIcon {
+  font-size: 22px;
+  margin-bottom: 8px;
+}
+
+.profileExpansionTitle {
+  font-size: 18px;
+  font-weight: 1000;
+  letter-spacing: 0.02em;
+}
+
+.profileExpansionTitle--dark {
+  color: var(--primary);
+  text-shadow: none;
+}
+
+.profileExpansionTitle--light {
+  color: #065f46;
+}
+
+.profileExpansionList {
+  margin-top: 14px;
+  display: grid;
+  gap: 10px;
+}
+
+.profileExpansionItem {
+  padding: 12px 14px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.profileExpansionFoot {
+  margin-top: 16px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.profileHoldingsSummary {
+  margin-bottom: 12px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(252, 213, 53, 0.12);
+}
+
+.profileHoldingsValue {
+  font-size: clamp(1.1rem, 3.2vw, 1.4rem);
+  font-weight: 1000;
+  margin-top: 4px;
+  font-variant-numeric: tabular-nums;
+}
+
+.profileCoinRow {
+  width: 100%;
+  padding: 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  margin-bottom: 10px;
+  transition:
+    border-color 0.14s ease,
+    background 0.14s ease,
+    transform 0.12s ease;
+}
+
+.profileCoinRow:hover:not(:disabled) {
+  border-color: rgba(252, 213, 53, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+  transform: translateY(-1px);
+}
+
+.profileCoinRow:disabled {
+  cursor: default;
+  opacity: 0.85;
+}
+
+.profileTxRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 11px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.profileTxRow:last-child {
+  border-bottom: none;
+}
+
+.profileWalletHistoryRow {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.profileWalletHistoryRow:last-child {
+  border-bottom: none;
+}
+
+.profileWalletHistoryType--deposit {
+  color: var(--good);
+}
+
+.profileWalletHistoryType--withdraw {
+  color: var(--danger);
+}
+
+.profileWalletHistoryCopy {
+  margin-top: 4px;
+  padding: 4px 10px !important;
+  min-height: 28px !important;
+  font-size: 11px !important;
+}
+
+.profileListGap {
+  margin-bottom: 10px;
+}
+
+.profileScrollList {
+  max-height: 360px;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.profileScrollList::-webkit-scrollbar {
+  display: none;
+}
+
+/* ── Shared list rows ── */
+
+.appListRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.08);
+}
+
+.appListRow:last-child {
+  border-bottom: none;
+}
+
+@media (min-width: 720px) {
+  .profileWalletArt {
+    display: flex;
+  }
+
+  .profileMetricGrid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .profileWalletCard {
+    flex-direction: column;
+  }
+
+  .profileWalletArt {
+    display: none;
+  }
+
+  .profileRunGrid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .profileRunAside {
+    flex-direction: row;
+    justify-content: space-between;
+    width: 100%;
+  }
+
+  .profileWalletAddr {
+    max-width: 100px;
+  }
+
+  .profileRewardActions {
+    grid-template-columns: 1fr;
+  }
+
+  .profileWalletBtnRow {
+    grid-template-columns: 1fr;
+  }
+
+  .profileSolanaLive {
+    justify-content: flex-start;
+    padding: 10px 12px;
+  }
+
+  .profileWalletBtn {
+    width: 100% !important;
+  }
+
+  .profileMetricClaim {
+    width: 100%;
+  }
+
+  .profileMetricCard--claimable {
+    gap: 10px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .profileRunCoin {
+    animation: none;
+  }
+
+  .profileCoinRow:hover:not(:disabled),
+  .themeOption:hover:not(.active) {
+    transform: none;
+  }
+}

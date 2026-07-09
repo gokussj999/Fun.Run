@@ -10,8 +10,18 @@ const idl = JSON.parse(readFileSync(join(__dirname, "idl.json"), "utf8"));
 
 const PROGRAM_ID = new PublicKey("gUQYa6GwJeZhSHiBuW66VtNhR7mBs73qmH8nJxgaVWD");
 
-// Devnet — mainnet connection.js se alag, Anchor program devnet pe hai
-const DEVNET_RPC = "https://api.devnet.solana.com";
+// RPC endpoint: SOLANA_PROGRAM_RPC lets you point the program at a different cluster
+// (e.g. Devnet) while SOLANA_RPC handles everything else (Mainnet).
+const PROGRAM_RPC = process.env.SOLANA_PROGRAM_RPC
+  || process.env.SOLANA_RPC
+  || "https://api.devnet.solana.com";
+
+// Dummy read-only wallet — used for account fetches that don't require signing.
+const _readWallet = {
+  publicKey: PublicKey.default,
+  signTransaction:     async (t)  => t,
+  signAllTransactions: async (ts) => ts,
+};
 
 function getPlatformWallet() {
   const addr = process.env.PLATFORM_WALLET;
@@ -20,9 +30,18 @@ function getPlatformWallet() {
 }
 
 export function getProgram(wallet) {
-  const connection = new Connection(DEVNET_RPC, "confirmed");
+  const connection = new Connection(PROGRAM_RPC, "confirmed");
   const provider = new AnchorProvider(connection, wallet, { commitment: "confirmed" });
   return new Program(idl, provider);
+}
+
+// Read on-chain CoinState for a given coinId (no signing required).
+// Returns Anchor-decoded object: { creator, solReserve, tokenSupply, totalSupply, isGraduated, bump }
+// All numeric fields are BN — convert with Number() before arithmetic.
+export async function getCoinState(coinId) {
+  const program = getProgram(_readWallet);
+  const pda     = getCoinStatePDA(coinId);
+  return program.account.coinState.fetch(pda);
 }
 
 export function getCoinStatePDA(coinId) {

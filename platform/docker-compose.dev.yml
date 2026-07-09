@@ -1,0 +1,102 @@
+version: '3.9'
+
+# Fun.Run V2 Platform — Development Compose
+# Run: docker compose -f docker-compose.dev.yml up -d
+
+services:
+  # ── PostgreSQL primary ──────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: funrun-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: funrun_dev
+      POSTGRES_USER: funrun
+      POSTGRES_PASSWORD: secret
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8"
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U funrun -d funrun_dev"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks:
+      - funrun-dev
+
+  # ── Redis ────────────────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: funrun-redis
+    restart: unless-stopped
+    command: >
+      redis-server
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+      --appendonly yes
+      --appendfsync everysec
+      --save 60 1000
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks:
+      - funrun-dev
+
+  # ── Redis Commander (dev UI) ────────────────────────────────────────────────
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: funrun-redis-ui
+    restart: unless-stopped
+    environment:
+      - REDIS_HOSTS=local:redis:6379
+    ports:
+      - "8081:8081"
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - funrun-dev
+    profiles: ["tools"]
+
+  # ── Adminer (DB UI) ─────────────────────────────────────────────────────────
+  adminer:
+    image: adminer:latest
+    container_name: funrun-adminer
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - funrun-dev
+    profiles: ["tools"]
+
+  # ── MailHog (email capture in dev) ─────────────────────────────────────────
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: funrun-mailhog
+    restart: unless-stopped
+    ports:
+      - "1025:1025"  # SMTP
+      - "8025:8025"  # Web UI
+    networks:
+      - funrun-dev
+    profiles: ["tools"]
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  funrun-dev:
+    driver: bridge

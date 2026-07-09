@@ -1,0 +1,32 @@
+{
+  "name": "@funrun/redis",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Redis client and BullMQ connection factory for Fun.Run V2",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "dev": "tsc -p tsconfig.json --watch"
+  },
+  "dependencies": {
+    "bullmq": "^5.28.0",
+    "ioredis": "^5.4.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "typescript": "^5.7.2"
+  },
+  "peerDependencies": {
+    "@funrun/logger": "workspace:*"
+  }
+}

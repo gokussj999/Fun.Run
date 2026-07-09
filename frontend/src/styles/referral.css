@@ -1,0 +1,275 @@
+/* Referral dashboard — affiliate-center layout aligned with portfolio/creator */
+
+.referralScreenShell {
+  gap: 14px;
+}
+
+.referralHeroCard {
+  overflow: hidden;
+  border-color: var(--border);
+  background: var(--card);
+  box-shadow: var(--shadow1, 0 4px 20px rgba(0, 0, 0, 0.32));
+}
+
+.referralHeroBalance {
+  padding: 4px 0 16px;
+}
+
+.referralHeroLabel {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted2);
+}
+
+.referralHeroValue {
+  margin-top: 8px;
+  font-size: clamp(1.75rem, 5vw, 2.35rem);
+  font-weight: 1000;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+.referralHeroMeta {
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--muted2);
+  line-height: 1.45;
+}
+
+.referralBalanceGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.referralBalanceTile {
+  padding: 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.referralBalanceTileLabel {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted2);
+}
+
+.referralBalanceTileValue {
+  margin-top: 8px;
+  font-size: 16px;
+  font-weight: 1000;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+}
+
+.referralBalanceTileSub {
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--muted2);
+}
+
+.referralMetricGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.referralMetricCard {
+  padding: 14px 15px;
+  border-radius: 14px;
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.referralMetricCardLabel {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted2);
+}
+
+.referralMetricCardValue {
+  margin-top: 8px;
+  font-size: 18px;
+  font-weight: 1000;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+}
+
+.referralMetricCardSub {
+  margin-top: 5px;
+  font-size: 11px;
+  color: var(--muted2);
+  line-height: 1.35;
+}
+
+.referralDesktopGrid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+}
+
+.referralLinkBox {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: var(--bg2);
+  overflow: hidden;
+}
+
+.referralLinkText {
+  min-width: 0;
+  flex: 1;
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.referralLinkActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.referralStatList {
+  display: grid;
+  gap: 8px;
+}
+
+.referralStatRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.1);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.referralStatLabel {
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.referralStatValue {
+  font-size: 13px;
+  font-weight: 1000;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.referralStatSub {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--muted2);
+  font-weight: 700;
+}
+
+.referralClaimCard {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(252, 213, 53, 0.24);
+  background: rgba(252, 213, 53, 0.08);
+}
+
+.referralClaimValue {
+  font-size: 20px;
+  font-weight: 1000;
+  font-variant-numeric: tabular-nums;
+}
+
+.referralHowList {
+  display: grid;
+  gap: 10px;
+}
+
+.referralHowItem {
+  display: grid;
+  grid-template-columns: 36px 1fr;
+  gap: 12px;
+  align-items: start;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.1);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.referralHowStep {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  font-size: 13px;
+  font-weight: 1000;
+  color: var(--primary);
+  background: rgba(252, 213, 53, 0.1);
+  border: 1px solid rgba(252, 213, 53, 0.22);
+}
+
+.referralHowTitle {
+  font-size: 13px;
+  font-weight: 1000;
+}
+
+.referralHowSub {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--muted2);
+  line-height: 1.4;
+}
+
+.referralActionsRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.referralSummarySkeleton .referralMetricSkeletonGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 16px;
+}
+
+@media (min-width: 768px) {
+  .referralMetricGrid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .referralDesktopGrid {
+    grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+    align-items: start;
+  }
+
+  .referralSummarySkeleton .referralMetricSkeletonGrid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .referralBalanceGrid {
+    grid-template-columns: 1fr;
+  }
+}

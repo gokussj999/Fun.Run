@@ -1,0 +1,207 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'platform/**'
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'platform/**'
+
+defaults:
+  run:
+    working-directory: platform
+
+env:
+  NODE_VERSION: '22'
+  PNPM_VERSION: '9'
+
+jobs:
+  # ── 1. Install + cache ────────────────────────────────────────────────────────
+  install:
+    name: Install dependencies
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: platform/pnpm-lock.yaml
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+  # ── 2. Type check ─────────────────────────────────────────────────────────────
+  typecheck:
+    name: TypeScript type check
+    needs: install
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: platform/pnpm-lock.yaml
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+
+  # ── 3. Lint ───────────────────────────────────────────────────────────────────
+  lint:
+    name: Lint
+    needs: install
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: platform/pnpm-lock.yaml
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm format:check
+
+  # ── 4. Test ───────────────────────────────────────────────────────────────────
+  test:
+    name: Unit tests
+    needs: install
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: funrun_test
+          POSTGRES_USER: funrun
+          POSTGRES_PASSWORD: secret
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      NODE_ENV: test
+      DATABASE_URL: postgresql://funrun:secret@localhost:5432/funrun_test
+      REDIS_URL: redis://localhost:6379
+      JWT_SECRET: test-secret-key-min-32-chars-long-123
+      MNEMONIC_ENCRYPTION_KEY: test-32-byte-aes-256-gcm-key-xxxxx
+      SOLANA_RPC_PRIMARY: https://api.devnet.solana.com
+      SOLANA_NETWORK: devnet
+      PROGRAM_ID: HX1TXtjJ31aCA9AQZSUFzzyBVj34qh1uHGvcNUd2oBqP
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: platform/pnpm-lock.yaml
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @funrun/database db:generate
+      - run: pnpm --filter @funrun/database db:migrate
+      - run: pnpm test --coverage
+
+      - name: Upload coverage
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage
+          path: platform/coverage/
+
+  # ── 5. Build Docker image ─────────────────────────────────────────────────────
+  docker-build:
+    name: Docker build (dry-run)
+    needs: [typecheck, lint, test]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build api-gateway image (no push)
+        uses: docker/build-push-action@v6
+        with:
+          context: platform
+          file: platform/apps/api-gateway/Dockerfile
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ── 6. Release (main branch only) ────────────────────────────────────────────
+  release:
+    name: Push image to registry
+    needs: docker-build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    permissions:
+      contents: write
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}/api-gateway
+          tags: |
+            type=sha,prefix=sha-
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push api-gateway image
+        uses: docker/build-push-action@v6
+        with:
+          context: platform
+          file: platform/apps/api-gateway/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

@@ -13,8 +13,32 @@ no-entrypoint = []
 no-idl = []
 no-log-ix-name = []
 cpi = ["no-entrypoint"]
+# ── Network selection (mutually exclusive) ─────────────────────────────────────
+# Build for devnet:   cargo build-sbf --features devnet
+# Build for mainnet:  cargo build-sbf --features mainnet  (same as default)
+# Omitting both features selects mainnet addresses (backward-compatible default).
+devnet = []
+mainnet = []
+# ── Integration test suite ────────────────────────────────────────────────────
+# Gated behind a feature so `cargo test` (offline) skips this binary.
+# To enable: see tests/integration.rs header for required dev-dependencies.
+integration-tests = []
 default = []
 
 [dependencies]
-anchor-lang = { version = "0.30.1", features = ["init-if-needed"] }
-# anchor-spl added in Phase 2 when SPL token instructions are implemented
+anchor-lang = { version = "0.31.1", features = ["init-if-needed"] }
+anchor-spl = { version = "0.31.1", features = ["token", "associated_token"] }
+
+# ── Integration test binary ───────────────────────────────────────────────────
+# Compiled only when --features integration-tests is passed.
+# Required dev-dependencies (add these to [dev-dependencies] before running):
+#   solana-program-test = "~2.3"
+#   tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+# Then temporarily set offline = false in .cargo/config.toml and run:
+#   cargo fetch
+# Finally run tests with:
+#   cargo test --features integration-tests
+[[test]]
+name = "integration"
+path = "tests/integration.rs"
+required-features = ["integration-tests"]

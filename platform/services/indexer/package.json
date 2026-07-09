@@ -1,0 +1,40 @@
+{
+  "name": "@funrun/indexer",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Fun.Run V2 — Blockchain Indexer (Solana event streaming + OHLCV)",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "test:unit": "vitest run tests/unit",
+    "test:integration": "vitest run tests/integration",
+    "backfill": "node dist/backfill/runner.js"
+  },
+  "dependencies": {
+    "@coral-xyz/anchor": "^0.31.1",
+    "@funrun/config": "workspace:*",
+    "@funrun/database": "workspace:*",
+    "@funrun/logger": "workspace:*",
+    "@funrun/redis": "workspace:*",
+    "@funrun/shared": "workspace:*",
+    "@solana/web3.js": "^1.98.0",
+    "bs58": "^6.0.0",
+    "bullmq": "^5.28.0",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@vitest/coverage-v8": "^2.1.8",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}

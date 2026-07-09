@@ -1,0 +1,338 @@
+/* Creator dashboard — studio-style layout aligned with portfolio */
+
+.creatorScreenShell {
+  gap: 14px;
+}
+
+.creatorHeroCard {
+  overflow: hidden;
+  border-color: var(--border);
+  background: var(--card);
+  box-shadow: var(--shadow1, 0 4px 20px rgba(0, 0, 0, 0.32));
+}
+
+.creatorHeroBalance {
+  padding: 4px 0 16px;
+}
+
+.creatorHeroLabel {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted2);
+}
+
+.creatorHeroValue {
+  margin-top: 8px;
+  font-size: clamp(1.75rem, 5vw, 2.35rem);
+  font-weight: 1000;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+.creatorHeroMeta {
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--muted2);
+  line-height: 1.45;
+}
+
+.creatorBalanceGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.creatorBalanceTile {
+  padding: 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.creatorBalanceTileLabel {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted2);
+}
+
+.creatorBalanceTileValue {
+  margin-top: 8px;
+  font-size: 16px;
+  font-weight: 1000;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+}
+
+.creatorBalanceTileSub {
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--muted2);
+}
+
+.creatorMetricGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.creatorMetricCard {
+  padding: 14px 15px;
+  border-radius: 14px;
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.creatorMetricCard--up {
+  border-color: rgba(14, 203, 129, 0.28);
+  background: rgba(14, 203, 129, 0.08);
+}
+
+.creatorMetricCard--down {
+  border-color: rgba(246, 70, 93, 0.28);
+  background: rgba(246, 70, 93, 0.08);
+}
+
+.creatorMetricCardLabel {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted2);
+}
+
+.creatorMetricCardValue {
+  margin-top: 8px;
+  font-size: 18px;
+  font-weight: 1000;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+}
+
+.creatorMetricCardSub {
+  margin-top: 5px;
+  font-size: 11px;
+  color: var(--muted2);
+  line-height: 1.35;
+}
+
+.creatorDesktopGrid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+}
+
+.creatorEarningsPanel {
+  display: grid;
+  gap: 14px;
+}
+
+.creatorEarningsBar {
+  display: flex;
+  height: 14px;
+  border-radius: 999px;
+  overflow: hidden;
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.creatorEarningsSegment {
+  min-width: 0;
+  background: #f0b90b;
+  transition: width 0.2s ease;
+}
+
+.creatorEarningsSegment--alt {
+  background: var(--primary);
+}
+
+.creatorEarningsLegend {
+  display: grid;
+  gap: 8px;
+}
+
+.creatorEarningsRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.1);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.creatorEarningsRowMain {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.creatorEarningsDot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  flex-shrink: 0;
+  background: #f0b90b;
+}
+
+.creatorEarningsDot--alt {
+  background: var(--primary);
+}
+
+.creatorEarningsLabel {
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.creatorEarningsRowRight {
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.creatorEarningsPct {
+  display: block;
+  font-size: 12px;
+  font-weight: 1000;
+  font-variant-numeric: tabular-nums;
+}
+
+.creatorEarningsSol {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--muted2);
+  font-variant-numeric: tabular-nums;
+}
+
+.creatorPerformanceList,
+.creatorCoinsList {
+  display: grid;
+  gap: 0;
+}
+
+.creatorActivityList {
+  max-height: 420px;
+}
+
+.creatorActivityRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 0;
+  border: none;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.08);
+  background: transparent;
+  color: inherit;
+  text-align: left;
+}
+
+.creatorActivityRow:last-child {
+  border-bottom: none;
+}
+
+.creatorActivityRow--clickable {
+  cursor: pointer;
+  transition: background 0.14s ease;
+  border-radius: 10px;
+  padding-left: 8px;
+  padding-right: 8px;
+}
+
+.creatorActivityRow--clickable:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.creatorActivityMain {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.creatorActivityIcon {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  font-size: 14px;
+  font-weight: 1000;
+  flex-shrink: 0;
+  color: var(--primary);
+  background: rgba(252, 213, 53, 0.1);
+  border: 1px solid rgba(252, 213, 53, 0.22);
+}
+
+.creatorActivityIcon--trade {
+  color: var(--info);
+  background: rgba(59, 130, 246, 0.1);
+  border-color: rgba(59, 130, 246, 0.22);
+}
+
+.creatorTextUp {
+  color: var(--good);
+}
+
+.creatorTextDown {
+  color: var(--danger);
+}
+
+.creatorClaimCard {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(252, 213, 53, 0.24);
+  background: rgba(252, 213, 53, 0.08);
+}
+
+.creatorClaimValue {
+  font-size: 20px;
+  font-weight: 1000;
+  font-variant-numeric: tabular-nums;
+}
+
+.creatorActionsRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.creatorSummarySkeleton .creatorMetricSkeletonGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 16px;
+}
+
+@media (min-width: 768px) {
+  .creatorMetricGrid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .creatorDesktopGrid {
+    grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.05fr);
+    align-items: start;
+  }
+
+  .creatorSummarySkeleton .creatorMetricSkeletonGrid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .creatorBalanceGrid {
+    grid-template-columns: 1fr;
+  }
+}

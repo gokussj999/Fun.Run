@@ -81,9 +81,9 @@ export default function IntroSplash({
             <div className="funTitleWrap">
               <div className="funBrand">Fun.Run</div>
               <h1 className="funTitle">
-  Creator-first
+  The Next Generation
   <br />
-  meme coin launchpad
+  Solana Launchpad
 </h1>
               <p className="funSub">
   Launch fast, discover new coins, and enjoy a smooth Solana-native experience built for creators and communities.

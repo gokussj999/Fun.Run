@@ -1,0 +1,20 @@
+/** Exchange-style palette — Binance / MEXC / Bybit inspired */
+export const tokens = {
+  bg: "#0B0E11",
+  bgSecondary: "#14151A",
+  card: "#1B1F24",
+  border: "#2B3139",
+  primary: "#FCD535",
+  primaryHover: "#E5C030",
+  secondary: "#F0B90B",
+  accent: "#FCD535",
+  success: "#0ECB81",
+  danger: "#F6465D",
+  warning: "#F0B90B",
+  info: "#3B82F6",
+  text: "#FFFFFF",
+  textSecondary: "#B7BDC6",
+  textMuted: "#848E9C",
+  btnText: "#0B0E11",
+  glow: "rgba(252, 213, 53, 0.1)",
+};

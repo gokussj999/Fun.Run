@@ -1,0 +1,324 @@
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { createChart, ColorType, CrosshairMode } from "lightweight-charts";
+import { ChartSkeleton, Skeleton } from "../ui/Skeleton.jsx";
+import { fmtUsd, getCoin24hMovePct, safeNum, timeAgo } from "../../lib/coin-display.js";
+import { toCandleSeriesPoints, toVolumeSeriesPoints } from "../../lib/chart-candles.js";
+import { useCandles } from "../../hooks/useCandles.js";
+
+function formatCrosshairPrice(n) {
+  return fmtUsd(Math.max(0.00000001, safeNum(n, 0)));
+}
+
+export function PriceChart({ coin, height = 280, chartRange, setChartRange, reloadKey = 0, variant = "default" }) {
+  const chartRef = useRef(null);
+  const chartApiRef = useRef(null);
+  const candleSeriesRef = useRef(null);
+  const volumeSeriesRef = useRef(null);
+
+  const { candleData, loading: activityLoading } = useCandles(coin, chartRange, reloadKey);
+
+  const [chartLook, setChartLook] = useState(() => {
+    try {
+      return localStorage.getItem("chart_look_v1") || "dark";
+    } catch {
+      return "dark";
+    }
+  });
+
+  const [crosshairInfo, setCrosshairInfo] = useState(null);
+
+  const themeCfg = useMemo(() => {
+    const isLight = chartLook === "light";
+
+    return isLight
+      ? {
+          chartBg: "#FFFFFF",
+          faintText: "#64748B",
+          grid: "rgba(15,23,42,.06)",
+          axis: "rgba(15,23,42,.10)",
+          up: "#10B981",
+          down: "#F43F5E",
+          wickUp: "#10B981",
+          wickDown: "#F43F5E",
+          volUp: "rgba(16,185,129,.55)",
+          volDown: "rgba(244,63,94,.55)",
+          pctBg: "rgba(16,185,129,.08)",
+        }
+      : {
+          chartBg: "#060a12",
+          faintText: "#64748B",
+          grid: "rgba(148,163,184,.055)",
+          axis: "rgba(148,163,184,.14)",
+          up: "#23D7A0",
+          down: "#F43F5E",
+          wickUp: "#23D7A0",
+          wickDown: "#F43F5E",
+          volUp: "rgba(35,215,160,.45)",
+          volDown: "rgba(244,63,94,.45)",
+          pctBg: "rgba(35,215,160,.10)",
+        };
+  }, [chartLook]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("chart_look_v1", chartLook);
+    } catch {}
+  }, [chartLook]);
+
+  const pct = useMemo(() => getCoin24hMovePct(coin || {}), [coin?.chart, coin?.priceUsd, coin?.lastPriceUsd]);
+
+  const livePrice = safeNum(
+    candleData[candleData.length - 1]?.close,
+    Math.max(0.00000001, safeNum(coin?.priceUsd, 0.000001))
+  );
+
+  const up = pct >= 0;
+  const createdAgo = timeAgo(coin?.createdAt || coin?.created_at);
+  const isLight = chartLook === "light";
+  const isHero = variant === "hero";
+
+  const candlePoints = useMemo(() => toCandleSeriesPoints(candleData), [candleData]);
+  const volumePoints = useMemo(
+    () => toVolumeSeriesPoints(candleData, themeCfg.volUp, themeCfg.volDown),
+    [candleData, themeCfg.volUp, themeCfg.volDown]
+  );
+
+  useEffect(() => {
+    const host = chartRef.current;
+    if (!host) return;
+
+    const width = Math.max(280, host.clientWidth || 280);
+
+    const chart = createChart(host, {
+      width,
+      height,
+      layout: {
+        background: { type: ColorType.Solid, color: themeCfg.chartBg },
+        textColor: themeCfg.faintText,
+        attributionLogo: false,
+        fontFamily: "Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial",
+      },
+      grid: {
+        vertLines: { color: themeCfg.grid, visible: true },
+        horzLines: { color: themeCfg.grid, visible: true },
+      },
+      rightPriceScale: {
+        visible: true,
+        borderColor: themeCfg.axis,
+        entireTextOnly: true,
+      },
+      leftPriceScale: { visible: false },
+      timeScale: {
+        borderColor: themeCfg.axis,
+        timeVisible: true,
+        secondsVisible: false,
+        rightOffset: 6,
+        barSpacing: 6,
+        minBarSpacing: 2,
+        rightBarStaysOnScroll: true,
+      },
+      crosshair: {
+        mode: CrosshairMode.Normal,
+        vertLine: {
+          width: 1,
+          color: isLight ? "rgba(15,23,42,.16)" : "rgba(148,163,184,.22)",
+          style: 2,
+          labelBackgroundColor: isLight ? "#E2E8F0" : "#1E293B",
+        },
+        horzLine: {
+          width: 1,
+          color: isLight ? "rgba(15,23,42,.16)" : "rgba(148,163,184,.22)",
+          style: 2,
+          labelBackgroundColor: up ? themeCfg.up : themeCfg.down,
+        },
+      },
+      handleScroll: {
+        mouseWheel: true,
+        pressedMouseMove: true,
+        horzTouchDrag: true,
+        vertTouchDrag: false,
+      },
+      handleScale: {
+        axisPressedMouseMove: { time: true, price: true },
+        mouseWheel: true,
+        pinch: true,
+      },
+    });
+
+    const candleSeries = chart.addCandlestickSeries({
+      upColor: themeCfg.up,
+      downColor: themeCfg.down,
+      borderUpColor: themeCfg.up,
+      borderDownColor: themeCfg.down,
+      wickUpColor: themeCfg.wickUp,
+      wickDownColor: themeCfg.wickDown,
+      priceLineVisible: true,
+      lastValueVisible: true,
+      priceLineWidth: 1,
+      priceLineStyle: 2,
+      priceLineColor: up ? themeCfg.up : themeCfg.down,
+      priceFormat: {
+        type: "price",
+        precision: livePrice > 1 ? 4 : livePrice > 0.01 ? 6 : 8,
+        minMove: livePrice > 1 ? 0.0001 : livePrice > 0.01 ? 0.000001 : 0.00000001,
+      },
+    });
+
+    candleSeries.priceScale().applyOptions({
+      autoScale: true,
+      scaleMargins: { top: 0.08, bottom: 0.26 },
+    });
+
+    const volumeSeries = chart.addHistogramSeries({
+      priceFormat: { type: "volume" },
+      priceScaleId: "volume",
+    });
+
+    chart.priceScale("volume").applyOptions({
+      scaleMargins: { top: 0.78, bottom: 0 },
+      borderVisible: false,
+    });
+
+    chartApiRef.current = chart;
+    candleSeriesRef.current = candleSeries;
+    volumeSeriesRef.current = volumeSeries;
+
+    const onCrosshairMove = (param) => {
+      if (!param?.time || !param.point || param.point.x < 0 || param.point.y < 0) {
+        setCrosshairInfo(null);
+        return;
+      }
+
+      const candle = param.seriesData.get(candleSeries);
+      const volume = param.seriesData.get(volumeSeries);
+
+      if (!candle) {
+        setCrosshairInfo(null);
+        return;
+      }
+
+      setCrosshairInfo({
+        open: candle.open,
+        high: candle.high,
+        low: candle.low,
+        close: candle.close,
+        volume: volume?.value || 0,
+      });
+    };
+
+    chart.subscribeCrosshairMove(onCrosshairMove);
+
+    const handleResize = () => {
+      if (!chartRef.current) return;
+      chart.applyOptions({ width: Math.max(280, chartRef.current.clientWidth || 280) });
+    };
+
+    let ro = null;
+    if (typeof ResizeObserver !== "undefined") {
+      ro = new ResizeObserver(handleResize);
+      ro.observe(host);
+    } else {
+      window.addEventListener("resize", handleResize);
+    }
+
+    return () => {
+      chart.unsubscribeCrosshairMove(onCrosshairMove);
+      if (ro) ro.disconnect();
+      else window.removeEventListener("resize", handleResize);
+      chart.remove();
+      chartApiRef.current = null;
+      candleSeriesRef.current = null;
+      volumeSeriesRef.current = null;
+    };
+  }, [height, themeCfg, isLight, up, livePrice]);
+
+  useEffect(() => {
+    if (!candleSeriesRef.current || !chartApiRef.current || !candlePoints.length) return;
+
+    candleSeriesRef.current.setData(candlePoints);
+    volumeSeriesRef.current?.setData(volumePoints);
+
+    const chart = chartApiRef.current;
+    chart.timeScale().fitContent();
+    chart.timeScale().scrollToRealTime();
+  }, [candlePoints, volumePoints, chartRange]);
+
+  const displayPrice = crosshairInfo?.close ?? livePrice;
+  const ohlc = crosshairInfo;
+
+  return (
+    <div className={`chartPanel ${isLight ? "chartPanel--light" : ""} ${isHero ? "chartPanel--hero" : ""}`}>
+      <div className="chartPanelHead">
+        <div className="chartPanelHeadRow">
+          <div className="chartPanelLabel">{ohlc ? "Crosshair" : "Live Price"}</div>
+          <div className="chartPanelToolbar">
+            <button
+              type="button"
+              className="chartToolBtn chartToolBtn--theme"
+              onClick={() => setChartLook(chartLook === "dark" ? "light" : "dark")}
+            >
+              {chartLook === "dark" ? "☀ Light" : "● Dark"}
+            </button>
+            {["5M", "15M", "1H", "4H", "1D", "1W"].map((value) => {
+              const active = chartRange === value;
+              const labels = { "5M": "5m", "15M": "15m", "1H": "1h", "4H": "4h", "1D": "1D", "1W": "Week" };
+              return (
+                <button
+                  key={value}
+                  type="button"
+                  className={`chartTfBtn ${active ? "active" : ""}`}
+                  onClick={() => setChartRange?.(value)}
+                >
+                  {labels[value]}
+                </button>
+              );
+            })}
+            <div className={`chartPctBadge ${up ? "up" : "down"}`}>
+              {up ? "+" : ""}
+              {pct.toFixed(2)}%
+            </div>
+          </div>
+        </div>
+
+        <div className="chartPanelPrice">{fmtUsd(displayPrice)}</div>
+
+        {ohlc ? (
+          <div className="chartOhlcRow" aria-live="polite">
+            <span>
+              O <b>{formatCrosshairPrice(ohlc.open)}</b>
+            </span>
+            <span>
+              H <b>{formatCrosshairPrice(ohlc.high)}</b>
+            </span>
+            <span>
+              L <b>{formatCrosshairPrice(ohlc.low)}</b>
+            </span>
+            <span>
+              C <b>{formatCrosshairPrice(ohlc.close)}</b>
+            </span>
+            {ohlc.volume > 0 ? (
+              <span>
+                V <b>{ohlc.volume.toLocaleString(undefined, { maximumFractionDigits: 0 })}</b>
+              </span>
+            ) : null}
+          </div>
+        ) : (
+          <div className="chartPanelMeta">Created {createdAgo} • Hover chart for OHLC</div>
+        )}
+      </div>
+
+      <div className="chartPanelCanvas" style={{ height }}>
+        {activityLoading && !candleData.length ? (
+          <ChartSkeleton height={height} />
+        ) : (
+          <div ref={chartRef} className="chartPanelCanvasHost" style={{ height }} />
+        )}
+        {activityLoading && candleData.length > 0 ? (
+          <div className="chartPanelLoading">
+            <Skeleton width={54} height={22} style={{ borderRadius: 999 }} />
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}

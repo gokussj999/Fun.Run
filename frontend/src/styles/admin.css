@@ -1,0 +1,325 @@
+/* Admin dashboard — Stripe/Binance-style ops console */
+
+.adminScreenShell {
+  gap: 14px;
+}
+
+.adminHeroCard {
+  overflow: hidden;
+  border-color: var(--border);
+  background: var(--card);
+  box-shadow: var(--shadow1, 0 4px 20px rgba(0, 0, 0, 0.32));
+}
+
+.adminHeroBalance {
+  padding: 4px 0 16px;
+}
+
+.adminHeroLabel {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted2);
+}
+
+.adminHeroValue {
+  margin-top: 8px;
+  font-size: clamp(1.75rem, 5vw, 2.35rem);
+  font-weight: 1000;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+.adminHeroMeta {
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--muted2);
+  line-height: 1.45;
+}
+
+.adminBalanceGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.adminBalanceTile {
+  padding: 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.adminBalanceTileLabel {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted2);
+}
+
+.adminBalanceTileValue {
+  margin-top: 8px;
+  font-size: 16px;
+  font-weight: 1000;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+}
+
+.adminBalanceTileSub {
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--muted2);
+}
+
+.adminMetricGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.adminMetricCard {
+  padding: 14px 15px;
+  border-radius: 14px;
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.adminMetricCard--up {
+  border-color: rgba(14, 203, 129, 0.28);
+  background: rgba(14, 203, 129, 0.08);
+}
+
+.adminMetricCard--down {
+  border-color: rgba(246, 70, 93, 0.28);
+  background: rgba(246, 70, 93, 0.08);
+}
+
+.adminMetricCardLabel {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted2);
+}
+
+.adminMetricCardValue {
+  margin-top: 8px;
+  font-size: 18px;
+  font-weight: 1000;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+}
+
+.adminMetricCardSub {
+  margin-top: 5px;
+  font-size: 11px;
+  color: var(--muted2);
+  line-height: 1.35;
+}
+
+.adminDesktopGrid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+}
+
+.adminStatList {
+  display: grid;
+  gap: 8px;
+}
+
+.adminStatRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.1);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.adminStatLabel {
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.adminStatValue {
+  font-size: 13px;
+  font-weight: 1000;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.adminStatSub {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--muted2);
+  font-weight: 700;
+}
+
+.adminStatusList {
+  display: grid;
+  gap: 8px;
+}
+
+.adminStatusRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.1);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.adminStatusMain {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.adminStatusDot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  flex-shrink: 0;
+  background: var(--muted2);
+}
+
+.adminStatusDot--ok {
+  background: var(--good);
+  box-shadow: 0 0 0 4px rgba(14, 203, 129, 0.12);
+}
+
+.adminStatusDot--warn {
+  background: #f0b90b;
+  box-shadow: 0 0 0 4px rgba(240, 185, 11, 0.12);
+}
+
+.adminStatusDot--off {
+  background: #64748b;
+}
+
+.adminStatusLabel {
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.adminStatusValue {
+  font-size: 12px;
+  font-weight: 900;
+  color: var(--muted2);
+}
+
+.adminActivityList {
+  max-height: 420px;
+}
+
+.adminActivityRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 0;
+  border: none;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.08);
+  background: transparent;
+  color: inherit;
+  text-align: left;
+}
+
+.adminActivityRow:last-child {
+  border-bottom: none;
+}
+
+.adminActivityRow--clickable {
+  cursor: pointer;
+  transition: background 0.14s ease;
+  border-radius: 10px;
+  padding-left: 8px;
+  padding-right: 8px;
+}
+
+.adminActivityRow--clickable:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.adminActivityMain {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.adminTextUp {
+  color: var(--good);
+}
+
+.adminTextDown {
+  color: var(--danger);
+}
+
+.adminCoinsList {
+  display: grid;
+  gap: 0;
+}
+
+.adminClaimCard {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(252, 213, 53, 0.24);
+  background: rgba(252, 213, 53, 0.08);
+}
+
+.adminClaimValue {
+  font-size: 20px;
+  font-weight: 1000;
+  font-variant-numeric: tabular-nums;
+}
+
+.adminActionsRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.adminSummarySkeleton .adminMetricSkeletonGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 16px;
+}
+
+@media (min-width: 768px) {
+  .adminMetricGrid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .adminDesktopGrid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    align-items: start;
+  }
+
+  .adminSummarySkeleton .adminMetricSkeletonGrid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .adminBalanceGrid {
+    grid-template-columns: 1fr;
+  }
+}

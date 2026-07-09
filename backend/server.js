@@ -332,6 +332,40 @@ function broadcast(event, payload) {
   }
 }
 
+// -------------------- AES-256-GCM SHARED CRYPTO HELPERS --------------------
+// Accepts string or Buffer. Returns "gcm:<iv_hex>:<ct_hex>:<tag_hex>".
+function _encryptGCM(plaintext, keyStr) {
+  const key = Buffer.from(keyStr);
+  const iv  = crypto.randomBytes(12); // 96-bit IV (GCM spec)
+  const buf = Buffer.isBuffer(plaintext) ? plaintext : Buffer.from(plaintext, "utf8");
+  const cipher = crypto.createCipheriv("aes-256-gcm", key, iv);
+  const ct  = Buffer.concat([cipher.update(buf), cipher.final()]);
+  const tag = cipher.getAuthTag();
+  return `gcm:${iv.toString("hex")}:${ct.toString("hex")}:${tag.toString("hex")}`;
+}
+
+// Decrypts GCM ("gcm:…") or legacy CBC ("<iv>:<ct>") ciphertexts.
+// Returns a Buffer — caller calls .toString() for strings, uses directly for binary.
+function _decryptFlexible(enc, keyStr) {
+  const key   = Buffer.from(keyStr);
+  const parts = String(enc).split(":");
+  if (parts[0] === "gcm" && parts.length === 4) {
+    const iv  = Buffer.from(parts[1], "hex");
+    const ct  = Buffer.from(parts[2], "hex");
+    const tag = Buffer.from(parts[3], "hex");
+    const dc  = crypto.createDecipheriv("aes-256-gcm", key, iv);
+    dc.setAuthTag(tag);
+    return Buffer.concat([dc.update(ct), dc.final()]);
+  }
+  if (parts.length === 2) {
+    const iv   = Buffer.from(parts[0], "hex");
+    const data = Buffer.from(parts[1], "hex");
+    const dc   = crypto.createDecipheriv("aes-256-cbc", key, iv);
+    return Buffer.concat([dc.update(data), dc.final()]);
+  }
+  throw new Error("Invalid encrypted format — expected gcm:… or <iv>:<ct>");
+}
+
 // -------------------- CUSTODIAL WALLET CREATION HELPER --------------------
 async function createCustodialWallet() {
   try {
@@ -349,17 +383,7 @@ async function createCustodialWallet() {
     const derivedSeed = derivePath(path, seed.toString("hex")).key;
     const keypair = Keypair.fromSeed(derivedSeed);
 
-    // Encrypt mnemonic
-    const iv = crypto.randomBytes(16);
-    const cipher = crypto.createCipheriv(
-      "aes-256-cbc",
-      Buffer.from(ENCRYPTION_KEY),
-      iv
-    );
-    let encrypted = cipher.update(mnemonic);
-    encrypted = Buffer.concat([encrypted, cipher.final()]);
-    const encryptedMnemonic =
-      iv.toString("hex") + ":" + encrypted.toString("hex");
+    const encryptedMnemonic = _encryptGCM(mnemonic, ENCRYPTION_KEY);
 
     const address = keypair.publicKey.toBase58();
 
@@ -378,20 +402,8 @@ async function getCustodialKeypairFromMnemonic(encryptedMnemonic) {
   }
 
   const enc = String(encryptedMnemonic || "").trim();
-  const parts = enc.split(":");
-  if (parts.length !== 2) throw new Error("Invalid encrypted mnemonic");
-
-  const iv = Buffer.from(parts[0], "hex");
-  const data = Buffer.from(parts[1], "hex");
-
-  const decipher = crypto.createDecipheriv(
-    "aes-256-cbc",
-    Buffer.from(ENCRYPTION_KEY),
-    iv
-  );
-  let decrypted = decipher.update(data);
-  decrypted = Buffer.concat([decrypted, decipher.final()]);
-  const mnemonic = decrypted.toString();
+  if (!enc) throw new Error("Invalid encrypted mnemonic");
+  const mnemonic = _decryptFlexible(enc, ENCRYPTION_KEY).toString();
 
   const bip39 = (await import("bip39")).default;
   const { derivePath } = await import("ed25519-hd-key");
@@ -703,7 +715,7 @@ async function setLastDepositSignature(wallet, signature) {
 }
 
 function uid() {
-  return Math.random().toString(36).slice(2) + nowMS().toString(36);
+  return crypto.randomUUID().replace(/-/g, "");
 }
 
 function asObj(v, fallback = {}) {
@@ -816,12 +828,8 @@ function mapDbCoinToApi(row = {}) {
 }
 
 function coinToDbUpdate(coin = {}) {
-  const rawMarketCap = Math.max(0, safeNum(coin.mc, 0));
-
-  const boostedMarketCap =
-    rawMarketCap > 0
-      ? Math.max(rawMarketCap, 5000 + Math.random() * 3000)
-      : 5000 + Math.random() * 3000;
+  // Market cap derived directly from bonding curve reserves — never randomised.
+  const marketCap = Math.max(0, safeNum(coin.mc, 0));
 
   return {
     name: coin.name || "",
@@ -848,9 +856,9 @@ function coinToDbUpdate(coin = {}) {
     reserve_sol: coin.solReserve || 0,
     reserve_token:
       coin.tokenReserve || coin.curveSupply || saleSupplyFromTotal(coin.totalSupply || TOTAL_SUPPLY),
-    market_cap: boostedMarketCap,
+    market_cap: marketCap,
     last_price: coin.priceSol || 0,
-    ath_market_cap: Math.max(boostedMarketCap, safeNum(coin.ath, 0)),
+    ath_market_cap: Math.max(marketCap, safeNum(coin.ath, 0)),
     volume_sol: coin.volumeSol || 0,
     last_trade_at: coin.lastTradeAt || 0,
     creator_rewards: coin.creatorRewardsSol || 0,
@@ -1470,8 +1478,6 @@ async function saveCoin(coin) {
     id: String(coin.id || uid()),
     ...coinToDbUpdate(coin),
   };
-  console.log(`[trace-4] coinToDbUpdate payload: reserve_wallet_address="${payload.reserve_wallet_address}" encrypted_len=${payload.reserve_wallet_encrypted?.length || 0}`);
-  console.log(`[trace-5] about to INSERT coin id=${payload.id}`);
 
   const rows = await sql`
     insert into coins (
@@ -1523,7 +1529,6 @@ async function saveCoin(coin) {
       reserve_wallet_encrypted = coalesce(nullif(excluded.reserve_wallet_encrypted, ''), coins.reserve_wallet_encrypted)
     returning *`;
 
-  console.log("[trace-db] INSERT result:", { reserve_wallet_address: rows?.[0]?.reserve_wallet_address, enc_len: rows?.[0]?.reserve_wallet_encrypted?.length || 0 });
   coinCache.set(payload.id, rows[0]);
   broadcast("coin:update", mapDbCoinToApi(rows[0]));
 
@@ -1545,23 +1550,10 @@ function buildChartTrail(prevChart, nextPoint, sideHint = "") {
     return [point * 0.78, point * 0.92, point * 1.06, point * 1.22, point * 1.12, point];
   }
 
-  const last = Math.max(1e-9, safeNum(history[history.length - 1], point));
-  const isSell = String(sideHint || "").toLowerCase() === "sell";
-
-  let finalPoint = point;
-
-  if (!isSell && finalPoint <= last) {
-    finalPoint = last * (1 + Math.random() * 0.04);
-  }
-
-  if (isSell && finalPoint >= last) {
-    finalPoint = last * (1 - Math.random() * 0.03);
-  }
-
-  const volatility = finalPoint * (0.01 + Math.random() * 0.025);
-  const noisyPoint = finalPoint + (Math.random() > 0.5 ? volatility : -volatility);
-
-  return history.slice(-(MAX_CHART_POINTS - 1)).concat([Math.max(0.00000001, noisyPoint)]);
+  // Append the actual AMM-derived price — no random noise or direction correction.
+  // The bonding curve already produces the correct price; fabricated adjustments
+  // would make displayed price history diverge from on-chain reality.
+  return history.slice(-(MAX_CHART_POINTS - 1)).concat([Math.max(0.00000001, point)]);
 }
 
 function recalcCoin(coin, opts = {}) {
@@ -2443,9 +2435,11 @@ app.get("/coin/list*", async (req, res) => {
 });
 
 app.get("/coin/:id/dex-preview", async (req, res) => {
+  const auth = await requireAuthWallet(req, res);
+  if (!auth) return;
   try {
     await requireDb();
-    const wallet = String(req.query.wallet || "").trim();
+    const wallet = auth.wallet; // Privy session se — client-supplied param ignored
     const row = await getCoinRowById(req.params.id);
     const coin = row ? mapDbCoinToApi(row) : null;
     if (!coin) return res.status(404).json({ ok: false, error: "Coin not found" });
@@ -2798,13 +2792,8 @@ app.post("/coin/create", createLimiter, async (req, res) => {
       return res.status(500).json({ ok: false, error: "Server configuration error" });
     }
     const reserveKeypair = Keypair.generate();
-    const iv = crypto.randomBytes(16);
-    const cipher = crypto.createCipheriv("aes-256-cbc", Buffer.from(ENCRYPTION_KEY), iv);
-    let enc = cipher.update(Buffer.from(reserveKeypair.secretKey));
-    enc = Buffer.concat([enc, cipher.final()]);
     const reserveWalletAddress = reserveKeypair.publicKey.toBase58();
-    const reserveWalletEncrypted = iv.toString("hex") + ":" + enc.toString("hex");
-    console.log(`[trace-1] keypair generated: address="${reserveWalletAddress}" encrypted_len=${reserveWalletEncrypted.length}`);
+    const reserveWalletEncrypted = _encryptGCM(Buffer.from(reserveKeypair.secretKey), ENCRYPTION_KEY);
 
     let coin = {
       id: uid(),
@@ -2824,12 +2813,8 @@ app.post("/coin/create", createLimiter, async (req, res) => {
       mc: 0, ath: 0, creatorRewardsSol: 0, chart: [],
     };
 
-    console.log(`[trace-2] before recalcCoin: reserveWalletAddress="${coin.reserveWalletAddress}" encrypted_len=${coin.reserveWalletEncrypted?.length || 0}`);
     coin = recalcCoin(coin, { appendChart: false });
-    console.log(`[trace-3] after recalcCoin: reserveWalletAddress="${coin.reserveWalletAddress}" encrypted_len=${coin.reserveWalletEncrypted?.length || 0}`);
     coin = await saveCoin(coin);
-    console.log(`[coin/create] +${Date.now()-_t0}ms — saveCoin done`);
-    console.log("[trace-6] after saveCoin:", { reserveWalletAddress: coin?.reserveWalletAddress, enc_len: coin?.reserveWalletEncrypted?.length || 0 });
 
     if (initialSol > 0) {
       const result = await runCoinLocked(coin.id, async () => {
@@ -3032,33 +3017,112 @@ async function doTrade(req, res, side, authWallet = null) {
       // trader ka profile (run_balance isi primary wallet ke under hai)
       const traderProfile = await getProfile(wallet, true);
 
-      if (sideLower === "buy") {
-        // BUY: pehle run_balance se SOL kato (kam ho to reject)
+      if (process.env.ONCHAIN_TRADING === "1") {
+        // ── ON-CHAIN PATH ───────────────────────────────────────────────────
+        // Backend signs with the custodial keypair — same UX, same API contract.
+        // Response shape is identical to the off-chain path.
+        const mnemonic = traderProfile?.encrypted_mnemonic;
+        if (!mnemonic) return { ok: false, error: "No custodial wallet — deposit SOL first" };
+
+        const {
+          buy: _onchainBuy, sell: _onchainSell,
+          getCoinState, Wallet: AnchorWallet,
+        } = await import("./solana/program.js");
+        const { LAMPORTS_PER_SOL: LAMPS } = await import("@solana/web3.js");
+
+        // Pre-trade on-chain state
+        let preState;
         try {
-          await decreaseRun(wallet, sol);
-        } catch (balErr) {
-          return { ok: false, error: "Insufficient balance" };
+          preState = await getCoinState(coinId);
+        } catch {
+          return { ok: false, error: "Coin not found on-chain — it may still be minting" };
         }
 
-        tradeResult = ammBuy(coin, wallet, sol);
+        const custodialKeypair = await getCustodialKeypairFromMnemonic(mnemonic);
+        const anchorWallet     = new AnchorWallet(custodialKeypair);
 
-        if (!tradeResult?.ok) {
-          // trade fail -> kata hua SOL wapas
-          await increaseRun(wallet, sol);
-          return { ok: false, error: tradeResult?.error || "Trade failed" };
+        if (sideLower === "buy") {
+          try { await decreaseRun(wallet, sol); } catch { return { ok: false, error: "Insufficient balance" }; }
+          try {
+            await _onchainBuy(anchorWallet, coinId, BigInt(Math.floor(sol * LAMPS)));
+          } catch (e) {
+            await increaseRun(wallet, sol);
+            return { ok: false, error: e?.error?.errorMessage || e?.message || "On-chain buy failed" };
+          }
+        } else if (sideLower === "sell") {
+          try {
+            await _onchainSell(anchorWallet, coinId, BigInt(Math.floor(tokens)));
+          } catch (e) {
+            return { ok: false, error: e?.error?.errorMessage || e?.message || "On-chain sell failed" };
+          }
+        } else {
+          return { ok: false, error: "invalid side" };
         }
-      } else if (sideLower === "sell") {
-        tradeResult = ammSellByTokensIn(coin, wallet, tokens);
 
-        if (!tradeResult?.ok) {
-          return { ok: false, error: tradeResult?.error || "Trade failed" };
+        // Post-trade on-chain state — source of truth
+        const postState = await getCoinState(coinId);
+
+        const solReservePre  = Number(preState.solReserve)  / LAMPS;
+        const solReservePost = Number(postState.solReserve) / LAMPS;
+        const tokenSoldPre   = Number(preState.tokenSupply);
+        const tokenSoldPost  = Number(postState.tokenSupply);
+        const totalSupply    = Number(postState.totalSupply);
+
+        // Sync DB coin reserves from chain after trade
+        const curveSupply  = saleSupplyFromTotal(totalSupply);
+        coin.solReserve    = solReservePost;
+        coin.tokenReserve  = Math.max(0, curveSupply - tokenSoldPost);
+        coin.vSol          = solReservePost + VIRTUAL_SOL;
+        coin.vTokens       = calcVirtualTokens(totalSupply, curveSupply, coin.vTokens);
+
+        if (sideLower === "buy") {
+          const tokensOut = Math.max(0, tokenSoldPost - tokenSoldPre);
+          const { fee }   = applyFee(sol);
+          tradeResult = { ok: true, tokensOut, feeSol: fee, netSol: sol - fee };
+        } else {
+          const solOutGross = Math.max(0, solReservePre - solReservePost);
+          const { fee }     = applyFee(solOutGross);
+          const solOutNet   = Math.max(0, solOutGross - fee);
+          tradeResult = {
+            ok: true,
+            solOutNet,
+            solOutGross,
+            feeSol: fee,
+            tokensIn: Math.abs(tokenSoldPre - tokenSoldPost),
+          };
+          await increaseRun(wallet, solOutNet);
         }
 
-        // SELL: net SOL wapas run_balance me
-        const netSol = Math.max(0, safeNum(tradeResult.solOutNet, 0));
-        await increaseRun(wallet, netSol);
       } else {
-        return { ok: false, error: "invalid side" };
+        // ── OFF-CHAIN PATH (unchanged) ──────────────────────────────────────
+        if (sideLower === "buy") {
+          // BUY: pehle run_balance se SOL kato (kam ho to reject)
+          try {
+            await decreaseRun(wallet, sol);
+          } catch (balErr) {
+            return { ok: false, error: "Insufficient balance" };
+          }
+
+          tradeResult = ammBuy(coin, wallet, sol);
+
+          if (!tradeResult?.ok) {
+            // trade fail -> kata hua SOL wapas
+            await increaseRun(wallet, sol);
+            return { ok: false, error: tradeResult?.error || "Trade failed" };
+          }
+        } else if (sideLower === "sell") {
+          tradeResult = ammSellByTokensIn(coin, wallet, tokens);
+
+          if (!tradeResult?.ok) {
+            return { ok: false, error: tradeResult?.error || "Trade failed" };
+          }
+
+          // SELL: net SOL wapas run_balance me
+          const netSol = Math.max(0, safeNum(tradeResult.solOutNet, 0));
+          await increaseRun(wallet, netSol);
+        } else {
+          return { ok: false, error: "invalid side" };
+        }
       }
 
       const tradeFeeSol = Math.max(0, safeNum(tradeResult.feeSol, 0));
@@ -3233,11 +3297,18 @@ app.post("/wallet/reveal-mnemonic", mnemonicLimiter, async (req, res) => {
 
 // -------------------- PROFILE ENDPOINT --------------------
 app.get("/profile/:wallet", async (req, res) => {
+  const auth = await requireAuthWallet(req, res);
+  if (!auth) return;
   try {
     await requireDb();
 
     const wallet = String(req.params.wallet || "").trim();
     if (!wallet) return res.json({ ok: false, error: "wallet required" });
+
+    // Horizontal privilege escalation prevention — only own profile allowed
+    if (auth.wallet !== wallet) {
+      return res.status(403).json({ ok: false, error: "Access denied" });
+    }
 
     // Step 1: profile (custodial wallet banane ke liye zaroori hai pehle)
     const p = await getProfile(wallet, true);

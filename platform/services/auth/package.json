@@ -1,0 +1,54 @@
+{
+  "name": "@funrun/auth",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Fun.Run V2 — Authentication & Authorization Service",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./plugin": {
+      "import": "./dist/plugin.js",
+      "types": "./dist/plugin.d.ts"
+    },
+    "./middleware": {
+      "import": "./dist/middleware/index.js",
+      "types": "./dist/middleware/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "test:unit": "vitest run tests/unit",
+    "test:integration": "vitest run tests/integration"
+  },
+  "dependencies": {
+    "@fastify/cookie": "^11.0.1",
+    "@funrun/config": "workspace:*",
+    "@funrun/database": "workspace:*",
+    "@funrun/logger": "workspace:*",
+    "@funrun/redis": "workspace:*",
+    "@funrun/shared": "workspace:*",
+    "@privy-io/server-auth": "^1.17.0",
+    "fastify": "^5.2.0",
+    "fastify-plugin": "^5.0.1",
+    "jose": "^5.9.6",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@vitest/coverage-v8": "^2.1.8",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}

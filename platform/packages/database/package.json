@@ -1,0 +1,40 @@
+{
+  "name": "@funrun/database",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Prisma ORM client and migrations for Fun.Run V2",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "dev": "tsc -p tsconfig.json --watch",
+    "db:generate": "prisma generate --schema=./prisma/schema.prisma",
+    "db:migrate": "prisma migrate deploy --schema=./prisma/schema.prisma",
+    "db:migrate:dev": "prisma migrate dev --schema=./prisma/schema.prisma",
+    "db:push": "prisma db push --schema=./prisma/schema.prisma",
+    "db:studio": "prisma studio --schema=./prisma/schema.prisma",
+    "db:seed": "tsx prisma/seed.ts",
+    "db:reset": "prisma migrate reset --schema=./prisma/schema.prisma"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "prisma": "^6.1.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  },
+  "peerDependencies": {
+    "@funrun/logger": "workspace:*"
+  }
+}

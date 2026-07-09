@@ -1,0 +1,24 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "tsBuildInfoFile": "./dist/.tsbuildinfo",
+    "paths": {
+      "@funrun/shared": ["../../packages/shared/src/index.ts"],
+      "@funrun/shared/*": ["../../packages/shared/src/*"],
+      "@funrun/logger": ["../../packages/logger/src/index.ts"],
+      "@funrun/config": ["../../packages/config/src/index.ts"],
+      "@funrun/redis": ["../../packages/redis/src/index.ts"],
+      "@funrun/database": ["../../packages/database/src/index.ts"]
+    }
+  },
+  "include": ["src/**/*"],
+  "references": [
+    { "path": "../../packages/shared" },
+    { "path": "../../packages/logger" },
+    { "path": "../../packages/config" },
+    { "path": "../../packages/redis" },
+    { "path": "../../packages/database" }
+  ]
+}

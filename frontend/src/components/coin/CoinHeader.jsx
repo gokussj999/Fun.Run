@@ -1,0 +1,116 @@
+import React from "react";
+import { CoinLogo } from "../coins/CoinLogo.jsx";
+import { MiniBtn } from "../ui/Button.jsx";
+import { fmtSol, fmtUsd, getCoin24hMovePct } from "../../lib/coin-display.js";
+
+function SocialLink({ href, label }) {
+  if (!href) return null;
+  const url = String(href).trim();
+  if (!url) return null;
+
+  return (
+    <a className="coinHeaderSocial" href={url} target="_blank" rel="noopener noreferrer">
+      {label}
+    </a>
+  );
+}
+
+export function CoinHeader({
+  coin,
+  isFavorite = false,
+  isCreator = false,
+  isMobile = false,
+  hideStats = false,
+  onOpenCreator,
+  onToggleFavorite,
+  onCopyMint,
+  onOpenDex,
+}) {
+  const move24h = getCoin24hMovePct(coin);
+  const up = move24h >= 0;
+  const price = coin?.priceUsd || coin?.lastPriceUsd || coin?.price || 0;
+  const verified = Boolean(coin?.mintAddress);
+  const hasSocials = Boolean(coin?.website || coin?.twitter || coin?.telegram);
+
+  return (
+    <div className={`coinHeader ${isMobile ? "coinHeader--mobile" : "coinHeader--desktop"}`}>
+      <div className="coinHeaderMain">
+        <CoinLogo c={coin} size={isMobile ? 56 : 64} radius={18} />
+
+        <div className="coinHeaderIdentity">
+          <div className="coinHeaderTitleRow">
+            <h1 className="coinHeaderName">{coin.name}</h1>
+            {verified ? <span className="coinHeaderVerified" title="Minted on-chain">✓</span> : null}
+          </div>
+          <div className="coinHeaderSymbolRow">
+            <span className="coinHeaderSymbol">{coin.symbol}</span>
+            <span className="coinHeaderChain">/ SOL</span>
+          </div>
+
+          {hasSocials ? (
+            <div className="coinHeaderSocials">
+              <SocialLink href={coin.website} label="Website" />
+              <SocialLink href={coin.twitter} label="X" />
+              <SocialLink href={coin.telegram} label="Telegram" />
+            </div>
+          ) : null}
+        </div>
+
+        <div className="coinHeaderPriceBlock">
+          <div className="coinHeaderPrice">{fmtUsd(price)}</div>
+          <div className={`coinHeaderPriceChange ${up ? "up" : "down"}`}>
+            {up ? "+" : ""}
+            {move24h.toFixed(2)}%
+          </div>
+        </div>
+      </div>
+
+      <div className="coinHeaderToolbar">
+        <MiniBtn className="coinHeaderActionBtn" onClick={onToggleFavorite}>
+          <span style={{ color: isFavorite ? "#fbbf24" : undefined }}>
+            {isFavorite ? "★ Favorited" : "☆ Favorite"}
+          </span>
+        </MiniBtn>
+        <MiniBtn className="coinHeaderActionBtn" onClick={onOpenCreator}>
+          Creator
+        </MiniBtn>
+        <MiniBtn
+          className="coinHeaderActionBtn"
+          disabled={!coin?.mintAddress}
+          onClick={onCopyMint}
+        >
+          {coin?.mintAddress ? "Copy Mint" : "Not minted"}
+        </MiniBtn>
+        {isCreator ? (
+          <MiniBtn className="coinHeaderActionBtn" tone="good" onClick={onOpenDex}>
+            Launch DEX
+          </MiniBtn>
+        ) : null}
+      </div>
+
+      {!hideStats ? (
+        <div className="coinHeaderStats">
+          <div className="coinHeaderStat">
+            <div className="coinHeaderStatLabel">Market Cap</div>
+            <div className="coinHeaderStatValue">{fmtUsd(coin.mc || 0)}</div>
+          </div>
+          <div className="coinHeaderStat">
+            <div className="coinHeaderStatLabel">24h Change</div>
+            <div className="coinHeaderStatValue" style={{ color: up ? "var(--good)" : "var(--danger)" }}>
+              {up ? "+" : ""}
+              {move24h.toFixed(2)}%
+            </div>
+          </div>
+          <div className="coinHeaderStat">
+            <div className="coinHeaderStatLabel">Volume</div>
+            <div className="coinHeaderStatValue">{fmtSol(coin.volumeSol || 0)} SOL</div>
+          </div>
+          <div className="coinHeaderStat">
+            <div className="coinHeaderStatLabel">Creator Rewards</div>
+            <div className="coinHeaderStatValue">{fmtSol(coin.creatorRewardsSol || 0)} SOL</div>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}

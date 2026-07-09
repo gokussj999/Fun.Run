@@ -1,0 +1,290 @@
+// Fun.Run V2 — Prisma Schema
+// Database: PostgreSQL (Neon)
+// Protocol version: 2
+
+generator client {
+  provider        = "prisma-client-js"
+  output          = "../src/generated/client"
+  previewFeatures = ["relationJoins"]
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DATABASE_URL_REPLICA")
+}
+
+// ─── Enums ────────────────────────────────────────────────────────────────────
+
+enum UserRole {
+  USER
+  CREATOR
+  ADMIN
+  SUPER_ADMIN
+}
+
+enum CoinStatus {
+  ACTIVE
+  GRADUATING
+  GRADUATED
+  PAUSED
+}
+
+enum TradeType {
+  BUY
+  SELL
+}
+
+enum Timeframe {
+  m1  @map("1m")
+  m5  @map("5m")
+  m15 @map("15m")
+  h1  @map("1h")
+  h4  @map("4h")
+  d1  @map("1d")
+}
+
+enum AuditAction {
+  INITIALIZE
+  UPDATE_GLOBAL_CONFIG
+  PAUSE_PROTOCOL
+  UNPAUSE_PROTOCOL
+  SWEEP_TREASURY
+  GRADUATION_INITIATED
+  GRADUATION_COMPLETED
+  USER_BANNED
+  ADMIN_GRANTED
+}
+
+// ─── Tables ───────────────────────────────────────────────────────────────────
+
+/// User identity and custodial wallet state.
+model Profile {
+  id                String    @id @default(cuid())
+  walletAddress     String    @unique @map("wallet_address") @db.VarChar(44)
+  privyUserId       String    @unique @map("privy_user_id") @db.VarChar(100)
+  role              UserRole  @default(USER)
+  referrerWallet    String?   @map("referrer_wallet") @db.VarChar(44)
+  encryptedMnemonic String?   @map("encrypted_mnemonic") @db.Text
+  mnemonicIv        String?   @map("mnemonic_iv") @db.VarChar(64)
+  mnemonicTag       String?   @map("mnemonic_tag") @db.VarChar(64)
+  isBanned          Boolean   @default(false) @map("is_banned")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+  lastSeenAt        DateTime? @map("last_seen_at")
+
+  coins         Coin[]
+  transactions  Transaction[]
+  holdings      Holding[]
+
+  @@index([walletAddress])
+  @@index([privyUserId])
+  @@index([referrerWallet])
+  @@map("profiles")
+}
+
+/// Bonding curve coin — mirrors the on-chain BondingCurve PDA.
+model Coin {
+  id                    String     @id @default(cuid())
+  mintAddress           String     @unique @map("mint_address") @db.VarChar(44)
+  creatorWallet         String     @map("creator_wallet") @db.VarChar(44)
+  name                  String     @db.VarChar(32)
+  symbol                String     @db.VarChar(10)
+  description           String     @db.Text
+  imageUri              String     @map("image_uri") @db.Text
+  metadataUri           String?    @map("metadata_uri") @db.Text
+  status                CoinStatus @default(ACTIVE)
+  version               Int        @default(1) // optimistic lock
+
+  // Bonding curve reserves (stored as Decimal for lossless precision)
+  virtualSolReserves    Decimal    @map("virtual_sol_reserves") @db.Decimal(30, 0)
+  virtualTokenReserves  Decimal    @map("virtual_token_reserves") @db.Decimal(30, 0)
+  realSolReserves       Decimal    @default(0) @map("real_sol_reserves") @db.Decimal(30, 0)
+  realTokenReserves     Decimal    @map("real_token_reserves") @db.Decimal(30, 0)
+  totalFeesCollected    Decimal    @default(0) @map("total_fees_collected") @db.Decimal(30, 0)
+
+  // Creator fee snapshot (set at graduation initiation)
+  creatorFeeSnapshot    Decimal?   @map("creator_fee_snapshot") @db.Decimal(30, 0)
+  referrerFeeSnapshot   Decimal?   @map("referrer_fee_snapshot") @db.Decimal(30, 0)
+  referrerWallet        String?    @map("referrer_wallet") @db.VarChar(44)
+
+  // Graduation
+  graduationInitiatedAt DateTime?  @map("graduation_initiated_at")
+  graduationCompletedAt DateTime?  @map("graduation_completed_at")
+  raydiumPoolAddress    String?    @map("raydium_pool_address") @db.VarChar(44)
+  lpMintAddress         String?    @map("lp_mint_address") @db.VarChar(44)
+  lpTokensBurned        Boolean    @default(false) @map("lp_tokens_burned")
+  mintAuthorityRevoked  Boolean    @default(false) @map("mint_authority_revoked")
+  freezeAuthorityRevoked Boolean   @default(false) @map("freeze_authority_revoked")
+
+  createdAt             DateTime   @default(now()) @map("created_at")
+  updatedAt             DateTime   @updatedAt @map("updated_at")
+
+  creator       Profile       @relation(fields: [creatorWallet], references: [walletAddress])
+  transactions  Transaction[]
+  holdings      Holding[]
+  candles       Candle[]
+
+  @@index([creatorWallet])
+  @@index([status])
+  @@index([status, realSolReserves])
+  @@index([createdAt(sort: Desc)])
+  @@map("coins")
+}
+
+/// Per-user token holdings with cost basis tracking.
+model Holding {
+  id              String  @id @default(cuid())
+  walletAddress   String  @map("wallet_address") @db.VarChar(44)
+  coinId          String  @map("coin_id")
+  tokenBalance    Decimal @map("token_balance") @db.Decimal(30, 0)
+  costBasisSol    Decimal @default(0) @map("cost_basis_sol") @db.Decimal(20, 9)
+  totalBought     Decimal @default(0) @map("total_bought") @db.Decimal(30, 0)
+  totalSold       Decimal @default(0) @map("total_sold") @db.Decimal(30, 0)
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  profile Profile @relation(fields: [walletAddress], references: [walletAddress])
+  coin    Coin    @relation(fields: [coinId], references: [id])
+
+  @@unique([walletAddress, coinId])
+  @@index([walletAddress])
+  @@index([coinId])
+  @@map("holdings")
+}
+
+/// Immutable trade event log — never update, never delete.
+model Transaction {
+  id              String    @id @default(cuid())
+  coinId          String    @map("coin_id")
+  walletAddress   String    @map("wallet_address") @db.VarChar(44)
+  tradeType       TradeType @map("trade_type")
+  txSignature     String    @unique @map("tx_signature") @db.VarChar(88)
+  slot            BigInt    @map("slot")
+
+  // Amounts
+  solAmount       Decimal   @map("sol_amount") @db.Decimal(30, 0)
+  tokenAmount     Decimal   @map("token_amount") @db.Decimal(30, 0)
+  pricePerToken   Decimal   @map("price_per_token") @db.Decimal(30, 15)
+
+  // Fee breakdown
+  totalFee        Decimal   @map("total_fee") @db.Decimal(30, 0)
+  creatorFee      Decimal   @map("creator_fee") @db.Decimal(30, 0)
+  referrerFee     Decimal   @default(0) @map("referrer_fee") @db.Decimal(30, 0)
+  treasuryFee     Decimal   @map("treasury_fee") @db.Decimal(30, 0)
+
+  // Reserve snapshot after trade
+  virtualSolAfter    Decimal @map("virtual_sol_after") @db.Decimal(30, 0)
+  virtualTokensAfter Decimal @map("virtual_tokens_after") @db.Decimal(30, 0)
+
+  confirmedAt     DateTime  @map("confirmed_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  coin    Coin    @relation(fields: [coinId], references: [id])
+  profile Profile @relation(fields: [walletAddress], references: [walletAddress])
+
+  @@index([coinId, confirmedAt(sort: Desc)])
+  @@index([walletAddress, confirmedAt(sort: Desc)])
+  @@index([slot])
+  @@map("transactions")
+}
+
+/// OHLCV candles — upserted on every trade.
+model Candle {
+  id          String    @id @default(cuid())
+  coinId      String    @map("coin_id")
+  timeframe   Timeframe
+  openTime    BigInt    @map("open_time") // Unix epoch ms
+
+  open        Decimal   @db.Decimal(30, 15)
+  high        Decimal   @db.Decimal(30, 15)
+  low         Decimal   @db.Decimal(30, 15)
+  close       Decimal   @db.Decimal(30, 15)
+  volume      Decimal   @db.Decimal(30, 0) // lamports
+  trades      Int       @default(0)
+
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  coin Coin @relation(fields: [coinId], references: [id])
+
+  @@unique([coinId, timeframe, openTime])
+  @@index([coinId, timeframe, openTime(sort: Desc)])
+  @@map("candles")
+}
+
+/// Referral relationship and accumulated fee balances.
+model ReferralAccount {
+  id                  String  @id @default(cuid())
+  walletAddress       String  @unique @map("wallet_address") @db.VarChar(44)
+  totalFeesEarned     Decimal @default(0) @map("total_fees_earned") @db.Decimal(30, 0)
+  totalFeesClaimed    Decimal @default(0) @map("total_fees_claimed") @db.Decimal(30, 0)
+  pendingFees         Decimal @default(0) @map("pending_fees") @db.Decimal(30, 0)
+  referralCount       Int     @default(0) @map("referral_count")
+  lastClaimedAt       DateTime? @map("last_claimed_at")
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  @@index([totalFeesEarned(sort: Desc)])
+  @@map("referral_accounts")
+}
+
+/// Treasury revenue audit trail — append-only, never delete.
+model TreasuryEvent {
+  id              String   @id @default(cuid())
+  eventType       String   @map("event_type") @db.VarChar(50) // TRADE_FEE | CREATION_FEE | SWEEP | DEX_FEE
+  coinId          String?  @map("coin_id")
+  txSignature     String?  @map("tx_signature") @db.VarChar(88)
+  amountLamports  Decimal  @map("amount_lamports") @db.Decimal(30, 0)
+  cumulativeTotal Decimal  @map("cumulative_total") @db.Decimal(30, 0)
+  memo            String?  @db.VarChar(200)
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  @@index([eventType])
+  @@index([createdAt(sort: Desc)])
+  @@map("treasury_events")
+}
+
+/// Immutable admin action log — never update, never delete.
+model AuditLog {
+  id            BigInt      @id @default(autoincrement())
+  action        AuditAction
+  actorWallet   String      @map("actor_wallet") @db.VarChar(44)
+  targetId      String?     @map("target_id")
+  oldValue      Json?       @map("old_value")
+  newValue      Json?       @map("new_value")
+  txSignature   String?     @map("tx_signature") @db.VarChar(88)
+  ipAddress     String?     @map("ip_address") @db.VarChar(45)
+  userAgent     String?     @map("user_agent") @db.VarChar(500)
+  createdAt     DateTime    @default(now()) @map("created_at")
+
+  @@index([action])
+  @@index([actorWallet])
+  @@index([createdAt(sort: Desc)])
+  @@map("audit_logs")
+}
+
+/// Blockchain indexer position — singleton row (id = 'singleton').
+model IndexerState {
+  id              String   @id @db.VarChar(20)
+  lastSlot        BigInt   @map("last_slot")
+  lastSignature   String?  @map("last_signature") @db.VarChar(88)
+  isHealthy       Boolean  @default(true) @map("is_healthy")
+  errorMessage    String?  @map("error_message") @db.VarChar(500)
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@map("indexer_state")
+}
+
+/// Device tokens for push notifications.
+model PushSubscription {
+  id          String   @id @default(cuid())
+  walletAddress String  @map("wallet_address") @db.VarChar(44)
+  platform    String   @db.VarChar(10) // 'fcm' | 'apns'
+  token       String   @db.VarChar(512)
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@unique([walletAddress, token])
+  @@index([walletAddress])
+  @@map("push_subscriptions")
+}

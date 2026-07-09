@@ -1,0 +1,16 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist",
+    "paths": {
+      "@funrun/shared": ["../../packages/shared/src/index.ts"],
+      "@funrun/logger": ["../../packages/logger/src/index.ts"],
+      "@funrun/config": ["../../packages/config/src/index.ts"],
+      "@funrun/redis": ["../../packages/redis/src/index.ts"],
+      "@funrun/database": ["../../packages/database/src/index.ts"]
+    }
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist", "tests"]
+}

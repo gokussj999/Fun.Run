@@ -1,0 +1,108 @@
+version: '3.9'
+
+# Fun.Run V2 Platform — Production Compose
+# Use Kubernetes for true production. This file is for single-node staging.
+
+services:
+  # ── API Gateway ─────────────────────────────────────────────────────────────
+  api-gateway:
+    build:
+      context: .
+      dockerfile: apps/api-gateway/Dockerfile
+      target: production
+    container_name: funrun-api-gateway
+    restart: always
+    env_file:
+      - .env
+    ports:
+      - "3000:3000"
+      - "9090:9090"  # Prometheus metrics
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - funrun-internal
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  # ── PostgreSQL ───────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: funrun-postgres-prod
+    restart: always
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-funrun}
+      POSTGRES_USER: ${POSTGRES_USER:-funrun}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?required}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - funrun-internal
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-funrun}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # ── Redis ────────────────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: funrun-redis-prod
+    restart: always
+    command: >
+      redis-server
+      --requirepass ${REDIS_PASSWORD:?required}
+      --maxmemory 1gb
+      --maxmemory-policy allkeys-lru
+      --appendonly yes
+      --appendfsync everysec
+    volumes:
+      - redis_data:/data
+    networks:
+      - funrun-internal
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1200M
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  funrun-internal:
+    driver: bridge
+    internal: true  # no external access to DB/Redis

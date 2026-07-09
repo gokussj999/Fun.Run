@@ -1,0 +1,356 @@
+/* Portfolio dashboard — premium exchange-style layout */
+
+.portfolioScreenShell {
+  gap: 14px;
+}
+
+.portfolioHeroCard {
+  overflow: hidden;
+  border-color: var(--border);
+  background: var(--card);
+  box-shadow: var(--shadow1, 0 4px 20px rgba(0, 0, 0, 0.32));
+}
+
+.portfolioHeroBalance {
+  padding: 4px 0 16px;
+}
+
+.portfolioHeroLabel {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted2);
+}
+
+.portfolioHeroValue {
+  margin-top: 8px;
+  font-size: clamp(1.75rem, 5vw, 2.35rem);
+  font-weight: 1000;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+.portfolioHeroMeta {
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--muted2);
+  line-height: 1.45;
+}
+
+.portfolioBalanceGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.portfolioBalanceTile {
+  padding: 14px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: var(--bg2);
+}
+
+.portfolioBalanceTileLabel {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted2);
+}
+
+.portfolioBalanceTileValue {
+  margin-top: 8px;
+  font-size: 16px;
+  font-weight: 1000;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+}
+
+.portfolioBalanceTileSub {
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--muted2);
+}
+
+.portfolioPnlGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.portfolioPnlCard {
+  padding: 14px 15px;
+  border-radius: 14px;
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.portfolioPnlCard--up {
+  border-color: rgba(14, 203, 129, 0.28);
+  background: rgba(14, 203, 129, 0.08);
+}
+
+.portfolioPnlCard--down {
+  border-color: rgba(246, 70, 93, 0.28);
+  background: rgba(246, 70, 93, 0.08);
+}
+
+.portfolioPnlCardLabel {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted2);
+}
+
+.portfolioPnlCardValue {
+  margin-top: 8px;
+  font-size: 18px;
+  font-weight: 1000;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+}
+
+.portfolioPnlCardSub {
+  margin-top: 5px;
+  font-size: 11px;
+  color: var(--muted2);
+  line-height: 1.35;
+}
+
+.portfolioDesktopGrid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+}
+
+.portfolioAllocation {
+  display: grid;
+  gap: 14px;
+}
+
+.portfolioAllocationBar {
+  display: flex;
+  height: 14px;
+  border-radius: 999px;
+  overflow: hidden;
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.portfolioAllocationSegment {
+  min-width: 0;
+  transition: width 0.2s ease;
+}
+
+.portfolioAllocationSegment--wallet {
+  background: var(--primary);
+}
+
+.portfolioAllocationSegment--holdings {
+  background: var(--good);
+}
+
+.portfolioAllocationSegment--creator {
+  background: #f0b90b;
+}
+
+.portfolioAllocationSegment--referral {
+  background: #3b82f6;
+}
+
+.portfolioAllocationSegment--owner {
+  background: #848e9c;
+}
+
+.portfolioAllocationLegend {
+  display: grid;
+  gap: 8px;
+}
+
+.portfolioAllocationRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.1);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.portfolioAllocationRowMain {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.portfolioAllocationDot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+
+.portfolioAllocationDot--wallet {
+  background: var(--primary);
+}
+
+.portfolioAllocationDot--holdings {
+  background: var(--good);
+}
+
+.portfolioAllocationDot--creator {
+  background: #f0b90b;
+}
+
+.portfolioAllocationDot--referral {
+  background: #3b82f6;
+}
+
+.portfolioAllocationDot--owner {
+  background: #848e9c;
+}
+
+.portfolioAllocationLabel {
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.portfolioAllocationRowRight {
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.portfolioAllocationPct {
+  display: block;
+  font-size: 12px;
+  font-weight: 1000;
+  font-variant-numeric: tabular-nums;
+}
+
+.portfolioAllocationUsd {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--muted2);
+  font-variant-numeric: tabular-nums;
+}
+
+.portfolioAllocationFoot {
+  font-size: 11px;
+}
+
+.portfolioHoldingsList {
+  display: grid;
+  gap: 0;
+}
+
+.portfolioActivityList {
+  max-height: 420px;
+}
+
+.portfolioActivityRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 0;
+  border: none;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.08);
+  background: transparent;
+  color: inherit;
+  text-align: left;
+}
+
+.portfolioActivityRow:last-child {
+  border-bottom: none;
+}
+
+.portfolioActivityRow--clickable {
+  cursor: pointer;
+  transition: background 0.14s ease;
+  border-radius: 10px;
+  padding-left: 8px;
+  padding-right: 8px;
+}
+
+.portfolioActivityRow--clickable:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.portfolioActivityMain {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.portfolioActivityIcon {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  font-size: 14px;
+  font-weight: 1000;
+  flex-shrink: 0;
+}
+
+.portfolioActivityIcon.up {
+  color: var(--good);
+  background: rgba(14, 203, 129, 0.1);
+  border: 1px solid rgba(14, 203, 129, 0.22);
+}
+
+.portfolioActivityIcon.down {
+  color: var(--danger);
+  background: rgba(246, 70, 93, 0.1);
+  border: 1px solid rgba(246, 70, 93, 0.22);
+}
+
+.portfolioTextUp {
+  color: var(--good);
+}
+
+.portfolioTextDown {
+  color: var(--danger);
+}
+
+.portfolioActionsCard .portfolioActionsRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.portfolioSummarySkeleton .portfolioMetricSkeletonGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 16px;
+}
+
+@media (min-width: 768px) {
+  .portfolioPnlGrid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .portfolioDesktopGrid {
+    grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.05fr);
+    align-items: start;
+  }
+
+  .portfolioSummarySkeleton .portfolioMetricSkeletonGrid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .portfolioBalanceGrid {
+    grid-template-columns: 1fr;
+  }
+}

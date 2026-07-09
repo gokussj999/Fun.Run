@@ -5,6 +5,7 @@ import "./index.css";
 
 import { PrivyProvider } from "@privy-io/react-auth";
 import { toSolanaWalletConnectors } from "@privy-io/react-auth/solana";
+import { env } from "./lib/env.js";
 
 const solanaConnectors = toSolanaWalletConnectors();
 
@@ -13,7 +14,7 @@ const privyConfig = {
   embeddedWallets: {
     createOnLogin: "users-without-wallets",
   },
-  solanaClusters: [{ name: "devnet", rpcUrl: "https://api.devnet.solana.com" }],
+  solanaClusters: [{ name: "devnet", rpcUrl: env.solanaRpcUrl }],
   appearance: {
     theme: "dark",
     showWalletLoginFirst: false,
@@ -27,10 +28,7 @@ const privyConfig = {
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
-    <PrivyProvider
-      appId="cmld3um1x01w8i50ct60xaywb"
-      config={privyConfig}
-    >
+    <PrivyProvider appId={env.privyAppId} config={privyConfig}>
       <App />
     </PrivyProvider>
   </React.StrictMode>
