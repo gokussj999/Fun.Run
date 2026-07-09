@@ -156,7 +156,7 @@ export function ProfilePage({
   }, [walletHistory, profileTxs]);
 
   return (
-    <ScreenShell>
+    <ScreenShell className="profilePageRoot">
       <div className="profileTopBar">
         <BackButton onClick={onBack} />
 

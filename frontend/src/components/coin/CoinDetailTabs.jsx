@@ -5,43 +5,9 @@ import { TradeHistory } from "./TradeHistory.jsx";
 
 const TABS = [
   { id: "OVERVIEW", label: "Overview" },
-  { id: "HISTORY", label: "Trade History" },
-  { id: "HOLDERS", label: "Holders" },
   { id: "ACTIVITY", label: "Activity" },
-  { id: "SECURITY", label: "Security" },
+  { id: "HOLDERS", label: "Holders" },
 ];
-
-function shortWallet(w) {
-  const s = String(w || "");
-  if (!s) return "—";
-  if (s.length <= 12) return s;
-  return `${s.slice(0, 6)}...${s.slice(-4)}`;
-}
-
-function CoinSecurityPanel({ coin, onCopyMint }) {
-  const rows = [
-    { label: "Mint Address", value: coin?.mintAddress || "Not minted yet" },
-    { label: "Creator Wallet", value: shortWallet(coin?.creatorWallet) },
-    { label: "Bonding Curve", value: "Active" },
-    { label: "Trading Fee", value: "1%" },
-  ];
-
-  return (
-    <div className="coinSecurityPanel">
-      {rows.map((row) => (
-        <div key={row.label} className="coinSecurityRow">
-          <span className="coinSecurityLabel">{row.label}</span>
-          <span className="coinSecurityValue">{row.value}</span>
-        </div>
-      ))}
-      {coin?.mintAddress ? (
-        <button type="button" className="coinSecurityCopy" onClick={onCopyMint}>
-          Copy mint address
-        </button>
-      ) : null}
-    </div>
-  );
-}
 
 export function CoinDetailTabs({
   coin,
@@ -50,6 +16,7 @@ export function CoinDetailTabs({
   showFullStory,
   onToggleStory,
   onCopyMint,
+  onOpenCreator,
 }) {
   const [tab, setTab] = useState("OVERVIEW");
 
@@ -81,13 +48,12 @@ export function CoinDetailTabs({
         {tab === "OVERVIEW" ? (
           <CoinOverviewPanel
             coin={coin}
-            activity={activity}
             showFullStory={showFullStory}
             onToggleStory={onToggleStory}
+            onCopyMint={onCopyMint}
+            onOpenCreator={onOpenCreator}
           />
         ) : null}
-        {tab === "HISTORY" ? <TradeHistory activity={activity} fallbackWallet={fallbackWallet} /> : null}
-        {tab === "HOLDERS" ? <HoldersList coin={coin} /> : null}
         {tab === "ACTIVITY" ? (
           activity.length ? (
             <TradeHistory activity={activity} fallbackWallet={fallbackWallet} />
@@ -95,7 +61,7 @@ export function CoinDetailTabs({
             <div className="miniMuted">No recent activity yet.</div>
           )
         ) : null}
-        {tab === "SECURITY" ? <CoinSecurityPanel coin={coin} onCopyMint={onCopyMint} /> : null}
+        {tab === "HOLDERS" ? <HoldersList coin={coin} /> : null}
       </div>
     </div>
   );

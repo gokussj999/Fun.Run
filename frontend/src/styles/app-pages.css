@@ -1242,25 +1242,6 @@
 }
 
 @media (max-width: 640px) {
-  .profileWalletCard {
-    flex-direction: column;
-  }
-
-  .profileWalletArt {
-    display: none;
-  }
-
-  .profileRunGrid {
-    grid-template-columns: 1fr;
-    gap: 16px;
-  }
-
-  .profileRunAside {
-    flex-direction: row;
-    justify-content: space-between;
-    width: 100%;
-  }
-
   .profileWalletAddr {
     max-width: 100px;
   }
@@ -1269,25 +1250,288 @@
     grid-template-columns: 1fr;
   }
 
-  .profileWalletBtnRow {
-    grid-template-columns: 1fr;
-  }
-
   .profileSolanaLive {
     justify-content: flex-start;
-    padding: 10px 12px;
   }
 
   .profileWalletBtn {
     width: 100% !important;
   }
 
-  .profileMetricClaim {
-    width: 100%;
-  }
-
   .profileMetricCard--claimable {
     gap: 10px;
+  }
+}
+
+/* ── Profile — compact exchange-style mobile layout ── */
+
+@media (max-width: 768px) {
+  .profilePageRoot .card {
+    border-radius: 14px;
+  }
+
+  .profilePageRoot .cardBody {
+    padding: 12px;
+  }
+
+  .profilePageRoot .sectionHeader {
+    margin-bottom: 8px;
+  }
+
+  .profilePageRoot .sectionTitle {
+    font-size: 12px;
+  }
+
+  .profilePageRoot .profileTopBar {
+    margin-bottom: 10px;
+    gap: 8px;
+  }
+
+  .profilePageRoot .profileTopActions {
+    gap: 6px;
+  }
+
+  .profilePageRoot .profileAffiliatePill {
+    padding: 7px 10px;
+    font-size: 11px;
+  }
+
+  .profilePageRoot .profileTopActions button {
+    padding: 7px 10px !important;
+    font-size: 11px !important;
+  }
+
+  .profilePageRoot .profileDashboardStack {
+    gap: 10px;
+  }
+
+  /* Wallet card */
+  .profileWalletCard {
+    padding: 14px;
+    border-radius: 14px;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .profileWalletArt {
+    display: none;
+  }
+
+  .profilePortfolioBlock {
+    margin-bottom: 10px;
+  }
+
+  .profilePortfolioValue {
+    font-size: clamp(1.5rem, 7vw, 1.85rem);
+  }
+
+  .profilePortfolioSol {
+    margin-top: 4px;
+    font-size: 12px;
+  }
+
+  .profileWalletBalanceBlock {
+    margin-bottom: 8px;
+  }
+
+  .profileWalletBalance {
+    font-size: 16px;
+  }
+
+  .profileWalletAddrField {
+    padding: 8px 10px;
+    margin-bottom: 10px;
+  }
+
+  .profileWalletBtnRow {
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+  }
+
+  .profileWalletBtnRow > *:nth-child(3) {
+    grid-column: 1 / -1;
+  }
+
+  .profilePageRoot .profileWalletBtn {
+    padding: 9px 6px !important;
+    font-size: 10px !important;
+  }
+
+  .profileSolanaLive {
+    padding: 7px 10px;
+  }
+
+  .profileDepositPanel {
+    padding: 10px;
+    margin-top: 10px;
+    gap: 8px;
+  }
+
+  .profileDepositPanelAddr {
+    padding: 8px 10px;
+  }
+
+  /* RUN rewards card */
+  .profileRunCard {
+    padding: 14px;
+    border-radius: 14px;
+  }
+
+  .profileRunGrid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .profileRunAside {
+    flex-direction: row;
+    justify-content: space-between;
+    width: 100%;
+    gap: 10px;
+  }
+
+  .profileRunCoin {
+    width: 56px;
+    height: 56px;
+    font-size: 12px;
+  }
+
+  .profileRunValue {
+    font-size: clamp(1.2rem, 6.5vw, 1.5rem);
+    margin-top: 6px;
+  }
+
+  .profileRunTokens {
+    font-size: 13px;
+    margin-top: 4px;
+  }
+
+  .profileRunBreakdown {
+    margin-top: 10px;
+    gap: 5px;
+  }
+
+  .profileRunRow {
+    padding: 7px 10px;
+    font-size: 11px;
+  }
+
+  .profileRunUnlock {
+    margin-top: 8px;
+    font-size: 11px;
+  }
+
+  /* Earnings metric grid */
+  .profileMetricGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .profileMetricCard {
+    padding: 10px;
+    gap: 8px;
+    border-radius: 12px;
+  }
+
+  .profileMetricIcon {
+    width: 30px;
+    height: 30px;
+    font-size: 14px;
+    border-radius: 9px;
+  }
+
+  .profileMetricLabel {
+    font-size: 9px;
+  }
+
+  .profileMetricValue {
+    margin-top: 4px;
+    font-size: 15px;
+  }
+
+  .profileMetricSub {
+    margin-top: 2px;
+    font-size: 10px;
+  }
+
+  .profileMetricClaim {
+    padding: 8px 10px !important;
+    font-size: 10px !important;
+  }
+
+  /* Recent activity list */
+  .profileActivitySection {
+    padding-top: 2px;
+  }
+
+  .profileActivityHead {
+    margin-bottom: 8px;
+  }
+
+  .profileActivityRow {
+    padding: 10px 0;
+    gap: 10px;
+  }
+
+  .profileActivityIcon {
+    width: 30px;
+    height: 30px;
+    font-size: 12px;
+    border-radius: 9px;
+  }
+
+  .profileActivityTitle {
+    font-size: 12px;
+  }
+
+  .profileActivityAmount--good,
+  .profileActivityAmount--danger {
+    font-size: 12px;
+  }
+
+  /* Multi-chain expansion card */
+  .profileExpansionBody {
+    padding: 14px 10px;
+  }
+
+  .profileExpansionIcon {
+    font-size: 18px;
+    margin-bottom: 6px;
+  }
+
+  .profileExpansionTitle {
+    font-size: 15px;
+  }
+
+  .profileExpansionList {
+    margin-top: 10px;
+    gap: 8px;
+  }
+
+  .profileExpansionItem {
+    padding: 10px 12px;
+    border-radius: 12px;
+  }
+
+  .profileExpansionFoot {
+    margin-top: 12px;
+    padding: 7px 14px;
+    font-size: 11px;
+  }
+
+  /* Holdings / creations / tx / history rows */
+  .profileHoldingsSummary {
+    padding: 10px 12px;
+    margin-bottom: 10px;
+  }
+
+  .profileCoinRow {
+    padding: 10px;
+    margin-bottom: 8px;
+  }
+
+  .profileTxRow,
+  .profileWalletHistoryRow {
+    padding: 9px 0;
   }
 }
 

@@ -26,6 +26,7 @@ export function PriceChart({ coin, height = 280, chartRange, setChartRange, relo
   });
 
   const [crosshairInfo, setCrosshairInfo] = useState(null);
+  const [chartVersion, setChartVersion] = useState(0);
 
   const themeCfg = useMemo(() => {
     const isLight = chartLook === "light";
@@ -182,6 +183,7 @@ export function PriceChart({ coin, height = 280, chartRange, setChartRange, relo
     chartApiRef.current = chart;
     candleSeriesRef.current = candleSeries;
     volumeSeriesRef.current = volumeSeries;
+    setChartVersion((v) => v + 1);
 
     const onCrosshairMove = (param) => {
       if (!param?.time || !param.point || param.point.x < 0 || param.point.y < 0) {
@@ -241,7 +243,7 @@ export function PriceChart({ coin, height = 280, chartRange, setChartRange, relo
     const chart = chartApiRef.current;
     chart.timeScale().fitContent();
     chart.timeScale().scrollToRealTime();
-  }, [candlePoints, volumePoints, chartRange]);
+  }, [candlePoints, volumePoints, chartRange, chartVersion]);
 
   const displayPrice = crosshairInfo?.close ?? livePrice;
   const ohlc = crosshairInfo;
@@ -308,11 +310,12 @@ export function PriceChart({ coin, height = 280, chartRange, setChartRange, relo
       </div>
 
       <div className="chartPanelCanvas" style={{ height }}>
+        <div ref={chartRef} className="chartPanelCanvasHost" style={{ height }} />
         {activityLoading && !candleData.length ? (
-          <ChartSkeleton height={height} />
-        ) : (
-          <div ref={chartRef} className="chartPanelCanvasHost" style={{ height }} />
-        )}
+          <div style={{ position: "absolute", inset: 0 }}>
+            <ChartSkeleton height={height} />
+          </div>
+        ) : null}
         {activityLoading && candleData.length > 0 ? (
           <div className="chartPanelLoading">
             <Skeleton width={54} height={22} style={{ borderRadius: 999 }} />

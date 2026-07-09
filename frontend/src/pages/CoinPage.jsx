@@ -107,6 +107,7 @@ export function CoinPage({
           showFullStory={showFullStory}
           onToggleStory={onToggleStory}
           onCopyMint={onCopyMint}
+          onOpenCreator={onOpenCreator}
         />
       </Card>
     </>
@@ -142,6 +143,7 @@ export function CoinPage({
           isFavorite={isFavorite}
           isCreator={isCreator}
           isMobile={false}
+          hideStats
           onOpenCreator={onOpenCreator}
           onToggleFavorite={onToggleFavorite}
           onCopyMint={onCopyMint}
@@ -170,6 +172,7 @@ export function CoinPage({
           showFullStory={showFullStory}
           onToggleStory={onToggleStory}
           onCopyMint={onCopyMint}
+          onOpenCreator={onOpenCreator}
         />
       </Card>
     </>

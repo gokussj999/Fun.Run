@@ -74,6 +74,7 @@ export function CoinDesktopLayout({
               showFullStory={showFullStory}
               onToggleStory={onToggleStory}
               onCopyMint={onCopyMint}
+              onOpenCreator={onOpenCreator}
             />
           </Card>
         </div>

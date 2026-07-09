@@ -1,50 +1,37 @@
 import React from "react";
-import { fmtNum, fmtSol } from "../../lib/coin-display.js";
+import { fmtSol, fmtUsd, getCoinAgeLabel } from "../../lib/coin-display.js";
 
-function shortMint(addr) {
+function shortAddr(addr) {
   const s = String(addr || "");
   if (!s) return "—";
   if (s.length <= 12) return s;
   return `${s.slice(0, 6)}...${s.slice(-4)}`;
 }
 
-function countActivitySides(activity = []) {
-  let buyers = 0;
-  let sellers = 0;
-  for (const tx of activity) {
-    const side = String(tx.type || tx.side || "").toUpperCase();
-    if (side === "BUY") buyers += 1;
-    else if (side === "SELL") sellers += 1;
-  }
-  return { buyers, sellers };
-}
-
 const STAT_ICONS = {
-  supply: "◎",
-  circulating: "↻",
-  mint: "⛓",
-  decimals: "#",
+  marketCap: "📊",
   liquidity: "💧",
-  trades: "⚡",
-  buyers: "↑",
-  sellers: "↓",
+  volume: "⚡",
+  holders: "👥",
+  age: "⏱",
+  rewards: "🎁",
+  mint: "⛓",
+  creator: "👤",
 };
 
-export function CoinOverviewPanel({ coin, activity = [], showFullStory, onToggleStory }) {
+export function CoinOverviewPanel({ coin, showFullStory, onToggleStory, onCopyMint, onOpenCreator }) {
   if (!coin) return null;
 
-  const { buyers, sellers } = countActivitySides(activity);
+  const holderCount = Object.keys(coin?.holders || {}).length;
   const liquiditySol = Math.max(0, Number(coin.solReserve || 0) + Number(coin.vSol || 0));
 
   const stats = [
-    { key: "supply", label: "Total Supply", value: fmtNum(coin.totalSupply || 0, 0) },
-    { key: "circulating", label: "Circulating Supply", value: fmtNum(coin.circulating || 0, 0) },
-    { key: "mint", label: "Mint Address", value: shortMint(coin.mintAddress) },
-    { key: "decimals", label: "Decimals", value: String(coin.decimals ?? 9) },
+    { key: "marketCap", label: "Market Cap", value: fmtUsd(coin.mc || 0) },
     { key: "liquidity", label: "Liquidity", value: `${fmtSol(liquiditySol)} SOL` },
-    { key: "trades", label: "24H Trades", value: String(activity.length || 0) },
-    { key: "buyers", label: "Buyers", value: String(buyers) },
-    { key: "sellers", label: "Sellers", value: String(sellers) },
+    { key: "volume", label: "Volume", value: `${fmtSol(coin.volumeSol || 0)} SOL` },
+    { key: "holders", label: "Holders", value: holderCount.toLocaleString() },
+    { key: "age", label: "Age", value: getCoinAgeLabel(coin) },
+    { key: "rewards", label: "Creator Rewards", value: `${fmtSol(coin.creatorRewardsSol || 0)} SOL` },
   ];
 
   return (
@@ -75,6 +62,31 @@ export function CoinOverviewPanel({ coin, activity = [], showFullStory, onToggle
             <div className="coinOverviewStatValue">{item.value}</div>
           </div>
         ))}
+
+        <div className="coinOverviewStatCard">
+          <div className="coinOverviewStatIcon" aria-hidden="true">
+            {STAT_ICONS.mint}
+          </div>
+          <div className="coinOverviewStatLabel">Mint Address</div>
+          <div className="coinOverviewStatValue">{shortAddr(coin.mintAddress)}</div>
+          {coin?.mintAddress ? (
+            <button type="button" className="coinSecurityCopy" onClick={onCopyMint}>
+              Copy
+            </button>
+          ) : null}
+        </div>
+
+        <button
+          type="button"
+          className="coinOverviewStatCard coinOverviewStatCard--action"
+          onClick={onOpenCreator}
+        >
+          <div className="coinOverviewStatIcon" aria-hidden="true">
+            {STAT_ICONS.creator}
+          </div>
+          <div className="coinOverviewStatLabel">Creator</div>
+          <div className="coinOverviewStatValue">{shortAddr(coin.creatorWallet)}</div>
+        </button>
       </div>
     </div>
   );

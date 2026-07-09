@@ -490,6 +490,14 @@
   background: rgba(255, 255, 255, 0.04);
 }
 
+.coinOverviewStatCard--action {
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
 .coinOverviewStatIcon {
   font-size: 14px;
   opacity: 0.85;
