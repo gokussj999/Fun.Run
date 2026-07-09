@@ -99,8 +99,12 @@ export interface IdempotencyRecord {
 
 // ─── Auth ─────────────────────────────────────────────────────────────────────
 
+// Aligned with Auth Service's AuthenticatedUser — fields that the trading
+// service actually needs.  We omit sessionId/deviceId because those are Auth
+// Service concerns; we add ipAddress for audit logging and IP guard.
 export interface AuthContext {
   walletAddress: string;
   privyUserId: string;
   role: string;
+  ipAddress: string;
 }

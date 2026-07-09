@@ -4,6 +4,8 @@ import { createDatabaseClient } from '@funrun/database';
 import { createLogger } from '@funrun/logger';
 import { createRedisClient } from '@funrun/redis';
 
+import { IpGuard } from './auth/ip-guard.js';
+import { TradingAuthVerifier } from './auth/verifier.js';
 import { TradeEventPublisher } from './events/publisher.js';
 import { TradeLogger } from './logger/trade.logger.js';
 import { IdempotencyStore } from './idempotency/store.js';
@@ -38,32 +40,9 @@ async function main(): Promise<void> {
   const { PrivyClient } = await import('@privy-io/server-auth');
   const privy = new PrivyClient(privyAppId, privySecret);
 
-  const verifyToken = async (token: string) => {
-    try {
-      const claims = await privy.verifyAuthToken(token);
-      const solanaAccount = claims.linkedAccounts?.find(
-        (a) => a.type === 'wallet' && (a as { chainType?: string }).chainType === 'solana',
-      );
-      const walletAddress = (solanaAccount as { address?: string } | undefined)?.address ?? '';
-      if (!walletAddress) return null;
-
-      const profile = await db.profile.findUnique({
-        where: { privyUserId: claims.userId },
-        select: { walletAddress: true, role: true, isBanned: true },
-      });
-      if (!profile || profile.isBanned) return null;
-
-      return {
-        walletAddress: profile.walletAddress,
-        privyUserId: claims.userId,
-        role: profile.role,
-      };
-    } catch {
-      return null;
-    }
-  };
-
   // ── Service composition ───────────────────────────────────────────────────────
+  const ipGuard     = new IpGuard(redis, logger);
+  const authVerifier = new TradingAuthVerifier(privy, db, ipGuard, logger);
   const publisher   = new TradeEventPublisher(redis, logger);
   const tradeLogger = new TradeLogger(logger);
   const idempotency = new IdempotencyStore(redis, logger);
@@ -76,7 +55,7 @@ async function main(): Promise<void> {
     idempotency,
     tradeLogger,
     logger,
-    verifyToken,
+    verifyToken: (token, ip) => authVerifier.verify(token, ip),
   });
 
   await server.start();

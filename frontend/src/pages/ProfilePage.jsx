@@ -318,10 +318,12 @@ export function ProfilePage({
 
               <div className="profileMetricGrid">
                 <div className="profileMetricCard">
-                  <div className="profileMetricIcon profileMetricIcon--good">📈</div>
-                  <div className="profileMetricBody">
-                    <div className="profileMetricLabel">Total Earned</div>
-                    <div className="profileMetricValue">{totalEarnedUsd}</div>
+                  <div className="profileMetricCardTop">
+                    <div className="profileMetricIcon profileMetricIcon--good">📈</div>
+                    <div className="profileMetricBody">
+                      <div className="profileMetricLabel">Total Earned</div>
+                      <div className="profileMetricValue">{totalEarnedUsd}</div>
+                    </div>
                   </div>
                 </div>
 
@@ -354,10 +356,12 @@ export function ProfilePage({
                 </div>
 
                 <div className="profileMetricCard">
-                  <div className="profileMetricIcon profileMetricIcon--accent">🔗</div>
-                  <div className="profileMetricBody">
-                    <div className="profileMetricLabel">Total Referrals</div>
-                    <div className="profileMetricValue">{referralCount}</div>
+                  <div className="profileMetricCardTop">
+                    <div className="profileMetricIcon profileMetricIcon--accent">🔗</div>
+                    <div className="profileMetricBody">
+                      <div className="profileMetricLabel">Total Referrals</div>
+                      <div className="profileMetricValue">{referralCount}</div>
+                    </div>
                   </div>
                 </div>
               </div>

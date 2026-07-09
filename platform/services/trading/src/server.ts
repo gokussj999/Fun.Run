@@ -37,7 +37,8 @@ export function buildTradingServer(deps: {
   idempotency: IdempotencyStore;
   tradeLogger: TradeLogger;
   logger: Logger;
-  verifyToken: (token: string) => Promise<AuthContext | null>;
+  // IP is passed so the verifier can enforce shared IP abuse state.
+  verifyToken: (token: string, ip: string) => Promise<AuthContext | null>;
 }): TradingServer {
   const { db, redis, executor, idempotency, tradeLogger, logger, verifyToken } = deps;
 
@@ -68,18 +69,24 @@ export function buildTradingServer(deps: {
     if (NO_AUTH_ROUTES.has(path)) return;
     if (PUBLIC_ROUTES.has(path)) return;
 
-    const authHeader = request.headers['authorization'];
-    const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : undefined;
+    // Extract real client IP (trustProxy: true handles X-Forwarded-For).
+    const ip = extractIp(request);
+
+    // Extract bearer token — aligned with Auth Service's extractBearerToken():
+    // case-insensitive scheme check, exactly two parts required.
+    const token = extractBearerToken(request.headers['authorization']);
 
     if (!token) {
       return reply.code(401).send({
         error: 'UNAUTHORIZED',
-        message: 'Missing Bearer token',
+        message: 'Missing or malformed Authorization header',
         requestId: request.requestId,
       });
     }
 
-    const auth = await verifyToken(token);
+    // verifyToken handles: IP block check → Privy verify → profile upsert →
+    // role check → IP failure tracking.  Returns null on any failure.
+    const auth = await verifyToken(token, ip);
     if (!auth) {
       return reply.code(401).send({
         error: 'UNAUTHORIZED',
@@ -123,4 +130,27 @@ export function buildTradingServer(deps: {
       logger.info('Trading service stopped');
     },
   };
+}
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+// Aligned with Auth Service's extractBearerToken() (services/auth/src/privy/verify.ts).
+// Case-insensitive scheme, exactly two parts, non-empty token.
+function extractBearerToken(authorizationHeader: string | undefined): string | null {
+  if (!authorizationHeader) return null;
+  const parts = authorizationHeader.trim().split(' ');
+  if (parts.length !== 2 || parts[0]?.toLowerCase() !== 'bearer' || !parts[1]) {
+    return null;
+  }
+  return parts[1];
+}
+
+// Aligned with Auth Service's extractIp() (services/auth/src/middleware/authenticate.ts).
+// Fastify's trustProxy:true populates request.ip from X-Forwarded-For automatically.
+function extractIp(request: { ip: string; headers: Record<string, string | string[] | undefined> }): string {
+  const forwarded = request.headers['x-forwarded-for'];
+  if (typeof forwarded === 'string') {
+    return forwarded.split(',')[0]?.trim() ?? request.ip;
+  }
+  return request.ip;
 }
