@@ -2199,12 +2199,6 @@ const [connectingPhantom, setConnectingPhantom] = useState(false);
         const pollCoinId = current.id;
         const pollAddr = solAddr;
 
-        // Show "waiting" toast after submitted toast dismisses (~3.5s)
-        const waitTimer = setTimeout(
-          () => showToast("Waiting for blockchain confirmation…", "warning", 45000),
-          3500,
-        );
-
         // All background work — nothing blocks the trade button from here
         (async () => {
           // Fire initial refresh immediately (non-blocking to the button)
@@ -2232,7 +2226,6 @@ const [connectingPhantom, setConnectingPhantom] = useState(false);
               const done = holdingsChanged || balanceChanged;
 
               if (done) {
-                clearTimeout(waitTimer);
                 setProfile(snap.profile);
                 // Only update coin holders display if holdings actually updated in DB
                 if (holdingsChanged && Array.isArray(snap.profile?.holdings) && pollAddr) {
@@ -2266,7 +2259,6 @@ const [connectingPhantom, setConnectingPhantom] = useState(false);
             } catch {}
           }
           // Timeout — tx confirmed on-chain but indexer slow
-          clearTimeout(waitTimer);
           showToast("Confirmed on-chain — refreshing…", "default", 4000);
           void Promise.allSettled([loadProfile(pollAddr), loadCoins(0, false)]);
           setChartReloadKey((k) => k + 1);
