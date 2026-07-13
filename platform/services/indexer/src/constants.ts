@@ -59,7 +59,7 @@ export const BACKFILL_BATCH_SIZE      = 100;     // transactions per RPC call
 export const BACKFILL_RATE_LIMIT_MS   = 200;     // delay between backfill batches
 
 export const SIGNATURE_DEDUP_TTL_S   = 7 * 24 * 3600; // 7 days in Redis
-export const REORG_SAFE_DEPTH         = 32n;      // slots considered final
+export const REORG_SAFE_DEPTH         = 0n;       // process as soon as slot is finalized (safe — finalized slots cannot be orphaned)
 
 // ─── Redis keys ───────────────────────────────────────────────────────────────
 

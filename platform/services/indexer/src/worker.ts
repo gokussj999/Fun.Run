@@ -108,9 +108,9 @@ export class IndexerWorker {
 
     this.retryInterval    = setInterval(() => { void this.drainRetryQueue(); }, 5_000);
     this.metricsInterval  = setInterval(() => { void this.flushMetrics(); }, 15_000);
-    // Catch deferred live logs (slot not safe from reorg at receipt time) without waiting
-    // for the 60-second WS idle health-check reconnect to trigger backfill.
-    this.periodicBackfill = setInterval(() => { void this.runBackfill(); }, 20_000);
+    // Catch deferred live logs quickly. With REORG_SAFE_DEPTH=0, slots are safe as
+    // soon as they are finalized (~13s). 5s interval ensures we pick them up promptly.
+    this.periodicBackfill = setInterval(() => { void this.runBackfill(); }, 5_000);
 
     this.startMetricsServer();
 

@@ -2243,19 +2243,20 @@ const [connectingPhantom, setConnectingPhantom] = useState(false);
             const snapBalance = safeNum(snap?.profile?.runBalance, 0);
             const holdingsChanged = isBuy ? snapHolding > baseHolding : snapHolding < baseHolding;
             const balanceChanged = isBuy ? snapBalance < baseRunBalance : snapBalance > baseRunBalance;
-            return { done: holdingsChanged || balanceChanged, snap };
+            // For buy: only trigger on holdingsChanged — confirms the buy TX is on-chain
+            // and the ATA has tokens (safe to sell). balanceChanged fires too early
+            // (debit happens before TX confirmation) and would show success before the
+            // seller token account is created, causing immediate sell to fail.
+            // For sell: either signal works — both update together after indexer.
+            const done = isBuy ? holdingsChanged : (holdingsChanged || balanceChanged);
+            return { done, snap };
           };
 
-          // Immediate check — debitRunBalance runs on server before response, so
-          // balance change is detectable right away with no delay.
-          try {
-            const { done, snap } = await checkSnap();
-            if (done) { applySuccess(snap); return; }
-          } catch {}
-
-          // Fallback: poll every 3s for up to 45s (holdings lag behind indexer)
-          const POLL_MS = 3000;
-          const MAX_POLLS = 15;
+          // Poll every 2s for up to 45s.
+          // With REORG_SAFE_DEPTH=0 + 5s backfill, holdings update ~13-18s after submission.
+          // Buy waits for holdingsChanged (on-chain confirmed + ATA exists — safe to sell).
+          const POLL_MS = 2000;
+          const MAX_POLLS = 22;
           for (let i = 0; i < MAX_POLLS; i++) {
             await new Promise((r) => setTimeout(r, POLL_MS));
             try {
@@ -2263,6 +2264,7 @@ const [connectingPhantom, setConnectingPhantom] = useState(false);
               if (done) { applySuccess(snap); return; }
             } catch {}
           }
+
           // Timeout — tx confirmed on-chain but indexer slow
           showToast("Confirmed on-chain — refreshing…", "default", 4000);
           void Promise.allSettled([loadProfile(pollAddr), loadCoins(0, false)]);
