@@ -14,11 +14,13 @@
     "lint": "eslint src tests --ext .ts"
   },
   "dependencies": {
+    "@privy-io/server-auth": "^1.17.0",
     "@funrun/config": "workspace:*",
     "@funrun/database": "workspace:*",
     "@funrun/logger": "workspace:*",
     "@funrun/redis": "workspace:*",
     "@funrun/shared": "workspace:*",
+    "dotenv": "^16.4.7",
     "fastify": "^5.0.0",
     "ioredis": "^5.3.0",
     "ws": "^8.18.0",

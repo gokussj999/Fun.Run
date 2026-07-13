@@ -82,7 +82,7 @@ describe('EventProcessor', () => {
   describe('idempotency (Redis SET NX)', () => {
     it('processes an event when Redis SET NX succeeds (returns OK)', async () => {
       redis.set.mockResolvedValue('OK');
-      const processor = new EventProcessor(db as never, redis as never, makeLogger() as never);
+      const processor = new EventProcessor(db as never, redis as never, redis as never, makeLogger() as never);
       const event = makeCoinCreatedEvent();
       await processor.processEvent(event);
       // Should have attempted DB writes
@@ -91,7 +91,7 @@ describe('EventProcessor', () => {
 
     it('skips processing when Redis SET NX fails (returns null — already seen)', async () => {
       redis.set.mockResolvedValue(null); // NX condition not met
-      const processor = new EventProcessor(db as never, redis as never, makeLogger() as never);
+      const processor = new EventProcessor(db as never, redis as never, redis as never, makeLogger() as never);
       const event = makeCoinCreatedEvent();
       await processor.processEvent(event);
       expect(db.$transaction).not.toHaveBeenCalled();
@@ -116,7 +116,7 @@ describe('EventProcessor', () => {
         },
       );
 
-      const processor = new EventProcessor(dbWithExisting as never, redis as never, makeLogger() as never);
+      const processor = new EventProcessor(dbWithExisting as never, redis as never, redis as never, makeLogger() as never);
       await processor.processEvent(makeCoinCreatedEvent());
       expect(dbWithExisting.coin.create).not.toHaveBeenCalled();
     });
@@ -128,7 +128,7 @@ describe('EventProcessor', () => {
       const failDb = makeDb();
       failDb.$transaction = vi.fn().mockRejectedValue(new Error('DB connection lost'));
 
-      const processor = new EventProcessor(failDb as never, redis as never, makeLogger() as never);
+      const processor = new EventProcessor(failDb as never, redis as never, redis as never, makeLogger() as never);
       await expect(processor.processEvent(makeCoinCreatedEvent())).rejects.toThrow('DB connection lost');
 
       // Should have deleted the key so retry can reclaim it
@@ -139,7 +139,7 @@ describe('EventProcessor', () => {
   describe('informational events', () => {
     it('handles LiquidityLocked without DB writes', async () => {
       redis.set.mockResolvedValue('OK');
-      const processor = new EventProcessor(db as never, redis as never, makeLogger() as never);
+      const processor = new EventProcessor(db as never, redis as never, redis as never, makeLogger() as never);
       const event: ParsedEvent = {
         name: 'LiquidityLocked', signature: 'sigX', slot: 1n, blockTime: 0, data: {} as never,
       };

@@ -64,7 +64,11 @@ export class TransactionFetcher {
       const batch: ConfirmedSignatureInfo[] = await this.breaker.callWithFallback(async (conn) => {
         return conn.getSignaturesForAddress(
           new PublicKey(programId),
-          { limit: BACKFILL_BATCH_SIZE, before, until },
+          {
+            limit: BACKFILL_BATCH_SIZE,
+            ...(before !== undefined ? { before } : {}),
+            ...(until !== undefined ? { until } : {}),
+          },
           'confirmed',
         );
       });

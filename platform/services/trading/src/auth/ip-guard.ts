@@ -1,15 +1,15 @@
-import type Redis from 'ioredis';
+import type { Redis } from 'ioredis';
 import type { Logger } from '@funrun/logger';
+import {
+  type RedisDependencyMode,
+  isStrictRedisMode,
+  RedisDependencyError,
+} from '../config/redis-dependency.js';
 
-// Thresholds kept in sync with Auth Service (services/auth/src/constants.ts).
-// If either value drifts, shared Redis state becomes inconsistent.
 const IP_ABUSE_THRESHOLD = 50;
-const IP_ABUSE_WINDOW_SECONDS = 300;  // 5-minute sliding window
-const IP_ABUSE_BLOCK_SECONDS = 1800;  // 30-minute block
+const IP_ABUSE_WINDOW_SECONDS = 300;
+const IP_ABUSE_BLOCK_SECONDS = 1800;
 
-// Redis key format MUST match Auth Service exactly so both services share the
-// same block list.  An IP blocked by the Auth Service is immediately blocked
-// here too — no coordination required beyond the shared Redis instance.
 const ipBlockKey    = (ip: string) => `auth:ip_block:${ip}`;
 const ipFailuresKey = (ip: string) => `auth:ip_failures:${ip}`;
 
@@ -17,13 +17,17 @@ export class IpGuard {
   constructor(
     private readonly redis: Redis,
     private readonly logger: Logger,
+    private readonly redisMode: RedisDependencyMode = 'degraded',
   ) {}
 
   async isBlocked(ip: string): Promise<boolean> {
     try {
       return (await this.redis.get(ipBlockKey(ip))) !== null;
     } catch (err) {
-      // Fail-open: Redis unavailable must not halt trading.
+      if (isStrictRedisMode(this.redisMode)) {
+        this.logger.error({ err, ip }, 'IpGuard: Redis error in strict mode');
+        throw new RedisDependencyError('IP guard unavailable');
+      }
       this.logger.warn({ err, ip }, 'IpGuard: Redis error on block check, failing open');
       return false;
     }
@@ -40,7 +44,6 @@ export class IpGuard {
         this.logger.warn({ ip, count }, 'IpGuard: IP blocked — abuse threshold reached');
       }
     } catch (err) {
-      // Best-effort — failure tracking is non-fatal.
       this.logger.warn({ err, ip }, 'IpGuard: Redis error recording failure (non-fatal)');
     }
   }

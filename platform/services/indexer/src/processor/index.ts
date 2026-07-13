@@ -1,9 +1,14 @@
 import type { PrismaClient } from '@funrun/database';
 import type { Logger } from '@funrun/logger';
-import type Redis from 'ioredis';
+import type { RedisInstance as Redis } from '@funrun/redis';
 
 import type { ParsedEvent } from '../types.js';
 import { REDIS_KEYS_INDEXER, SIGNATURE_DEDUP_TTL_S } from '../constants.js';
+import {
+  type RedisDependencyMode,
+  isStrictRedisMode,
+  RedisDependencyError,
+} from '../config/redis-dependency.js';
 import { RedisPublisher } from '../publisher/redis.js';
 import { handleCoinCreated } from './handlers/coin-created.js';
 import { handleBuy, handleSell } from './handlers/trade.js';
@@ -20,31 +25,44 @@ export class EventProcessor {
 
   constructor(
     private readonly db: PrismaClient,
-    private readonly redis: Redis,
+    private readonly cacheRedis: Redis,
+    pubsubRedis: Redis,
     private readonly logger: Logger,
+    private readonly redisMode: RedisDependencyMode = 'degraded',
   ) {
-    this.publisher = new RedisPublisher(redis, logger);
+    this.publisher = new RedisPublisher(pubsubRedis, logger);
   }
 
   /**
    * Process one parsed event.
    *
-   * Idempotency is enforced at two levels:
-   *   1. Redis SET NX on the tx signature — first writer wins (O(1), 7-day TTL)
-   *   2. DB-level upserts / existence checks inside each handler
-   *
-   * If the Redis SET NX returns 0 (already set), we skip processing entirely.
-   * This is safe because the same signature → same on-chain state → same DB writes.
+   * Idempotency: Redis SET NX per (signature, eventName) on cache DB (db 0).
+   * A single on-chain tx may emit multiple Anchor events — each is deduped independently.
    */
   async processEvent(event: ParsedEvent): Promise<void> {
-    const dedupKey = REDIS_KEYS_INDEXER.processedSig(event.signature);
+    const dedupKey = REDIS_KEYS_INDEXER.processedEvent(event.signature, event.name);
 
-    // Atomic claim: SET key "1" NX EX <ttl>
-    const claimed = await this.redis.set(dedupKey, '1', 'EX', SIGNATURE_DEDUP_TTL_S, 'NX');
+    let claimed = true;
+    try {
+      const result = await this.cacheRedis.set(
+        dedupKey,
+        '1',
+        'EX',
+        SIGNATURE_DEDUP_TTL_S,
+        'NX',
+      );
+      claimed = result === 'OK';
+    } catch (err) {
+      if (isStrictRedisMode(this.redisMode)) {
+        this.logger.error({ err, sig: event.signature }, 'EventProcessor: dedup error in strict mode');
+        throw new RedisDependencyError('Indexer dedup store unavailable');
+      }
+      this.logger.warn({ err, sig: event.signature }, 'EventProcessor: dedup error, proceeding without lock');
+      claimed = true;
+    }
 
-    if (claimed === null) {
-      // Already processed — skip silently
-      this.logger.debug({ sig: event.signature, event: event.name }, 'duplicate sig — skipped');
+    if (!claimed) {
+      this.logger.debug({ sig: event.signature, event: event.name }, 'duplicate event — skipped');
       return;
     }
 
@@ -57,8 +75,7 @@ export class EventProcessor {
         'event processed',
       );
     } catch (err) {
-      // Release the dedup key so the retry system can reclaim it
-      await this.redis.del(dedupKey).catch(() => undefined);
+      await this.cacheRedis.del(dedupKey).catch(() => undefined);
       throw err;
     }
   }
@@ -66,13 +83,13 @@ export class EventProcessor {
   private async dispatch(event: ParsedEvent): Promise<void> {
     switch (event.name) {
       case 'CoinCreated':
-        return handleCoinCreated(event, this.db, this.logger);
+        return handleCoinCreated(event, this.db, this.publisher, this.logger);
 
       case 'TokensPurchased':
-        return handleBuy(event, this.db, this.redis, this.publisher, this.logger);
+        return handleBuy(event, this.db, this.cacheRedis, this.publisher, this.logger);
 
       case 'TokensSold':
-        return handleSell(event, this.db, this.redis, this.publisher, this.logger);
+        return handleSell(event, this.db, this.cacheRedis, this.publisher, this.logger);
 
       case 'GraduationInitiated':
         return handleGraduationInitiated(event, this.db, this.publisher, this.logger);
@@ -81,27 +98,25 @@ export class EventProcessor {
         return handleGraduationCompleted(event, this.db, this.publisher, this.logger);
 
       case 'CreatorFeesClaimed':
-        return handleCreatorFeesClaimed(event, this.db, this.logger);
+        return handleCreatorFeesClaimed(event, this.db, this.publisher, this.logger);
 
       case 'CreatorReferrerFeesClaimed':
-        return handleCreatorReferrerFeesClaimed(event, this.db, this.logger);
+        return handleCreatorReferrerFeesClaimed(event, this.db, this.publisher, this.logger);
 
       case 'CreatorReferrerSet':
-        return handleCreatorReferrerSet(event, this.db, this.logger);
+        return handleCreatorReferrerSet(event, this.db, this.publisher, this.logger);
 
       case 'TreasurySweep':
-        return handleTreasurySweep(event, this.db, this.logger);
+        return handleTreasurySweep(event, this.db, this.publisher, this.logger);
 
       case 'GlobalConfigUpdated':
-        // Fire-and-forget publish only; no DB mutation needed
         return this.publisher.publishIndexerEvent({
           eventName: event.name,
           slot:      event.slot.toString(),
           signature: event.signature,
-          data:      event.data as Record<string, unknown>,
+          data:      event.data as unknown as Record<string, unknown>,
         });
 
-      // Informational — no DB action
       case 'LiquidityLocked':
       case 'MintAuthorityRevoked':
       case 'FreezeAuthorityRevoked':

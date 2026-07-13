@@ -1,5 +1,6 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import fp from 'fastify-plugin';
+import { createHash } from 'node:crypto';
 
 import type { Logger } from '@funrun/logger';
 import { UnauthorizedError } from '@funrun/shared';
@@ -8,12 +9,14 @@ import { HEADERS, REDIS_KEYS_AUTH, IP_ABUSE_THRESHOLD, IP_ABUSE_WINDOW_SECONDS, 
 import { verifyPrivyToken, extractBearerToken } from '../privy/verify.js';
 import type { AuthenticatedUser, UserRole } from '../types.js';
 import type { SessionManager } from '../session/manager.js';
+import type { ApiKeyManager } from '../api-keys/manager.js';
 import type { AuditEventLogger } from '../audit/logger.js';
-import type Redis from 'ioredis';
+import type { RedisInstance as Redis } from '@funrun/redis';
 import type { PrismaClient } from '@funrun/database';
 
 export interface AuthenticatePluginConfig {
   sessionManager: SessionManager;
+  apiKeyManager: ApiKeyManager;
   auditLogger: AuditEventLogger;
   redis: Redis;
   db: PrismaClient;
@@ -35,7 +38,7 @@ export interface AuthenticatePluginConfig {
  */
 export const authenticatePlugin = fp(
   async (app: FastifyInstance, config: AuthenticatePluginConfig) => {
-    const { sessionManager, auditLogger, redis, db, logger } = config;
+    const { sessionManager, apiKeyManager, auditLogger, redis, db, logger } = config;
 
     app.addHook('onRequest', async (request: FastifyRequest, reply: FastifyReply) => {
       // Skip if already authenticated by service-auth plugin
@@ -65,13 +68,60 @@ export const authenticatePlugin = fp(
         throw new UnauthorizedError('Access temporarily blocked');
       }
 
-      // ── Extract token ────────────────────────────────────────────────────────
-      const token = extractBearerToken(request.headers[HEADERS.AUTHORIZATION]);
+      // ── Extract token (Bearer or X-Api-Key) ─────────────────────────────────
+      const bearerToken = extractBearerToken(request.headers[HEADERS.AUTHORIZATION]);
+      const apiKeyHeader = request.headers['x-api-key'];
+      const rawCredential =
+        bearerToken ??
+        (typeof apiKeyHeader === 'string' && apiKeyHeader.length > 0 ? apiKeyHeader : null);
 
-      if (!token) {
+      if (!rawCredential) {
         await incrementIpFailures(redis, ip);
         throw new UnauthorizedError('Authorization header required');
       }
+
+      // ── API key path (C-07) ─────────────────────────────────────────────────
+      if (rawCredential.startsWith('fr_')) {
+        let apiKey;
+        try {
+          apiKey = await apiKeyManager.validate(rawCredential);
+        } catch (err) {
+          await incrementIpFailures(redis, ip);
+          throw err;
+        }
+
+        const profile = await db.profile.findUnique({
+          where: { walletAddress: apiKey.walletAddress },
+          select: { walletAddress: true, privyUserId: true, role: true, isBanned: true },
+        });
+
+        if (!profile || profile.isBanned) {
+          throw new UnauthorizedError('Account has been suspended');
+        }
+
+        const actor: AuthenticatedUser = {
+          userId: profile.privyUserId,
+          walletAddress: apiKey.walletAddress,
+          role: apiKey.role,
+          sessionId: `apikey:${apiKey.id}`,
+          privySessionId: `apikey:${apiKey.id}`,
+          deviceId: deriveDeviceId(request),
+          ipAddress: ip,
+          issuedAt: Math.floor(Date.now() / 1000),
+          expiresAt: apiKey.expiresAt
+            ? Math.floor(apiKey.expiresAt / 1000)
+            : Math.floor(Date.now() / 1000) + 86400 * 365,
+        };
+
+        request.actor = actor;
+        request.sessionId = actor.sessionId;
+        request.deviceId = actor.deviceId;
+        await clearIpFailures(redis, ip);
+        logger.debug({ walletAddress: actor.walletAddress, apiKeyId: apiKey.id }, 'API key authenticated');
+        return;
+      }
+
+      const token = rawCredential;
 
       // ── Verify Privy token ───────────────────────────────────────────────────
       let verifyResult: Awaited<ReturnType<typeof verifyPrivyToken>>;
@@ -127,9 +177,8 @@ export const authenticatePlugin = fp(
       let session;
       if (sessionId) {
         try {
-          session = await sessionManager.validate(sessionId);
+          session = await sessionManager.validate(sessionId, solanaWallet);
         } catch {
-          // Session invalid — create a new one below
           session = null;
         }
       }
@@ -193,7 +242,6 @@ function deriveDeviceId(request: FastifyRequest): string {
     return explicit.slice(0, 64);
   }
   // Fallback: hash of User-Agent + Accept-Language
-  const { createHash } = require('node:crypto') as typeof import('node:crypto');
   return createHash('sha256')
     .update((request.headers['user-agent'] ?? '') + (request.headers['accept-language'] ?? ''))
     .digest('hex')

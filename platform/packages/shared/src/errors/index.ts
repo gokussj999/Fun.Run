@@ -12,7 +12,7 @@ export class AppError extends Error {
     statusCode?: number;
     isOperational?: boolean;
     details?: unknown;
-    cause?: Error;
+    cause?: Error | undefined;
   }) {
     super(opts.message, { cause: opts.cause });
     this.name = this.constructor.name;

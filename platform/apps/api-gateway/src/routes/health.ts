@@ -9,16 +9,16 @@ const START_TIME = Date.now();
 
 export async function registerHealthRoutes(app: FastifyInstance): Promise<void> {
   // Liveness probe — is the process alive?
-  app.get('/healthz', { logLevel: 'silent' }, async (_request, reply) => {
+  app.get('/healthz', { logLevel: 'silent', config: { skipAuth: true } }, async (_request, reply) => {
     return reply.status(200).send({ ok: true });
   });
 
   // Readiness probe — are all dependencies healthy?
   app.get(
     '/readyz',
-    { logLevel: 'silent' },
+    { logLevel: 'silent', config: { skipAuth: true } },
     async (_request, reply): Promise<HealthCheckResult> => {
-      const { db, redis, logger } = getContainer();
+      const { db, redis, logger, config } = getContainer();
       const uptime = Math.floor((Date.now() - START_TIME) / 1000);
 
       const checks: HealthCheckResult['checks'] = {};
@@ -54,6 +54,22 @@ export async function registerHealthRoutes(app: FastifyInstance): Promise<void> 
         checks['redis_bullmq'] = { status: 'unhealthy', error: message };
       }
 
+      // Trading service check (Sprint 1 Task 18)
+      try {
+        const start = Date.now();
+        const tradingUrl = `${config.TRADING_SERVICE_URL.replace(/\/$/, '')}/healthz`;
+        const res = await fetch(tradingUrl, { signal: AbortSignal.timeout(3_000) });
+        if (res.ok) {
+          checks['trading'] = { status: 'healthy', latencyMs: Date.now() - start };
+        } else {
+          checks['trading'] = { status: 'unhealthy', error: `HTTP ${res.status}` };
+        }
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'unknown';
+        logger.error({ err: message }, 'Health check: trading service failed');
+        checks['trading'] = { status: 'unhealthy', error: message };
+      }
+
       const allHealthy = Object.values(checks).every((c) => c.status === 'healthy');
       const anyUnhealthy = Object.values(checks).some((c) => c.status === 'unhealthy');
 
@@ -74,7 +90,7 @@ export async function registerHealthRoutes(app: FastifyInstance): Promise<void> 
   );
 
   // Deep health — full diagnostic (not for load balancers)
-  app.get('/api/v1/health', async (_request, reply) => {
+  app.get('/api/v1/health', { config: { skipAuth: true } }, async (_request, reply) => {
     const { config, db, redis } = getContainer();
     const uptime = Math.floor((Date.now() - START_TIME) / 1000);
 

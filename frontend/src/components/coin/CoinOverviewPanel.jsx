@@ -19,7 +19,14 @@ const STAT_ICONS = {
   creator: "👤",
 };
 
-export function CoinOverviewPanel({ coin, showFullStory, onToggleStory, onCopyMint, onOpenCreator }) {
+export function CoinOverviewPanel({
+  coin,
+  mobile = false,
+  showFullStory,
+  onToggleStory,
+  onCopyMint,
+  onOpenCreator,
+}) {
   if (!coin) return null;
 
   const holderCount = Object.keys(coin?.holders || {}).length;
@@ -34,15 +41,56 @@ export function CoinOverviewPanel({ coin, showFullStory, onToggleStory, onCopyMi
     { key: "rewards", label: "Creator Rewards", value: `${fmtSol(coin.creatorRewardsSol || 0)} SOL` },
   ];
 
+  const mobileRows = [
+    { label: "Liquidity", value: `${fmtSol(liquiditySol)} SOL` },
+    { label: "Creator Rewards", value: `${fmtSol(coin.creatorRewardsSol || 0)} SOL` },
+    { label: "Mint Address", value: shortAddr(coin.mintAddress), action: coin?.mintAddress ? onCopyMint : null, actionLabel: "Copy" },
+    { label: "Creator", value: shortAddr(coin.creatorWallet), action: onOpenCreator, actionLabel: "View" },
+  ];
+
+  if (mobile) {
+    return (
+      <div className="coinMobileInfo">
+        {coin.story ? (
+          <section className="coinMobileInfoStory">
+            <h3 className="coinMobileInfoStoryTitle">About</h3>
+            <p className="coinMobileInfoStoryText">
+              {showFullStory || coin.story.length <= 140 ? coin.story : `${coin.story.slice(0, 140)}...`}
+              {coin.story.length > 140 ? (
+                <button type="button" className="coinStoryToggle" onClick={onToggleStory}>
+                  {showFullStory ? " Less" : " More"}
+                </button>
+              ) : null}
+            </p>
+          </section>
+        ) : null}
+
+        <div className="coinMobileInfoList">
+          {mobileRows.map((row) => (
+            <div key={row.label} className="coinMobileInfoRow">
+              <span className="coinMobileInfoLabel">{row.label}</span>
+              <span className="coinMobileInfoValue">
+                {row.value}
+                {row.action ? (
+                  <button type="button" className="coinMobileInfoAction" onClick={row.action}>
+                    {row.actionLabel}
+                  </button>
+                ) : null}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="coinOverviewPanel">
       {coin.story ? (
         <section className="coinOverviewAbout">
           <h3 className="coinOverviewAboutTitle">About {coin.name}</h3>
           <div className="coinOverviewAboutText">
-            {showFullStory || coin.story.length <= 180
-              ? coin.story
-              : `${coin.story.slice(0, 180)}...`}
+            {showFullStory || coin.story.length <= 180 ? coin.story : `${coin.story.slice(0, 180)}...`}
             {coin.story.length > 180 ? (
               <button type="button" className="coinStoryToggle" onClick={onToggleStory}>
                 {showFullStory ? " Less" : " Read more"}

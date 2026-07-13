@@ -17,11 +17,54 @@ import {
   sendAndConfirmTransaction,
   Keypair,
 } from "@solana/web3.js";
-import walletRoutes from "./routes/wallet.js";
 import treasury from "./solana/treasury.js";
 import { createMint } from "@solana/spl-token";
 import morgan from "morgan";
 import crypto from "crypto";
+
+// ---- F-08: Optional Redis client for distributed rate limiting ----
+// Agar REDIS_URL set hai to ioredis use karo; warna in-memory fallback (single-instance).
+let _redis = null;
+if (process.env.REDIS_URL) {
+  try {
+    const { default: Redis } = await import("ioredis");
+    _redis = new Redis(process.env.REDIS_URL, {
+      enableOfflineQueue: false,
+      maxRetriesPerRequest: 1,
+      lazyConnect: false,
+    });
+    _redis.on("error", (e) => console.error("[redis:ratelimit] error:", e.message));
+    console.log("[redis:ratelimit] connected — distributed rate limiting active");
+  } catch (e) {
+    console.warn("[redis:ratelimit] ioredis unavailable, falling back to in-memory:", e.message);
+  }
+}
+
+class RedisRateLimitStore {
+  constructor(prefix) {
+    this.prefix = prefix;
+    this.windowMs = 60_000;
+  }
+  init(opts) { this.windowMs = opts.windowMs; }
+  async increment(key) {
+    const rkey = `rl:${this.prefix}:${key}`;
+    const total = await _redis.incr(rkey);
+    if (total === 1) await _redis.pexpire(rkey, this.windowMs);
+    const ttlMs = await _redis.pttl(rkey);
+    return { totalHits: total, resetTime: new Date(Date.now() + Math.max(0, ttlMs)) };
+  }
+  async decrement(key) {
+    const rkey = `rl:${this.prefix}:${key}`;
+    const val = await _redis.decr(rkey);
+    if (val <= 0) await _redis.del(rkey);
+  }
+  async resetKey(key) { await _redis.del(`rl:${this.prefix}:${key}`); }
+  async resetAll() {}
+}
+
+function makeRlStore(prefix) {
+  return _redis ? new RedisRateLimitStore(prefix) : undefined;
+}
 
 console.log("SERVER UPDATED");
 
@@ -217,11 +260,11 @@ app.use(cors(corsOptions));
 app.options("*", cors(corsOptions)); // preflight — same policy, not a wildcard
 app.use(compression());
 
-const mnemonicLimiter = rateLimit({ windowMs: 60_000, max: 5 });
-const tradeLimiter    = rateLimit({ windowMs: 60_000, max: 60,  message: { ok: false, error: "Too many requests" } });
-const withdrawLimiter = rateLimit({ windowMs: 60_000, max: 10,  message: { ok: false, error: "Too many withdrawal requests" } });
-const claimLimiter    = rateLimit({ windowMs: 60_000, max: 10,  message: { ok: false, error: "Too many claim requests" } });
-const createLimiter   = rateLimit({ windowMs: 60_000, max: 10,  message: { ok: false, error: "Too many create requests" } });
+const mnemonicLimiter = rateLimit({ windowMs: 60_000, max: 5,   store: makeRlStore("mnemonic") });
+const tradeLimiter    = rateLimit({ windowMs: 60_000, max: 60,  store: makeRlStore("trade"),    message: { ok: false, error: "Too many requests" } });
+const withdrawLimiter = rateLimit({ windowMs: 60_000, max: 10,  store: makeRlStore("withdraw"), message: { ok: false, error: "Too many withdrawal requests" } });
+const claimLimiter    = rateLimit({ windowMs: 60_000, max: 10,  store: makeRlStore("claim"),    message: { ok: false, error: "Too many claim requests" } });
+const createLimiter   = rateLimit({ windowMs: 60_000, max: 10,  store: makeRlStore("create"),   message: { ok: false, error: "Too many create requests" } });
 
 app.use(
   rateLimit({
@@ -229,6 +272,7 @@ app.use(
     max: 500,
     standardHeaders: true,
     legacyHeaders: false,
+    store: makeRlStore("global"),
   })
 );
 
@@ -258,9 +302,6 @@ app.post("/wallet/create", async (req, res) => {
     return serverErr(e, res, "wallet/create");
   }
 });
-
-// IMPORTANT: walletRoutes sirf /wallet pe mount karo
-app.use("/wallet", walletRoutes);
 
 // ---- C1: /api/onchain/* — auth + server-side encrypted_mnemonic lookup ----
 // POST routes require a valid Privy token; encrypted_mnemonic is NEVER accepted from client.
@@ -530,11 +571,11 @@ async function scanWalletDeposits(wallet) {
 // -------------------- RUN BALANCE (single spendable balance) --------------------
 // Sab kuch profiles.run_balance par chalta hai (primary wallet ke under).
 // ATOMIC (FOR UPDATE) — race-safe.
-async function decreaseRun(wallet, amount) {
+async function decreaseRun(wallet, amount, _tx = null) {
   const w = String(wallet || "").trim();
   const amt = Math.max(0, safeNum(amount, 0));
 
-  return await sql.begin(async (tx) => {
+  const exec = async (tx) => {
     const rows = await tx`
       select run_balance from profiles where wallet = ${w} for update
     `;
@@ -553,14 +594,16 @@ async function decreaseRun(wallet, amount) {
     `;
 
     return nextRun;
-  });
+  };
+
+  return _tx ? exec(_tx) : sql.begin(exec);
 }
 
-async function increaseRun(wallet, amount) {
+async function increaseRun(wallet, amount, _tx = null) {
   const w = String(wallet || "").trim();
   const amt = Math.max(0, safeNum(amount, 0));
 
-  return await sql.begin(async (tx) => {
+  const exec = async (tx) => {
     const rows = await tx`
       select run_balance from profiles where wallet = ${w} for update
     `;
@@ -575,7 +618,9 @@ async function increaseRun(wallet, amount) {
     `;
 
     return nextRun;
-  });
+  };
+
+  return _tx ? exec(_tx) : sql.begin(exec);
 }
 
 // primary ya custodial — dono se run_balance dhoondo
@@ -687,6 +732,18 @@ async function creditDeposit({ wallet, txHash, amount }) {
 
   // Audit log is fire-and-forget — failure here does not affect the credit
   writeAudit("DEPOSIT", primaryWallet, amt, { meta: { txHash: hash, custodial: w } }).catch(() => {});
+  broadcast("portfolio:update", {
+    wallet: primaryWallet,
+    type: "DEPOSIT",
+    amount: amt,
+    txHash: hash,
+  });
+  broadcast("notification:new", {
+    wallet: primaryWallet,
+    type: "deposit",
+    title: `Deposit confirmed: ${amt.toFixed(4)} SOL`,
+    txHash: hash,
+  });
 
   return true;
 }
@@ -1179,17 +1236,35 @@ async function getProfile(wallet, createIfMissing = true) {
       try {
         const walletData = await createCustodialWallet();
 
-        await sql`
+        // CAS guard: only write if no concurrent request already assigned a wallet.
+        // Two simultaneous first-logins both generate keypairs; only one must win.
+        // RETURNING lets us read back the committed address in the same round-trip.
+        const updated = await sql`
           update profiles
           set
-            wallet_address = ${walletData.address},
+            wallet_address     = ${walletData.address},
             encrypted_mnemonic = ${walletData.encryptedMnemonic},
-            updated_at = now()
+            updated_at         = now()
           where wallet = ${w}
+            and (wallet_address is null or wallet_address = '')
+          returning wallet_address, encrypted_mnemonic
         `;
 
-        profile.wallet_address = walletData.address;
-        profile.encrypted_mnemonic = walletData.encryptedMnemonic;
+        if (updated.length > 0) {
+          // This process won the race — use the address we just wrote.
+          profile.wallet_address    = updated[0].wallet_address;
+          profile.encrypted_mnemonic = updated[0].encrypted_mnemonic;
+        } else {
+          // Another request won — read whichever address it committed.
+          const winner = await sql`
+            select wallet_address, encrypted_mnemonic
+            from   profiles
+            where  wallet = ${w}
+            limit  1
+          `;
+          profile.wallet_address    = winner[0]?.wallet_address    || "";
+          profile.encrypted_mnemonic = winner[0]?.encrypted_mnemonic || "";
+        }
       } catch (err) {
         console.log("Failed to generate custodial wallet:", err?.message || err);
       }
@@ -1375,7 +1450,7 @@ async function insertTransaction(tx = {}) {
   return row;
 }
 
-async function upsertHolding(wallet, coinId, mode = "set", amount = 0) {
+async function upsertHolding(wallet, coinId, mode = "set", amount = 0, _tx = null) {
   const w = String(wallet || "").trim();
   const c = String(coinId || "").trim();
 
@@ -1383,7 +1458,7 @@ async function upsertHolding(wallet, coinId, mode = "set", amount = 0) {
 
   const delta = Number(amount || 0);
 
-  const rows = await sql.begin(async (tx) => {
+  const exec = async (tx) => {
     const current = await tx`
       SELECT tokens FROM holdings
       WHERE wallet = ${w} AND coin_id = ${c}
@@ -1412,9 +1487,9 @@ async function upsertHolding(wallet, coinId, mode = "set", amount = 0) {
     `;
 
     return next;
-  });
+  };
 
-  return rows;
+  return _tx ? exec(_tx) : sql.begin(exec);
 }
 
 async function getCoinRowById(coinId) {
@@ -1472,14 +1547,15 @@ async function getRecentCoinActivity(coinId, limit = 50) {
   return activity;
 }
 
-async function saveCoin(coin) {
+async function saveCoin(coin, _tx = null) {
   await requireDb();
+  const db = _tx || sql;
   const payload = {
     id: String(coin.id || uid()),
     ...coinToDbUpdate(coin),
   };
 
-  const rows = await sql`
+  const rows = await db`
     insert into coins (
       id, name, symbol, story, logo, metadata_uri, mint_address, mint_signature, creator_wallet, created_at,
       total_supply, curve_supply, curve_sold, v_sol, v_tokens,
@@ -1699,32 +1775,87 @@ async function distributeFeeDirect(coin, traderWallet, feeSol) {
 
   const creatorWallet = String(coin?.creatorWallet || coin?.owner || "").trim();
 
-  const ownerPart = fee * (OWNER_PCT_OF_FEE / 100);
-  const creatorPart = fee * (CREATOR_PCT_OF_FEE / 100);
+  const ownerPart   = fee * (OWNER_PCT_OF_FEE   / 100);
+  const creatorPart = fee * (CREATOR_PCT_OF_FEE  / 100);
   const referralPart = fee * (REFERRAL_PCT_OF_FEE / 100);
 
-  const jobs = [];
-
-  if (APP_OWNER_WALLET && ownerPart > 0) {
-    jobs.push(addProfileReward(APP_OWNER_WALLET, "owner_rewards", ownerPart));
-  }
-
-  if (creatorWallet && creatorPart > 0) {
-    jobs.push(addProfileReward(creatorWallet, "creator_rewards", creatorPart));
-    coin.creatorRewardsSol = Math.max(0, safeNum(coin.creatorRewardsSol, 0) + creatorPart);
-  }
-
+  // Lookup creator's referral upline before the transaction (read-only, no lock needed).
   const creatorProfileRows =
     creatorWallet && referralPart > 0
       ? await sql`select referrer from profiles where wallet = ${creatorWallet} limit 1`
       : [];
-
   const creatorUpline = String(creatorProfileRows?.[0]?.referrer || "").trim();
-  if (creatorUpline && creatorUpline !== creatorWallet && referralPart > 0) {
-    jobs.push(addProfileReward(creatorUpline, "referral_rewards", referralPart));
+
+  // Ensure every recipient profile exists before the atomic block.
+  // getProfile(w, true) is idempotent — creates the row if absent, no-ops otherwise.
+  const profileEnsure = [];
+  if (APP_OWNER_WALLET && ownerPart > 0)
+    profileEnsure.push(getProfile(APP_OWNER_WALLET, true));
+  if (creatorWallet && creatorPart > 0)
+    profileEnsure.push(getProfile(creatorWallet, true));
+  if (creatorUpline && creatorUpline !== creatorWallet && referralPart > 0)
+    profileEnsure.push(getProfile(creatorUpline, true));
+  if (profileEnsure.length) await Promise.all(profileEnsure);
+
+  // All three reward UPDATEs run inside one DB transaction.
+  // Either all succeed or all roll back — no partial fee distribution.
+  await sql.begin(async (tx) => {
+    const updates = [];
+
+    if (APP_OWNER_WALLET && ownerPart > 0) {
+      updates.push(tx`
+        update profiles
+        set owner_rewards = owner_rewards + ${ownerPart}, updated_at = now()
+        where wallet = ${APP_OWNER_WALLET}
+      `);
+    }
+
+    if (creatorWallet && creatorPart > 0) {
+      updates.push(tx`
+        update profiles
+        set creator_rewards = creator_rewards + ${creatorPart}, updated_at = now()
+        where wallet = ${creatorWallet}
+      `);
+    }
+
+    if (creatorUpline && creatorUpline !== creatorWallet && referralPart > 0) {
+      updates.push(tx`
+        update profiles
+        set referral_rewards = referral_rewards + ${referralPart}, updated_at = now()
+        where wallet = ${creatorUpline}
+      `);
+    }
+
+    if (updates.length) await Promise.all(updates);
+  });
+
+  // In-memory coin state update (outside DB transaction — safe, read from DB on next cache miss).
+  if (creatorWallet && creatorPart > 0) {
+    coin.creatorRewardsSol = Math.max(0, safeNum(coin.creatorRewardsSol, 0) + creatorPart);
+    broadcast("creator:update", {
+      wallet: creatorWallet,
+      coinId: coin?.id || "",
+      amount: creatorPart,
+      fee,
+    });
   }
 
-  if (jobs.length) await Promise.all(jobs);
+  if (creatorUpline && creatorUpline !== creatorWallet && referralPart > 0) {
+    broadcast("referral:update", {
+      wallet: creatorUpline,
+      sourceWallet: traderWallet,
+      creatorWallet,
+      coinId: coin?.id || "",
+      amount: referralPart,
+      fee,
+    });
+    broadcast("notification:new", {
+      wallet: creatorUpline,
+      type: "referral_reward",
+      title: `Affiliate reward earned: ${referralPart.toFixed(6)} SOL`,
+      coinId: coin?.id || "",
+    });
+  }
 }
 
 function ammBuy(coin, wallet, solInGross) {
@@ -1858,10 +1989,10 @@ async function runCoinLocked(coinId, fn) {
       const lockId = _coinLockId(key);
       return await sql.begin(async (_tx) => {
         await _tx`SELECT pg_advisory_xact_lock(${lockId})`;
-        return await fn(); // fn() uses the global pool; lock is held at DB level
+        return await fn(_tx); // critical helpers use _tx — atomic with the advisory lock
       });
     }
-    return await fn();
+    return await fn(null);
   } finally {
     release();
     if (COIN_TRADE_LOCKS.get(key) === next) {
@@ -2303,14 +2434,21 @@ app.post("/withdraw", withdrawLimiter, async (req, res) => {
       signature = await sendAndConfirmTransaction(connection, solanaTx, [treasury]);
     } catch (sendErr) {
       // TX fail: record 'failed' mark karo, phir balance restore karo.
-      // Agar restore bhi fail ho, 'failed' status reconciliation signal hai.
       await sql`
         update withdrawals set status = 'failed' where id = ${withdrawalId}
       `.catch(() => {});
-      await increaseRun(wallet, amount);
+      try {
+        await increaseRun(wallet, amount);
+      } catch (restoreErr) {
+        // Balance restoration failed — user's balance stays decremented.
+        // Needs manual reconciliation.
+        console.error("[CRITICAL:withdraw/sol balance-restore-failed]", {
+          wallet, amount, withdrawalId, restoreErr: restoreErr?.message,
+        });
+      }
       await writeAudit("WITHDRAW_FAILED", wallet, amount, {
         meta: { error: sendErr?.message, destination, withdrawalId },
-      });
+      }).catch(() => {});
       console.error("[error:withdraw/sol onchain]", sendErr?.message || sendErr);
       return res.status(502).json({ ok: false, error: "On-chain transfer failed" });
     }
@@ -2322,6 +2460,19 @@ app.post("/withdraw", withdrawLimiter, async (req, res) => {
     `;
     await writeAudit("WITHDRAW", wallet, amount, {
       meta: { destination, txHash: signature, withdrawalId },
+    });
+    broadcast("portfolio:update", {
+      wallet,
+      type: "WITHDRAW",
+      amount,
+      destination,
+      txHash: signature,
+    });
+    broadcast("notification:new", {
+      wallet,
+      type: "withdraw",
+      title: `Withdrawal sent: ${amount.toFixed(4)} SOL`,
+      txHash: signature,
     });
 
     return res.json({ ok: true, txHash: signature });
@@ -2386,6 +2537,24 @@ async function handleRewardWithdraw(req, res, forcedKind = "", authWallet = null
 
     await writeAudit(`CLAIM_${kind}`, wallet, result.amount, {
       meta: { col, kind },
+    });
+    broadcast("portfolio:update", {
+      wallet,
+      type: "CLAIM",
+      kind,
+      amount: result.amount,
+    });
+    broadcast(kind === "CREATOR" ? "creator:update" : kind === "REF" ? "referral:update" : "owner:update", {
+      wallet,
+      type: "CLAIM",
+      kind,
+      amount: result.amount,
+    });
+    broadcast("notification:new", {
+      wallet,
+      type: "claim",
+      title: `Claimed ${result.amount.toFixed(6)} SOL`,
+      kind,
     });
 
     return res.json({ ok: true, kind, amountSol: result.amount, to: wallet });
@@ -2817,7 +2986,7 @@ app.post("/coin/create", createLimiter, async (req, res) => {
     coin = await saveCoin(coin);
 
     if (initialSol > 0) {
-      const result = await runCoinLocked(coin.id, async () => {
+      const result = await runCoinLocked(coin.id, async (_tx) => {
         const latestRow = await getCoinRowById(coin.id);
         if (!latestRow) throw new Error("Coin not found after create");
 
@@ -2825,32 +2994,34 @@ app.post("/coin/create", createLimiter, async (req, res) => {
         const buyRes = ammBuy(latestCoin, creatorWallet, initialSol);
 
         if (!buyRes.ok) {
-          // initial buy fail -> kata hua SOL wapas
-          await increaseRun(creatorWallet, initialSol);
+          // initial buy fail -> kata hua SOL wapas (_tx ke andar — atomic)
+          await increaseRun(creatorWallet, initialSol, _tx);
           return { ok: false, error: buyRes.error || "Initial buy failed" };
         }
 
-        await distributeFeeDirect(latestCoin, creatorWallet, buyRes.feeSol);
         latestCoin = recalcCoin(latestCoin, { appendChart: true, sideHint: "buy" });
-        latestCoin = await saveCoin(latestCoin);
+        latestCoin = await saveCoin(latestCoin, _tx); // _tx ke andar — atomic
 
-        await insertTransaction({
-          id: uid(),
-          type: "BUY",
-          side: "BUY",
-          coinId: latestCoin.id,
-          wallet: creatorWallet,
-          sol: initialSol,
-          tokens: Math.max(0, safeNum(buyRes.tokensOut, 0)),
-          fee: Math.max(0, safeNum(buyRes.feeSol, 0)),
-          priceUsd: latestCoin.priceUsd,
-        });
-
-        await upsertCandlesForTrade(
-          latestCoin.id,
-          Math.max(0, safeNum(latestCoin?.priceUsd || latestCoin?.price || 0)),
-          Math.max(0, safeNum(initialSol, 0))
-        );
+        // Side effects: separate connections, fire-and-forget
+        await Promise.allSettled([
+          distributeFeeDirect(latestCoin, creatorWallet, buyRes.feeSol),
+          insertTransaction({
+            id: uid(),
+            type: "BUY",
+            side: "BUY",
+            coinId: latestCoin.id,
+            wallet: creatorWallet,
+            sol: initialSol,
+            tokens: Math.max(0, safeNum(buyRes.tokensOut, 0)),
+            fee: Math.max(0, safeNum(buyRes.feeSol, 0)),
+            priceUsd: latestCoin.priceUsd,
+          }),
+          upsertCandlesForTrade(
+            latestCoin.id,
+            Math.max(0, safeNum(latestCoin?.priceUsd || latestCoin?.price || 0)),
+            Math.max(0, safeNum(initialSol, 0))
+          ),
+        ]);
 
         return { ok: true, coin: latestCoin };
       });
@@ -2881,12 +3052,11 @@ app.post("/coin/create", createLimiter, async (req, res) => {
         if (_encMnemonic) {
           const keypair = await getCustodialKeypairFromMnemonic(_encMnemonic);
           try {
-            const { Connection: DevConnection, SystemProgram, Transaction, sendAndConfirmTransaction, LAMPORTS_PER_SOL } = await import("@solana/web3.js");
-            const devConn = new DevConnection("https://api.devnet.solana.com", "confirmed");
+            const { SystemProgram, Transaction, sendAndConfirmTransaction, LAMPORTS_PER_SOL } = await import("@solana/web3.js");
             const fundTx = new Transaction().add(
               SystemProgram.transfer({ fromPubkey: treasury.publicKey, toPubkey: keypair.publicKey, lamports: 0.01 * LAMPORTS_PER_SOL })
             );
-            await sendAndConfirmTransaction(devConn, fundTx, [treasury]);
+            await sendAndConfirmTransaction(connection, fundTx, [treasury]);
           } catch (e) {
             console.log("[onchain] Treasury fund failed:", e.message);
           }
@@ -3007,7 +3177,7 @@ async function doTrade(req, res, side, authWallet = null) {
       return res.json({ ok: false, error: "tokens required" });
     }
 
-    const result = await runCoinLocked(coinId, async () => {
+    const result = await runCoinLocked(coinId, async (_tx) => {
       const row = await getCoinRowById(coinId);
       if (!row) return { ok: false, error: "token not found" };
 
@@ -3042,11 +3212,11 @@ async function doTrade(req, res, side, authWallet = null) {
         const anchorWallet     = new AnchorWallet(custodialKeypair);
 
         if (sideLower === "buy") {
-          try { await decreaseRun(wallet, sol); } catch { return { ok: false, error: "Insufficient balance" }; }
+          try { await decreaseRun(wallet, sol, _tx); } catch { return { ok: false, error: "Insufficient balance" }; }
           try {
             await _onchainBuy(anchorWallet, coinId, BigInt(Math.floor(sol * LAMPS)));
           } catch (e) {
-            await increaseRun(wallet, sol);
+            await increaseRun(wallet, sol, _tx);
             return { ok: false, error: e?.error?.errorMessage || e?.message || "On-chain buy failed" };
           }
         } else if (sideLower === "sell") {
@@ -3090,15 +3260,15 @@ async function doTrade(req, res, side, authWallet = null) {
             feeSol: fee,
             tokensIn: Math.abs(tokenSoldPre - tokenSoldPost),
           };
-          await increaseRun(wallet, solOutNet);
+          await increaseRun(wallet, solOutNet, _tx);
         }
 
       } else {
-        // ── OFF-CHAIN PATH (unchanged) ──────────────────────────────────────
+        // ── OFF-CHAIN PATH ──────────────────────────────────────
         if (sideLower === "buy") {
-          // BUY: pehle run_balance se SOL kato (kam ho to reject)
+          // BUY: pehle run_balance se SOL kato — _tx ke andar (atomic with advisory lock)
           try {
-            await decreaseRun(wallet, sol);
+            await decreaseRun(wallet, sol, _tx);
           } catch (balErr) {
             return { ok: false, error: "Insufficient balance" };
           }
@@ -3106,8 +3276,8 @@ async function doTrade(req, res, side, authWallet = null) {
           tradeResult = ammBuy(coin, wallet, sol);
 
           if (!tradeResult?.ok) {
-            // trade fail -> kata hua SOL wapas
-            await increaseRun(wallet, sol);
+            // trade fail -> kata hua SOL wapas — same _tx, rollback sab kuch
+            await increaseRun(wallet, sol, _tx);
             return { ok: false, error: tradeResult?.error || "Trade failed" };
           }
         } else if (sideLower === "sell") {
@@ -3117,9 +3287,9 @@ async function doTrade(req, res, side, authWallet = null) {
             return { ok: false, error: tradeResult?.error || "Trade failed" };
           }
 
-          // SELL: net SOL wapas run_balance me
+          // SELL: net SOL credit — _tx ke andar (atomic with advisory lock)
           const netSol = Math.max(0, safeNum(tradeResult.solOutNet, 0));
-          await increaseRun(wallet, netSol);
+          await increaseRun(wallet, netSol, _tx);
         } else {
           return { ok: false, error: "invalid side" };
         }
@@ -3135,7 +3305,7 @@ async function doTrade(req, res, side, authWallet = null) {
       }
 
       coin = recalcCoin(coin, { appendChart: true, sideHint: sideLower });
-      coin = await saveCoin(coin);
+      coin = await saveCoin(coin, _tx); // _tx ke andar — atomic with advisory lock
 
       const txPayload = {
         id: uid(),
@@ -3155,17 +3325,17 @@ async function doTrade(req, res, side, authWallet = null) {
         ? Math.max(0, safeNum(sol, 0))
         : Math.max(0, safeNum(tradeResult?.solOutGross || tradeResult?.solOutNet || 0, 0));
 
-      await Promise.all([
-        upsertHolding(wallet, coin.id, "set", Math.max(0, safeNum(coin?.holders?.[wallet], 0))),
+      // _tx ke andar: holdings atomic update (advisory lock ke saath)
+      await upsertHolding(wallet, coin.id, "set", Math.max(0, safeNum(coin?.holders?.[wallet], 0)), _tx);
+
+      // Side effects: separate connections, _tx se independent — failure swallow hoti hai
+      const sideCoin = { ...coin };
+      const sideEffects = await Promise.allSettled([
         upsertCandlesForTrade(
           coin.id,
           Math.max(0.00000001, safeNum(coin?.priceUsd || coin?.price || 0, 0.00000001)),
           candleVolumeSol
         ),
-      ]);
-
-      const sideCoin = { ...coin };
-      const sideEffects = await Promise.allSettled([
         distributeFeeDirect(sideCoin, wallet, tradeFeeSol),
         insertTransaction(txPayload),
         writeAudit(sideLower === "buy" ? "BUY" : "SELL", wallet,
@@ -3252,6 +3422,24 @@ app.post("/claim", claimLimiter, async (req, res) => {
 
     if (result.amount > 0) {
       await writeAudit(`CLAIM_${kind}`, wallet, result.amount);
+      broadcast("portfolio:update", {
+        wallet,
+        type: "CLAIM",
+        kind,
+        amount: result.amount,
+      });
+      broadcast(kind === "CREATOR" ? "creator:update" : kind === "REF" ? "referral:update" : "owner:update", {
+        wallet,
+        type: "CLAIM",
+        kind,
+        amount: result.amount,
+      });
+      broadcast("notification:new", {
+        wallet,
+        type: "claim",
+        title: `Claimed ${result.amount.toFixed(6)} SOL`,
+        kind,
+      });
     }
 
     return res.json({ ok: true, amount: result.amount });
@@ -3326,6 +3514,7 @@ const custodialWallet = String(profileRow?.[0]?.wallet_address || "").trim();
       holdingBaseRows,
       deposits,
       withdrawals,
+      referralRows,
     ] = await Promise.all([
       sql`select count(*)::int as count from profiles where referrer = ${wallet}`,
       sql`select * from coins where creator_wallet = ${wallet} order by created_at desc limit 100`,
@@ -3333,6 +3522,7 @@ const custodialWallet = String(profileRow?.[0]?.wallet_address || "").trim();
       sql`select wallet, coin_id, tokens, updated_at from holdings where wallet = ${wallet} and tokens > 0 order by updated_at desc limit 200`,
       sql`select * from deposits where wallet = ${custodialWallet || wallet} order by created_at desc limit 50`,
       sql`select * from withdrawals where wallet = ${wallet} order by created_at desc limit 50`,
+      sql`select wallet, created_at from profiles where referrer = ${wallet} order by created_at desc limit 25`,
     ]);
 
     const referralCount = safeNum(referralCountRows?.[0]?.count, 0);
@@ -3429,6 +3619,11 @@ depositAddress: custodialWallet,
         creations: myCreations,
         depositHistory: deposits || [],
         withdrawHistory: withdrawals || [],
+        referralActivity: (referralRows || []).map((r) => ({
+          wallet: r.wallet,
+          createdAt: r.created_at,
+          type: "JOIN",
+        })),
       },
       myCreations,
       lastTx,
@@ -3591,11 +3786,42 @@ process.on("SIGTERM", async () => {
   process.exit(0);
 });
 
+// ---- F-03: Startup CBC detection — warn if legacy AES-256-CBC mnemonics exist ----
+// Run: node backend/scripts/migrate-cbc-to-gcm.mjs --live  to migrate.
+async function detectLegacyCBC() {
+  try {
+    if (!sql) return;
+    const [profileRows, coinRows] = await Promise.all([
+      sql`SELECT COUNT(*)::int AS cnt FROM profiles
+          WHERE encrypted_mnemonic IS NOT NULL
+            AND encrypted_mnemonic != ''
+            AND encrypted_mnemonic NOT LIKE 'gcm:%'`,
+      sql`SELECT COUNT(*)::int AS cnt FROM coins
+          WHERE reserve_wallet_encrypted IS NOT NULL
+            AND reserve_wallet_encrypted != ''
+            AND reserve_wallet_encrypted NOT LIKE 'gcm:%'`,
+    ]);
+    const p = profileRows?.[0]?.cnt ?? 0;
+    const c = coinRows?.[0]?.cnt ?? 0;
+    if (p > 0 || c > 0) {
+      console.warn(
+        `[SECURITY WARNING] Legacy AES-256-CBC mnemonics detected: ${p} profiles, ${c} coins. ` +
+        `Run: node backend/scripts/migrate-cbc-to-gcm.mjs --live`
+      );
+    }
+  } catch (e) {
+    console.error("[detectLegacyCBC] check failed:", e?.message || e);
+  }
+}
+
 // -------------------- HTTP + WEBSOCKET SERVER --------------------
 const server = app.listen(PORT, () => {
   console.log(`Server running on ${PORT}`);
   ensureSchema()
-    .then(() => console.log("Schema ready"))
+    .then(async () => {
+      console.log("Schema ready");
+      await detectLegacyCBC();
+    })
     .catch(err => console.error("Schema error:", err));
   reconcilePendingWithdrawals().catch(err =>
     console.error("Reconcile error:", err)

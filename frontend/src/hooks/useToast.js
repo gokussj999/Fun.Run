@@ -45,17 +45,15 @@ function inferToastType(text) {
 export function useToast() {
   const [toast, setToast] = useState({ text: "", type: "default" });
 
-  const showToast = useCallback((text, type) => {
+  const showToast = useCallback((text, type, duration) => {
     const message = String(text || "");
     if (!message) {
       setToast({ text: "", type: "default" });
       return;
     }
-
-    setToast({
-      text: message,
-      type: type || inferToastType(message),
-    });
+    const next = { text: message, type: type || inferToastType(message) };
+    if (duration !== undefined) next.duration = duration;
+    setToast(next);
   }, []);
 
   const clearToast = useCallback(() => {

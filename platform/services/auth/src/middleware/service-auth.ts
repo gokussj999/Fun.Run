@@ -89,7 +89,7 @@ export function verifyServiceSignature(opts: {
  */
 export const serviceAuthPlugin = fp(
   async (app: FastifyInstance, config: ServiceAuthConfig) => {
-    app.decorateRequest('actor', null);
+    app.decorateRequest('actor', null as unknown as ServiceIdentity);
 
     app.addHook('onRequest', async (request: FastifyRequest, reply) => {
       const serviceId = request.headers[HEADERS.X_SERVICE_ID] as string | undefined;
@@ -118,8 +118,8 @@ export const serviceAuthPlugin = fp(
         throw new UnauthorizedError(`Unknown service: ${serviceId}`);
       }
 
-      // 4. Signature verification
-      const rawBody = (request.body !== undefined ? JSON.stringify(request.body) : '');
+      // 4. Signature verification (use raw body captured in preParsing — H-05)
+      const rawBody = request.rawBody ?? '';
       const valid = verifyServiceSignature({
         serviceId,
         secret: serviceConfig.secret,

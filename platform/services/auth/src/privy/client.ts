@@ -20,9 +20,7 @@ export function createPrivyClient(opts: PrivyClientOptions): PrivyClient {
     throw new Error('PRIVY_APP_ID and PRIVY_APP_SECRET are required');
   }
 
-  _privyClient = new PrivyClient(appId, appSecret, {
-    ...(verificationKey ? { customAuthorizationPolicies: [] } : {}),
-  });
+  _privyClient = new PrivyClient(appId, appSecret);
 
   logger.info({ appId }, 'Privy client initialized');
   return _privyClient;

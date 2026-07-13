@@ -13,13 +13,16 @@ export function Input({
 }) {
   const baseStyle = {
     width: "100%",
-    padding: "12px 13px",
-    borderRadius: 14,
+    padding: "13px 14px",
+    borderRadius: 16,
     border: "1px solid var(--inputBorder)",
     background: "var(--inputBg)",
     color: "var(--text)",
     outline: "none",
-    fontSize: 14,
+    fontSize: 15,
+    fontWeight: 700,
+    boxShadow: "inset 0 1px 0 rgba(255,255,255,.06)",
+    transition: "border-color .16s ease, box-shadow .16s ease, background .16s ease",
   };
 
   if (textarea) {
@@ -40,7 +43,7 @@ export function Input({
   }
 
   return (
-    <div style={{ position: "relative" }}>
+    <div className="frInputWrap" style={{ position: "relative" }}>
       <input
         value={value}
         onChange={onChange}
@@ -70,6 +73,7 @@ export function Input({
             fontSize: 11,
             fontWeight: 1000,
             cursor: "pointer",
+            boxShadow: "inset 0 1px 0 rgba(255,255,255,.06)",
           }}
         >
           {rightLabel}

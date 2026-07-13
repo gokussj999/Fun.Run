@@ -82,7 +82,49 @@ jobs:
       - run: pnpm lint
       - run: pnpm format:check
 
-  # ── 4. Test ───────────────────────────────────────────────────────────────────
+  # ── 4. DB migrate smoke test (empty PostgreSQL) ───────────────────────────────
+  db-migrate-smoke:
+    name: DB migrate smoke test
+    needs: install
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: funrun_test
+          POSTGRES_USER: funrun
+          POSTGRES_PASSWORD: secret
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://funrun:secret@localhost:5432/funrun_test
+      DATABASE_URL_REPLICA: postgresql://funrun:secret@localhost:5432/funrun_test
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: platform/pnpm-lock.yaml
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @funrun/database db:generate
+      - name: Migrate empty database
+        run: pnpm --filter @funrun/database db:migrate
+      - name: Verify schema smoke (tables, enums, indexes, FKs, status)
+        run: pnpm --filter @funrun/database db:verify-smoke
+
+  # ── 5. Test ───────────────────────────────────────────────────────────────────
   test:
     name: Unit tests
     needs: install
@@ -113,12 +155,14 @@ jobs:
     env:
       NODE_ENV: test
       DATABASE_URL: postgresql://funrun:secret@localhost:5432/funrun_test
+      DATABASE_URL_REPLICA: postgresql://funrun:secret@localhost:5432/funrun_test
       REDIS_URL: redis://localhost:6379
       JWT_SECRET: test-secret-key-min-32-chars-long-123
       MNEMONIC_ENCRYPTION_KEY: test-32-byte-aes-256-gcm-key-xxxxx
       SOLANA_RPC_PRIMARY: https://api.devnet.solana.com
       SOLANA_NETWORK: devnet
       PROGRAM_ID: HX1TXtjJ31aCA9AQZSUFzzyBVj34qh1uHGvcNUd2oBqP
+      TRADING_SERVICE_URL: http://localhost:3003
     steps:
       - uses: actions/checkout@v4
 
@@ -135,6 +179,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @funrun/database db:generate
       - run: pnpm --filter @funrun/database db:migrate
+      - run: pnpm --filter @funrun/database db:verify-smoke
       - run: pnpm test --coverage
 
       - name: Upload coverage
@@ -144,10 +189,10 @@ jobs:
           name: coverage
           path: platform/coverage/
 
-  # ── 5. Build Docker image ─────────────────────────────────────────────────────
+  # ── 6. Build Docker image ─────────────────────────────────────────────────────
   docker-build:
     name: Docker build (dry-run)
-    needs: [typecheck, lint, test]
+    needs: [typecheck, lint, db-migrate-smoke, test]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -164,7 +209,27 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-  # ── 6. Release (main branch only) ────────────────────────────────────────────
+      - name: Build trading image (no push)
+        uses: docker/build-push-action@v6
+        with:
+          context: platform
+          file: platform/services/trading/Dockerfile
+          target: production
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build indexer image (no push)
+        uses: docker/build-push-action@v6
+        with:
+          context: platform
+          file: platform/services/indexer/Dockerfile
+          target: production
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ── 7. Release (main branch only) ────────────────────────────────────────────
   release:
     name: Push image to registry
     needs: docker-build

@@ -633,13 +633,21 @@ export function ProfilePage({
                         {item.type}
                       </div>
                       <div className="miniMuted">{new Date(item.createdAt).toLocaleString()}</div>
+                      {item.destination ? (
+                        <div className="miniMuted">To {shortWallet?.(item.destination) || item.destination}</div>
+                      ) : null}
                     </div>
                     <div style={{ textAlign: "right" }}>
                       <div style={{ fontWeight: 1000 }}>{fmtSol(item.amount)} SOL</div>
-                      <div className="miniMuted">{String(item.txHash || "").slice(0, 8)}...</div>
-                      <MiniBtn className="profileWalletHistoryCopy" onClick={() => onCopyTxHash?.(item.txHash)}>
-                        Copy
-                      </MiniBtn>
+                      <div className="miniMuted">{item.status || "confirmed"}</div>
+                      {item.txHash ? (
+                        <>
+                          <div className="miniMuted">{String(item.txHash || "").slice(0, 8)}...</div>
+                          <MiniBtn className="profileWalletHistoryCopy" onClick={() => onCopyTxHash?.(item.txHash)}>
+                            Copy
+                          </MiniBtn>
+                        </>
+                      ) : null}
                     </div>
                   </div>
                 ))

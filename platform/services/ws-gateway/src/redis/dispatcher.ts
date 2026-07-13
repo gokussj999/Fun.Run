@@ -1,4 +1,4 @@
-import type Redis from 'ioredis';
+import type { Redis } from 'ioredis';
 import type { Logger } from '@funrun/logger';
 import { WebSocket } from 'ws';
 
@@ -8,31 +8,31 @@ import { SubscriptionManager } from '../subscription/manager.js';
 import { ReplayBuffer } from '../replay/buffer.js';
 import { BackpressureHandler } from '../backpressure/handler.js';
 import { RK } from '../constants.js';
+import { isStrictRedisMode, type RedisDependencyMode } from '../config/redis-dependency.js';
+
+export interface EventDispatcherOptions {
+  redisMode?: RedisDependencyMode;
+}
 
 /**
- * EventDispatcher bridges incoming Redis pub/sub messages → WS client sends.
- *
- * Per-channel sequence numbers are assigned atomically via Redis INCR.
- * This guarantees monotonically increasing sequence numbers even across
- * multiple workers (since the INCR is atomic and all workers share Redis).
- *
- * Fan-out is local-only — each gateway worker dispatches only to its own connections.
+ * EventDispatcher bridges Redis pub/sub → WS clients.
+ * Per-channel seq via Redis INCR; per-connection sentSeqs dedup (Sprint 4).
  */
 export class EventDispatcher {
+  private readonly redisMode: RedisDependencyMode;
+
   constructor(
-    private readonly cache: Redis,       // separate non-subscriber Redis client
+    private readonly cache: Redis,
     private readonly registry: ConnectionRegistry,
     private readonly subscriptions: SubscriptionManager,
     private readonly replayBuffer: ReplayBuffer,
     private readonly backpressure: BackpressureHandler,
     private readonly logger: Logger,
-  ) {}
+    opts: EventDispatcherOptions = {},
+  ) {
+    this.redisMode = opts.redisMode ?? 'degraded';
+  }
 
-  /**
-   * Handle a raw Redis pub/sub message.
-   * redisChannel: e.g. "price:MINT123" or "events:all_trades"
-   * rawData:      JSON string published by the indexer
-   */
   async handleRedisMessage(redisChannel: string, rawData: string): Promise<void> {
     let payload: Record<string, unknown>;
     try {
@@ -42,7 +42,6 @@ export class EventDispatcher {
       return;
     }
 
-    // Determine which WS channels this Redis message should fan out to
     const wsChannels = this.resolveWsChannels(redisChannel, payload);
 
     for (const wsChannel of wsChannels) {
@@ -58,8 +57,9 @@ export class EventDispatcher {
     const subscribers = this.subscriptions.getSubscribers(wsChannel);
     if (subscribers.length === 0) return;
 
-    // Assign sequence number (atomic Redis INCR)
     const seq = await this.nextSeq(wsChannel);
+    if (seq === null) return;
+
     const ts  = Date.now();
     const eventName = this.resolveEventName(redisChannel, payload);
 
@@ -74,13 +74,14 @@ export class EventDispatcher {
 
     const json = JSON.stringify(msg);
 
-    // Store in replay buffer (best-effort)
     const replayEntry: ReplayEntry = { seq, ts, event: eventName, data: msg.data };
     void this.replayBuffer.push(wsChannel, seq, replayEntry);
 
-    // Fan out to all local subscribers
     let sent = 0;
     for (const conn of subscribers) {
+      const lastSent = conn.sentSeqs.get(wsChannel) ?? 0;
+      if (seq <= lastSent) continue;
+
       const socket = this.registry.getSocket(conn.id);
       if (!socket || socket.readyState !== WebSocket.OPEN) continue;
 
@@ -88,6 +89,7 @@ export class EventDispatcher {
 
       try {
         socket.send(json, { compress: true });
+        conn.sentSeqs.set(wsChannel, seq);
         conn.messagesSent++;
         sent++;
       } catch (err) {
@@ -103,17 +105,10 @@ export class EventDispatcher {
     }
   }
 
-  /**
-   * Resolve which WS channel(s) a Redis pub/sub message should fan out to.
-   *
-   * A single Redis channel can feed multiple WS channels.
-   * E.g. price:MINT123 feeds: coin:MINT123, trades:MINT123, candles:MINT123, holders:MINT123
-   */
   private resolveWsChannels(
     redisChannel: string,
     payload: Record<string, unknown>,
   ): string[] {
-    // Per-mint dynamic channels
     if (redisChannel.startsWith('price:')) {
       const mint = redisChannel.slice(6);
       const eventType = payload['tradeType'] as string | undefined;
@@ -130,12 +125,32 @@ export class EventDispatcher {
       return [`coin:${mint}`, 'graduation'];
     }
 
-    // Static channels
+    if (redisChannel.startsWith('events:creator:')) {
+      const wallet = redisChannel.slice('events:creator:'.length);
+      return [`creator:${wallet}`];
+    }
+
+    if (redisChannel.startsWith('events:referral:')) {
+      const wallet = redisChannel.slice('events:referral:'.length);
+      return [`referral:${wallet}`];
+    }
+
+    if (redisChannel.startsWith('events:portfolio:')) {
+      const wallet = redisChannel.slice('events:portfolio:'.length);
+      return [`portfolio:${wallet}`];
+    }
+
+    if (redisChannel.startsWith('events:notifications:')) {
+      const wallet = redisChannel.slice('events:notifications:'.length);
+      return [`notifications:${wallet}`];
+    }
+
     const staticMap: Record<string, string[]> = {
       'events:all_trades':      ['market'],
       'events:all_graduations': ['market', 'graduation'],
       'events:coin_created':    ['market'],
       'events:treasury_sweep':  ['treasury'],
+      'events:fee_claimed':     ['admin'],
       'events:admin_action':    ['admin'],
       'events:indexer':         ['admin'],
     };
@@ -153,21 +168,30 @@ export class EventDispatcher {
     if (redisChannel.startsWith('graduation:')) {
       return payload['phase'] === 'completed' ? 'graduation_completed' : 'graduation_initiated';
     }
+    if (redisChannel.startsWith('events:creator:')) {
+      return String(payload['eventType'] ?? 'creator_update');
+    }
+    if (redisChannel.startsWith('events:referral:')) {
+      return String(payload['eventType'] ?? 'referral_update');
+    }
+    if (redisChannel.startsWith('events:portfolio:')) {
+      return 'portfolio_updated';
+    }
+    if (redisChannel.startsWith('events:notifications:')) {
+      return String(payload['type'] ?? 'notification');
+    }
     const nameMap: Record<string, string> = {
       'events:all_trades':      'market_trade',
       'events:all_graduations': 'market_graduation',
       'events:coin_created':    'coin_created',
       'events:treasury_sweep':  'treasury_sweep',
+      'events:fee_claimed':     'fee_claimed',
       'events:admin_action':    'admin_action',
       'events:indexer':         'indexer_event',
     };
     return nameMap[redisChannel] ?? 'update';
   }
 
-  /**
-   * Filter the payload to include only fields relevant to the WS channel.
-   * Avoids leaking internal indexer fields to clients.
-   */
   private filterPayload(wsChannel: string, payload: Record<string, unknown>): Record<string, unknown> {
     const kind = wsChannel.split(':')[0];
     switch (kind) {
@@ -188,16 +212,48 @@ export class EventDispatcher {
           tokenAmount: payload['tokenAmount'],
           slot:        payload['slot'],
         };
+      case 'portfolio':
+        return {
+          mint:        payload['mint'],
+          tradeType:   payload['tradeType'],
+          tokenAmount: payload['tokenAmount'],
+          solAmount:   payload['solAmount'],
+          slot:        payload['slot'],
+          signature:   payload['signature'],
+        };
+      case 'notifications':
+        return {
+          type:      payload['type'],
+          title:     payload['title'],
+          body:      payload['body'],
+          mint:      payload['mint'],
+          slot:      payload['slot'],
+          signature: payload['signature'],
+        };
+      case 'creator':
+      case 'referral':
+        return {
+          eventType: payload['eventType'],
+          mint:      payload['mint'],
+          amount:    payload['amount'],
+          tradeType: payload['tradeType'],
+          slot:      payload['slot'],
+          signature: payload['signature'],
+        };
       default:
         return payload;
     }
   }
 
-  private async nextSeq(wsChannel: string): Promise<number> {
+  private async nextSeq(wsChannel: string): Promise<number | null> {
     try {
       return await this.cache.incr(RK.seq(wsChannel));
-    } catch {
-      // Fallback: use timestamp as seq (non-ideal but safe)
+    } catch (err) {
+      if (isStrictRedisMode(this.redisMode)) {
+        this.logger.error({ err, wsChannel }, 'Dispatcher: seq INCR failed in strict mode — dropping event');
+        return null;
+      }
+      this.logger.warn({ err, wsChannel }, 'Dispatcher: seq INCR failed, using timestamp fallback');
       return Date.now();
     }
   }

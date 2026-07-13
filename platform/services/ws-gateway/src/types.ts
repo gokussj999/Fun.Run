@@ -107,6 +107,7 @@ export type WsChannelKind =
   | 'creator'
   | 'referral'
   | 'portfolio'
+  | 'notifications'
   | 'graduation'
   | 'treasury'
   | 'admin';

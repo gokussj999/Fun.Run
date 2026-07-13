@@ -1,116 +1,326 @@
-# Fun.Run — Real Platform Roadmap
-### Maqsad: pump.fun-jaisa REAL, SOLVENT, SAFE Solana meme launchpad
+# ROADMAP.md
 
-> Is roadmap ka asool: **har withdrawable balance real SOL se backed ho, aur users ka paisa bug aane par bhi safe rahe.**
-> Claude Code: is file ko reference rakho. Ek waqt mein ek step — pehle PLAN, phir diff, phir review, phir apply. Money code pe hamesha review (auto-accept nahi). Har bara step pehle **Solana devnet** pe test, phir mainnet.
-
----
-
-## Bunyaadi Usool (har step pe yaad rakhna)
-1. **No phantom balance** — jo balance withdraw ho sakta hai wo real SOL se 1:1 backed ho.
-2. **Airdrop ≠ real SOL** — 700k RUN airdrop alag (`run_tokens`), SOL ke tor pe withdrawable NAHI.
-3. **Real SOL movement** — har buy/sell pe real SOL waqai move ho, sirf DB number nahi.
-4. **Solvency hamesha** — total withdrawable obligations ≤ total real SOL held.
-5. **Self-custodial direction** — aakhir mein users apne funds khud control karein (Privy), taake platform unke funds hold hi na kare.
-6. **No single point of failure** — funds ek hi wallet mein pool mat karo.
+> **Master Roadmap** — FUN.RUN platform certification and launch sequence.  
+> One phase at a time. No mainnet until Phase 8 is complete.
 
 ---
 
-## Current State (jahan abhi hain)
-- Wallets: **custodial** (encrypted mnemonics DB mein) — risk.
-- Trading: **virtual** (vSol=30, real SOL ≈ 0) — profits unbacked.
-- `run_balance`: real deposits + 700k airdrop + virtual profits sab mile hue — **insolvent**.
-- Withdraw: treasury se (empty) — **broken**.
-- Security hardening: **done** ✅ (atomic claims, withdraw idempotency, kill switch, limits, startup reconciliation, secrets fail-fast).
+# Project Goal
+
+**Build the most professional Solana Launchpad that surpasses Pump.fun.**
+
+Success criteria:
+
+- On-chain protocol audited and certified
+- Backend microservices production-hardened
+- Frontend UX polished and mobile-responsive
+- Cross-system integration verified end-to-end
+- Mainnet deployment with multisig governance and monitoring
 
 ---
 
-## PHASE 0 — Foran Safety (abhi, sabse pehle)
-*Maqsad: system ko solvent + safe banana. Koi launch nahi jab tak trading real na ho.*
+# Phase Overview
 
-- [ ] **0.1** Withdrawals OFF rakho (`WITHDRAWALS_ENABLED=0`) jab tak Phase 1 mukammal na ho.
-- [ ] **0.2** 700k RUN airdrop ko `run_balance` se ALAG karo → naya `run_tokens` field. `run_tokens` SOL ke tor pe withdrawable NAHI, frontend ke mutabiq locked till 2027.
-- [ ] **0.3** Existing users ki **migration**: current `run_balance` ko alag karo → (a) real SOL (deposits + claimed rewards) (b) `run_tokens` (airdrop + referral RUN bonus). Backup table + DB transaction + **dry-run review** ke saath. Real SOL ka sabse reliable source = **on-chain custodial wallet balance**.
-- [ ] **0.4** 3000 users ko launch MAT karo jab tak Phase 1 + devnet testing complete na ho.
-
----
-
-## PHASE 1 — Trading ko REAL banao (abhi custodial rahega — sabse bara kaam)
-*Maqsad: har trade pe real SOL move ho, har balance backed ho. Yahi solvency deta hai.*
-
-- [ ] **1.1** Har coin ka apna **real reserve** (per-coin SOL reserve account) — jahan us coin ka real SOL jama ho.
-- [ ] **1.2 Buy:** user ke wallet se **real SOL → coin reserve** (real on-chain transfer). Bonding curve math (virtual reserves sirf pricing ke liye, jaise pump.fun) se tokens calculate.
-- [ ] **1.3 Sell:** user ke tokens → curve; **coin reserve se real SOL → user** (real transfer).
-- [ ] **1.4 Fees:** real SOL mein (40% owner / 40% creator / 20% referral), real transfer/accrual ke saath.
-- [ ] **1.5 Create coin:** real SOL fee + SPL token mint.
-- [ ] **1.6 Withdraw:** user ke **apne wallet** se (jahan ab real SOL hai). Dual gate: `run_balance` entitlement + on-chain balance. **Treasury pool nahi.**
-- [ ] **1.7 Solvency monitor job:** periodic check — total withdrawable balance vs total real SOL. Mismatch pe alert + auto kill-switch.
+| Phase | Name | Status |
+|---|---|---|
+| **Phase 1** | Final Solana Audit | ✅ Completed |
+| **Phase 2** | Backend Audit | ⏳ Pending |
+| **Phase 3** | Backend Security | ⏳ Pending |
+| **Phase 4** | Frontend Audit | ⏳ Pending |
+| **Phase 5** | UI/UX Audit | ⏳ Pending |
+| **Phase 6** | Cross-System Audit | ⏳ Pending |
+| **Phase 7** | Deployment Audit | ⏳ Pending |
+| **Phase 8** | Mainnet Certification | ⏳ Pending |
 
 ---
 
-## PHASE 2 — Self-custodial (Privy embedded) — pump.fun ka asal model
-*Maqsad: platform logon ke funds hold hi na kare. Jo paisa tumhare paas hai hi nahi, wo bug/hack se nahi jaa sakta.*
+# Phase 1 — Final Solana Audit
 
-- [ ] **2.1** Privy embedded **self-custodial** wallets enable karo (Privy already use ho raha hai).
-- [ ] **2.2** Naye users → Privy self-custodial wallet (DB mein encrypted mnemonic nahi).
-- [ ] **2.3** Trades user ke apne wallet se sign hon (Privy signing).
-- [ ] **2.4** Existing custodial users ke liye migration path (apne wallet mein move/export).
-- [ ] **2.5** `ENCRYPTION_KEY` / mnemonic storage phase out.
+**Status:** ✅ **Completed**
 
----
+Comprehensive review of the frozen `funrun_v2` Anchor program (RC1).
 
-## PHASE 3 — Graduation (jab coin bara ho)
-- [ ] **3.1** Threshold pe coin ki liquidity real DEX (Raydium/Orca) pe migrate, real LP ke saath.
-- [ ] **3.2** Graduated coins curve se DEX trading pe shift.
+## Checklist
 
----
+- [x] Program architecture reviewed (`anchor/docs/AUDIT_PACKAGE.md`)
+- [x] 13 instructions documented with CU budgets
+- [x] 20 security invariants verified
+- [x] 544 unit tests passing
+- [x] 28 graduation simulation tests passing
+- [x] Devnet smoke tests (17/17 passing)
+- [x] PDA signer pattern validated
+- [x] Fee split math verified (40/40/20)
+- [x] Threat model documented (10 scenarios)
+- [x] Known limitations catalogued
+- [x] Operator runbook published
+- [x] Protocol reference published
+- [x] Release candidate tagged (`v1.0.0-rc1`)
 
-## Cross-cutting (har phase ke saath chalega)
-- **Devnet first:** har change pehle Solana **devnet** pe test, phir mainnet.
-- **Audit logs:** har real SOL movement immutably log (`audit_logs`).
-- **Soft launch:** chhoti limits se shuru, monitor, phir barhao.
-- **No fund pooling:** ek single wallet mein sab funds mat rakho.
+## Outcome
 
----
-
-## Ahem Faisla (Phase 1 vs seedha Phase 2)
-Do raaste hain — apni capacity ke hisaab se chuno:
-- **Raasta 1 (pragmatic):** pehle Phase 1 (real trading, custodial) → solvency jaldi → phir Phase 2 (self-custodial). Asaan-incremental, par Phase 1 ka kuch kaam baad mein replace hoga.
-- **Raasta 2 (final, zyada kaam):** seedha self-custodial + on-chain bonding curve (pump.fun ka asal). Zyada mushkil (Solana program / Anchor, Privy signing) aur ehtiyaat ke saath audit, lekin end-state. Interim throwaway kaam nahi.
-
-> Solo dev ke liye aam tor pe **Raasta 1** zyada realistic hai — par faisla tumhara.
+**Pass with Required Fixes** — see `CHANGELOG.md` for H-1 and M-series findings.
 
 ---
 
-## Kaam ka Tareeqa (Claude Code ke liye)
-1. Is roadmap ko CLAUDE.md / memory mein reference rakho.
-2. **Ek step at a time** — PLAN → diff → review → apply.
-3. **Money/fund code pe hamesha manual review** (kabhi "allow all edits" nahi).
-4. Har bara step: **devnet test → confirm → mainnet**.
-5. Har phase ke aakhir mein **solvency check**: total withdrawable ≤ total real SOL.
+# Phase 2 — Backend Audit
+
+**Status:** ⏳ **Pending**
+
+Audit of the production platform (`platform/`) and legacy backend (`backend/`).
+
+## Checklist
+
+- [ ] API Gateway route inventory and auth coverage
+- [ ] Auth service: JWT lifecycle, RBAC, API key scoping, replay protection
+- [ ] Trading service: tx state machine, idempotency, double-spend guards
+- [ ] Indexer: event parsing accuracy, reorg handling, backfill correctness
+- [ ] WS Gateway: subscription auth, rate limits, presence tracking
+- [ ] Database schema review (Prisma migrations + legacy SQL)
+- [ ] Redis usage audit (cache TTLs, pub/sub channels, BullMQ jobs)
+- [ ] Legacy backend parity check during migration
+- [ ] Error handling — no internal detail leakage
+- [ ] Rate limit coverage on all mutating endpoints
+- [ ] Audit log completeness for money movements
+- [ ] Integration tests for service-to-service calls
+- [ ] Load test baseline (k6 scripts in `platform/services/trading/tests/load/`)
+- [ ] Documentation of all environment variables
+- [ ] Final audit report published
 
 ---
 
-## Status Tracker
+# Phase 3 — Backend Security
 
-| Step | Status | Notes |
-|------|--------|-------|
-| **0.1** WITHDRAWALS_ENABLED=0 | ✅ Done | Set in Railway env |
-| **Phase 0.5** Frontend RUN card fix | ✅ Done | runTokens from DB, referral bonus → Phase 2 |
-| **0.2** run_tokens field alag karo | ✅ Done | `run_tokens numeric NOT NULL DEFAULT 0` — verified in Neon |
-| **0.3** Migration (run_balance split) | ✅ Done | run_balance=0.00191 SOL, run_tokens=6.3M — backup: profiles_backup_phase03 |
-| **0.4** Launch hold | ✅ Done | SIGNUP_AIRDROP_RUN=300k, run_balance default=0, run_tokens in INSERT |
-| **1.1** Per-coin real reserve | ⏳ Pending | |
-| **1.2** Real buy (SOL transfer) | ⏳ Pending | |
-| **1.3** Real sell (SOL transfer) | ✅ Done (devnet) | |
-| **1.4** Real fees | ⏳ Pending | |
-| **1.5** Create coin (real fee) | ⏳ Pending | |
-| **1.6** Withdraw from own wallet | ⏳ Pending | |
-| **1.7** Solvency monitor | ⏳ Pending | |
-| **2.1** Privy self-custodial | ⏳ Pending | |
-| **2.2** New users → Privy wallet | ⏳ Pending | |
-| **2.3** Privy signing for trades | ⏳ Pending | |
-| **2.4** Custodial migration path | ⏳ Pending | |
-| **2.5** ENCRYPTION_KEY phase out | ⏳ Pending | |
-| **3.1** DEX graduation | ⏳ Pending | |
-| **3.2** Curve → DEX shift | ⏳ Pending | |
+**Status:** ⏳ **Pending**
+
+Security hardening based on Phase 2 findings.
+
+## Checklist
+
+- [ ] Secret management review (no keys in repo, fail-fast on missing env)
+- [ ] CORS policy locked to production origins
+- [ ] Helmet / security headers on all HTTP services
+- [ ] SQL injection prevention verified (parameterized queries only)
+- [ ] SSRF protection on external URL fetches
+- [ ] Input validation on all endpoints (Zod schemas)
+- [ ] Service-to-service auth (mTLS or signed tokens)
+- [ ] Redis AUTH enforced in production
+- [ ] PostgreSQL TLS enforced
+- [ ] Mnemonic encryption audit (AES-256-GCM, key rotation path)
+- [ ] Withdrawal gates and kill-switch verification
+- [ ] Idempotency store tamper resistance
+- [ ] Security test suite green (`tests/security/`)
+- [ ] Dependency vulnerability scan (npm audit / cargo audit)
+- [ ] Penetration test report (external or internal red team)
+
+---
+
+# Phase 4 — Frontend Audit
+
+**Status:** ⏳ **Pending**
+
+Code and architecture review of `frontend/`.
+
+## Checklist
+
+- [ ] No business logic in frontend (display + signing only)
+- [ ] Privy integration: auth flows, wallet creation, session handling
+- [ ] API client: error handling, retry logic, auth header injection
+- [ ] WebSocket client: reconnect, subscription cleanup
+- [ ] Trade preview matches backend/on-chain math
+- [ ] No secrets in client bundle (env var audit)
+- [ ] XSS prevention (no `dangerouslySetInnerHTML` without sanitization)
+- [ ] CSRF not applicable (Bearer auth) — verify
+- [ ] Route/navigation state management review
+- [ ] Bundle size analysis and code-splitting
+- [ ] ESLint clean (`npm run lint`)
+- [ ] Accessibility baseline (ARIA, keyboard nav)
+- [ ] PWA manifest and service worker review
+
+---
+
+# Phase 5 — UI/UX Audit
+
+**Status:** ⏳ **Pending**
+
+Design and user experience review.
+
+## Checklist
+
+- [ ] Landing page: value prop, CTA, trust signals
+- [ ] Home / coin discovery: sorting, filters, hot coins
+- [ ] Coin detail page: chart, trade panel, holders, activity feed
+- [ ] Create coin flow: validation, fee display, success state
+- [ ] Portfolio page: holdings, PnL, history
+- [ ] Creator dashboard: earnings, coin management
+- [ ] Referral dashboard: link sharing, earnings breakdown
+- [ ] Admin dashboard: protocol controls (read-only until mainnet)
+- [ ] Mobile responsive on all pages
+- [ ] Dark/light theme consistency
+- [ ] Loading states and skeleton screens
+- [ ] Error states and empty states
+- [ ] Toast/notification patterns
+- [ ] Typography and spacing token audit (`frontend/src/styles/tokens.css`)
+- [ ] User testing session (≥ 5 participants)
+
+---
+
+# Phase 6 — Cross-System Audit
+
+**Status:** ⏳ **Pending**
+
+End-to-end integration verification across all layers.
+
+## Checklist
+
+- [ ] Create coin: frontend → trading service → on-chain → indexer → DB → WS
+- [ ] Buy flow: quote → sign → submit → confirm → index → candle → WS push
+- [ ] Sell flow: same as buy with solvency verification
+- [ ] Fee claim: creator and referrer paths
+- [ ] Graduation: initiate → complete → indexer → WS → frontend update
+- [ ] Auth: login → session → protected API → WS auth
+- [ ] Portfolio: DB holdings match on-chain token accounts
+- [ ] Candle data: indexer OHLCV matches trade history
+- [ ] Reorg / missed slot recovery tested
+- [ ] RPC failover tested (`health-manager.ts`)
+- [ ] Concurrent trade stress test (k6)
+- [ ] Graduation stress test (k6)
+- [ ] Legacy backend ↔ platform migration data integrity
+- [ ] Full regression test script documented
+
+---
+
+# Phase 7 — Deployment Audit
+
+**Status:** ⏳ **Pending**
+
+Infrastructure and deployment readiness.
+
+## Checklist
+
+- [ ] Docker images: multi-stage builds, non-root user, minimal attack surface
+- [ ] Docker Compose prod config reviewed (`platform/docker-compose.prod.yml`)
+- [ ] Kubernetes manifests (if applicable) — resource limits, probes, HPA
+- [ ] CI/CD pipeline: build, test, lint, typecheck on every PR
+- [ ] Database migration strategy (zero-downtime)
+- [ ] Redis persistence config (AOF, maxmemory policy)
+- [ ] Backup and restore procedure for PostgreSQL
+- [ ] Log aggregation (JSON → centralized store)
+- [ ] Prometheus metrics scraped from all services
+- [ ] Alert rules configured (`monitoring/alerts.yaml`)
+- [ ] SSL/TLS termination
+- [ ] CDN for frontend static assets
+- [ ] Environment separation (dev / staging / prod)
+- [ ] Rollback procedure documented and tested
+- [ ] Disaster recovery runbook
+
+---
+
+# Phase 8 — Mainnet Certification
+
+**Status:** ⏳ **Pending**
+
+Final gate before public mainnet launch.
+
+## Checklist
+
+- [ ] All Phase 1–7 checklists complete
+- [ ] H-1 and all M-series findings resolved or accepted with mitigation
+- [ ] External security audit complete (no unresolved critical/high)
+- [ ] `complete_graduation` live-tested on mainnet (low-liquidity test coin)
+- [ ] Admin keypair on hardware wallet
+- [ ] Upgrade authority on multisig (or burned for immutability)
+- [ ] Fee recipient on cold multisig
+- [ ] Off-chain graduation monitor deployed
+- [ ] Mainnet program deployed with verified binary hash
+- [ ] Solvency monitor active
+- [ ] Soft launch with transaction limits
+- [ ] Incident response plan published
+- [ ] Public launch announcement
+
+---
+
+# After Mainnet — Platform Services
+
+Post-certification feature completion and operational maturity.
+
+## Wallet Service
+
+**Status:** ⏳ Not started
+
+- [ ] Privy self-custodial wallet provisioning
+- [ ] Custodial → self-custodial migration path
+- [ ] Balance sync (on-chain ↔ DB)
+- [ ] Deposit detection and confirmation
+- [ ] Withdrawal with dual-gate (entitlement + on-chain balance)
+- [ ] Mnemonic export (rate-limited, audit-logged)
+- [ ] Phase out legacy encrypted mnemonic storage
+
+## Coin Service
+
+**Status:** ⏳ Not started
+
+- [ ] Coin metadata CRUD (name, symbol, image, description)
+- [ ] IPFS image upload and pinning
+- [ ] Coin discovery API (sort, filter, search)
+- [ ] Trending / hot coins algorithm
+- [ ] Coin analytics (volume, holders, market cap)
+- [ ] Graduation status tracking
+
+## Portfolio Service
+
+**Status:** ⏳ Not started
+
+- [ ] User holdings aggregation
+- [ ] PnL calculation (realized + unrealized)
+- [ ] Trade history with pagination
+- [ ] Creator earnings summary
+- [ ] Referral earnings summary
+- [ ] Export (CSV / JSON)
+
+## Workers
+
+**Status:** ⏳ Not started
+
+- [ ] Graduation crank (monitor threshold → initiate/complete)
+- [ ] Tx reconciler (stuck tx recovery)
+- [ ] Solvency monitor (obligations vs real SOL)
+- [ ] Candle backfill worker
+- [ ] Deposit scanner
+- [ ] Treasury sweep scheduler
+- [ ] Dead letter queue processor
+
+## Admin Platform
+
+**Status:** ⏳ Not started
+
+- [ ] Protocol pause/unpause UI
+- [ ] Fee configuration UI
+- [ ] Treasury sweep UI
+- [ ] User lookup and support tools
+- [ ] Audit log viewer
+- [ ] System health dashboard
+- [ ] Kill-switch controls
+- [ ] RBAC admin role management
+
+---
+
+# Protocol Development (Historical — Frozen)
+
+The on-chain protocol phases are **complete and frozen**:
+
+| Protocol Phase | Status |
+|---|---|
+| Phase 0 — Foundation | ✅ |
+| Phase 1 — Admin System | ✅ |
+| Phase 2 — Creator & Referral | ✅ |
+| Phase 3 — Coin Creation | ✅ |
+| Phase 4 — AMM Trading | ✅ |
+| Phase 5 — Fee Claim | ✅ |
+| Phase 6 — Graduation | ✅ |
+| Phase 7 — Devnet Deployment | ✅ |
+
+See `anchor/RELEASE_RC1.md` and `anchor/docs/PROTOCOL_REFERENCE.md` for details.
+
+---
+
+*Last updated: 2026-07-10 · See also `PROJECT_STATUS.md` for live progress*

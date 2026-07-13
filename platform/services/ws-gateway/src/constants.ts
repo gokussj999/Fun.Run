@@ -61,6 +61,7 @@ export const CHANNEL_DEFS: Record<WsChannelKind, ChannelDef> = {
   creator:    { kind: 'creator',    requiresAuth: 'own',           hasParam: true,  description: 'Creator fee and stats for own coin (creator or admin)' },
   referral:   { kind: 'referral',   requiresAuth: 'own',           hasParam: true,  description: 'Referral fee events for own wallet (referrer or admin)' },
   portfolio:  { kind: 'portfolio',  requiresAuth: 'own',           hasParam: true,  description: 'Portfolio updates (holdings, P&L) for own wallet' },
+  notifications: { kind: 'notifications', requiresAuth: 'own',      hasParam: true,  description: 'User notifications (trades, claims, launches)' },
   graduation: { kind: 'graduation', requiresAuth: 'none',          hasParam: false, description: 'All graduation events platform-wide' },
   treasury:   { kind: 'treasury',   requiresAuth: 'admin',         hasParam: false, description: 'Treasury sweep and fee events (admin only)' },
   admin:      { kind: 'admin',      requiresAuth: 'admin',         hasParam: false, description: 'Admin actions, indexer events, platform metrics' },
@@ -75,6 +76,7 @@ export const REDIS_TO_WS_CHANNEL: ReadonlyMap<string, string[]> = new Map([
   ['events:all_graduations', ['market', 'graduation']],
   ['events:coin_created',    ['market']],
   ['events:treasury_sweep',  ['treasury']],
+  ['events:fee_claimed',     ['admin']],
   ['events:admin_action',    ['admin']],
   ['events:indexer',         ['admin']],
 ]);
@@ -101,6 +103,7 @@ export function wsChannelToRedisChannels(wsChannel: string): string[] {
     case 'creator':   return [`events:creator:${param}`];
     case 'referral':  return [`events:referral:${param}`];
     case 'portfolio': return [`events:portfolio:${param}`];
+    case 'notifications': return [`events:notifications:${param}`];
     default:          return [];
   }
 }

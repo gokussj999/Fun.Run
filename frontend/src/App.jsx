@@ -50,6 +50,8 @@ import {
 } from "./lib/coin-display.js";
 import { CoinPage } from "./pages/CoinPage.jsx";
 import { api } from "./services/api.js";
+import * as platformApi from "./services/platform-api.js";
+import { usePlatformWs } from "./hooks/usePlatformWs.js";
 import { computeTradePreview } from "./lib/trade-preview.js";
 import { usePrivy } from "@privy-io/react-auth";
 import { useExportWallet, useWallets } from "@privy-io/react-auth/solana";
@@ -58,10 +60,7 @@ import { useExportWallet, useWallets } from "@privy-io/react-auth/solana";
 const INTRO_MS = 5000;
 const APP_LOGO_URL = "/logo.png";
 const API_BASE = env.apiBase;
-
-const WS_BASE = API_BASE
-  .replace("https://", "wss://")
-  .replace("http://", "ws://");
+const USE_PLATFORM = env.usePlatform;
 
 const MAX_LOGO_BYTES = 5 * 1024 * 1024;
 const STARTING_MC_USD = 6500;
@@ -119,16 +118,18 @@ function ThemeStyles() {
   return (
     <style>{`
     :root{
-  --bg:${tokens.bg};
-  --bg2:${tokens.bgSecondary};
-  --bgSoft:rgba(20,21,26,.92);
+  --bg:#070a0f;
+  --bg2:rgba(17,23,34,.82);
+  --bgSoft:rgba(9,13,21,.88);
 
-  --card:${tokens.card};
-  --card2:${tokens.bgSecondary};
-  --card3:rgba(255,255,255,.03);
+  --card:rgba(20,25,36,.78);
+  --card2:rgba(17,23,34,.82);
+  --card3:rgba(255,255,255,.055);
+  --surface:rgba(255,255,255,.045);
+  --surface2:rgba(17,23,34,.82);
 
-  --border:${tokens.border};
-  --borderSoft:#23282f;
+  --border:rgba(148,163,184,.16);
+  --borderSoft:rgba(148,163,184,.11);
 
   --text:${tokens.text};
   --muted:${tokens.textMuted};
@@ -149,11 +150,14 @@ function ThemeStyles() {
   --heroGlow:${tokens.glow};
   --btnBg:${tokens.primary};
   --btnText:${tokens.btnText};
-  --inputBg:rgba(255,255,255,.04);
+  --inputBg:rgba(3,7,18,.38);
+  --inputBorder:rgba(148,163,184,.18);
+  --topbarBg:rgba(9,13,21,.74);
+  --navBg:rgba(9,13,21,.78);
 
-  --shadow1:0 4px 20px rgba(0,0,0,.32);
-  --shadow2:0 8px 32px rgba(0,0,0,.4);
-  --shine:inset 0 1px 0 rgba(255,255,255,.04);
+  --shadow1:0 18px 54px rgba(0,0,0,.34);
+  --shadow2:0 24px 72px rgba(0,0,0,.44);
+  --shine:inset 0 1px 0 rgba(255,255,255,.08);
 }
 
       *{ box-sizing:border-box; }
@@ -163,7 +167,11 @@ function ThemeStyles() {
         margin:0;
         font-family: Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial;
         color:var(--text);
-        background:var(--bg);
+        background:
+          radial-gradient(circle at 12% -10%, rgba(252,213,53,.1), transparent 30%),
+          radial-gradient(circle at 88% 8%, rgba(59,130,246,.09), transparent 34%),
+          linear-gradient(180deg, #070a0f 0%, #080b12 48%, #05070b 100%);
+        background-attachment: fixed;
         -webkit-font-smoothing:antialiased;
         text-rendering:optimizeLegibility;
       }
@@ -177,19 +185,36 @@ function ThemeStyles() {
      .card{
   position:relative;
   border:1px solid var(--border);
-  border-radius:16px;
+  border-radius:20px;
   background:var(--card);
   box-shadow:var(--shadow1);
   overflow:hidden;
   padding:0;
+  backdrop-filter:blur(18px) saturate(150%);
+  -webkit-backdrop-filter:blur(18px) saturate(150%);
+  transition:border-color .18s ease, box-shadow .18s ease, transform .18s ease, background .18s ease;
 }
 
-      .card::before{ content:none; }
+      .card::before{
+        content:"";
+        position:absolute;
+        inset:0;
+        pointer-events:none;
+        background:
+          linear-gradient(135deg, rgba(255,255,255,.09), transparent 24%),
+          radial-gradient(circle at 80% 0%, rgba(252,213,53,.055), transparent 34%);
+        opacity:.72;
+      }
+
+      .card:hover{
+        border-color:rgba(252,213,53,.22);
+        box-shadow:var(--shadow2), 0 0 0 1px rgba(255,255,255,.025) inset;
+      }
 
       .cardBody{
         position:relative;
         z-index:1;
-        padding:18px;
+        padding:20px;
       }
 
       /* full-bleed: lets the chart break out of card padding edge-to-edge */
@@ -210,14 +235,15 @@ function ThemeStyles() {
       }
 
       .sectionTitle{
-        font-size:13px;
+        font-size:14px;
         font-weight:1000;
-        letter-spacing:.18px;
+        letter-spacing:-.01em;
       }
 
       .sectionSub{
-        font-size:11px;
+        font-size:12px;
         color:var(--muted2);
+        line-height:1.45;
       }
 
       .pillRow{
@@ -855,7 +881,7 @@ function normalizeCoin(c = {}) {
     symbol: String(c.symbol || "").toUpperCase(),
     story: String(c.story || ""),
     logo: String(c.logo || ""),
-    metadataUri: String(c.metadataUri || c.metadata_uri || ""),
+    mintAddress: String(c.mintAddress || c.mint_address || ""),
     creatorWallet: String(c.creatorWallet || c.creator_wallet || c.owner || ""),
     totalSupply,
     curveSupply,
@@ -1039,14 +1065,16 @@ export default function App() {
     return () => clearTimeout(t);
   }, [showIntro]);
 
-  const [isMobile, setIsMobile] = useState(
-    typeof window !== "undefined" && window.innerWidth < 520
-  );
+  const [isMobile, setIsMobile] = useState(() => {
+    if (typeof window === "undefined") return true;
+    return window.matchMedia("(max-width: 1023px)").matches;
+  });
 
   useEffect(() => {
-    const onResize = () => setIsMobile(window.innerWidth < 520);
-    window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
+    const mq = window.matchMedia("(max-width: 1023px)");
+    const onChange = (e) => setIsMobile(e.matches);
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
   }, []);
 
   const { toast, showToast, clearToast } = useToast();
@@ -1142,7 +1170,7 @@ useEffect(() => {
   let cancelled = false;
   async function loadSolPrice() {
     try {
-      const json = await api("/sol-price");
+      const json = USE_PLATFORM ? await platformApi.fetchSolPrice() : await api("/sol-price");
       if (!cancelled && json?.price > 0) {
         _liveSolPrice = json.price;
         setSolPriceUsd(json.price);
@@ -1195,63 +1223,119 @@ const [connectingPhantom, setConnectingPhantom] = useState(false);
     } catch {}
   }
 
- useEffect(() => {
-    let ws;
-    let reconnectTimer;
+  const solAddr = useMemo(() => {
+    const isSolAddr = (a) => {
+      const s = String(a || "");
+      return s.length > 30 && !s.startsWith("0x");
+    };
 
-    function connect() {
-      ws = new WebSocket(WS_BASE);
-      wsRef.current = ws;
+    // PRIMARY: linkedAccounts — embedded Privy Solana wallet always here after auth
+    const solLinked = user?.linkedAccounts?.find(
+      (a) => a?.type === "wallet" && a?.chain === "solana" && isSolAddr(a?.addr || a?.address)
+    );
+    if (solLinked) return String(solLinked.addr || solLinked.address).trim();
 
-      ws.onopen = () => {
-        setWsConnected(true);
-      };
+    // FALLBACK: useWallets() — external wallets (Phantom, etc.)
+    const solWallet = wallets?.find(w => isSolAddr(w?.addr || w?.address || ""));
+    if (solWallet) return String(solWallet.addr || solWallet.address).trim();
 
-      ws.onmessage = (event) => {
-        try {
-          const msg = JSON.parse(event.data);
-          if (msg.event === "coin:update") {
-            const updated = normalizeCoin(msg.payload);
-            setCoins((prev) =>
-              prev.map((c) => {
-                if (c.id !== updated.id) return c;
-                return {
-                  ...c,
-                  ...updated,
-                  holders:
-                    updated.holders && Object.keys(updated.holders).length
-                      ? { ...c.holders, ...updated.holders }
-                      : c.holders || {},
-                };
-              })
-            );
+    // FALLBACK: phantomWallet directly connected
+    if (phantomWallet && isSolAddr(phantomWallet)) return String(phantomWallet).trim();
+
+    return "";
+  }, [user, phantomWallet, wallets]);
+
+  const isWalletConnected = useMemo(() => Boolean(solAddr), [solAddr]);
+  const isAdmin = useMemo(
+    () => Boolean(solAddr && String(solAddr).trim() === APP_OWNER_WALLET),
+    [solAddr]
+  );
+
+  useEffect(() => {
+    if (!USE_PLATFORM) {
+      let ws;
+      let reconnectTimer;
+
+      function connect() {
+        const wsBase = API_BASE
+          ? API_BASE.replace("https://", "wss://").replace("http://", "ws://")
+          : `${window.location.protocol === "https:" ? "wss" : "ws"}://${window.location.host}`;
+        ws = new WebSocket(wsBase);
+        wsRef.current = ws;
+
+        ws.onopen = () => setWsConnected(true);
+
+        ws.onmessage = (event) => {
+          try {
+            const msg = JSON.parse(event.data);
+            if (msg.event === "coin:update") {
+              const updated = normalizeCoin(msg.payload);
+              setCoins((prev) =>
+                prev.map((c) => {
+                  if (c.id !== updated.id) return c;
+                  return {
+                    ...c,
+                    ...updated,
+                    holders:
+                      updated.holders && Object.keys(updated.holders).length
+                        ? { ...c.holders, ...updated.holders }
+                        : c.holders || {},
+                  };
+                })
+              );
+            }
+            if (msg.event === "trade:new") {
+              setRecentTrades((prev) => [msg.payload, ...prev.slice(0, 24)]);
+            }
+            if (msg.event === "coin:created") {
+              loadCoins(0, false);
+            }
+            if (msg.event === "portfolio:update" && solAddr) {
+              const targetWallet = String(msg.payload?.wallet || "").trim();
+              if (targetWallet && targetWallet !== solAddr) return;
+              loadProfile(solAddr);
+            }
+            if (msg.event === "creator:update" && solAddr) {
+              const targetWallet = String(msg.payload?.wallet || "").trim();
+              if (targetWallet && targetWallet !== solAddr) return;
+              loadProfile(solAddr);
+              loadCoins(0, false);
+            }
+            if (msg.event === "referral:update" && solAddr) {
+              const targetWallet = String(msg.payload?.wallet || "").trim();
+              if (targetWallet && targetWallet !== solAddr) return;
+              loadProfile(solAddr);
+            }
+            if (msg.event === "notification:new") {
+              const targetWallet = String(msg.payload?.wallet || "").trim();
+              if (targetWallet && targetWallet !== solAddr) return;
+              const label = String(msg.payload?.title || msg.payload?.type || "Update");
+              showToast(label);
+            }
+          } catch (err) {
+            console.error(err);
           }
-          if (msg.event === "trade:new") {
-            setRecentTrades((prev) => [msg.payload, ...prev.slice(0, 24)]);
-          }
-        } catch (err) {
-          console.error(err);
-        }
-      };
+        };
 
-      ws.onclose = () => {
-        setWsConnected(false);
-        reconnectTimer = setTimeout(connect, 3000);
-      };
+        ws.onclose = () => {
+          setWsConnected(false);
+          reconnectTimer = setTimeout(connect, 3000);
+        };
 
-      ws.onerror = () => {
-        setWsConnected(false);
-        ws.close();
+        ws.onerror = () => {
+          setWsConnected(false);
+          ws.close();
+        };
+      }
+
+      connect();
+      return () => {
+        clearTimeout(reconnectTimer);
+        if (ws) ws.close();
       };
     }
-
-    connect();
-
-    return () => {
-      clearTimeout(reconnectTimer);
-      if (ws) ws.close();
-    };
-  }, []);
+    return undefined;
+  }, [solAddr, showToast]);
 
   useEffect(() => {
     try {
@@ -1317,34 +1401,6 @@ const [connectingPhantom, setConnectingPhantom] = useState(false);
     setPhantomWallet("");
     showToast("Phantom disconnected");
   }
-
-  const solAddr = useMemo(() => {
-    const isSolAddr = (a) => {
-      const s = String(a || "");
-      return s.length > 30 && !s.startsWith("0x");
-    };
-
-    // PRIMARY: linkedAccounts — embedded Privy Solana wallet always here after auth
-    const solLinked = user?.linkedAccounts?.find(
-      (a) => a?.type === "wallet" && a?.chain === "solana" && isSolAddr(a?.addr || a?.address)
-    );
-    if (solLinked) return String(solLinked.addr || solLinked.address).trim();
-
-    // FALLBACK: useWallets() — external wallets (Phantom, etc.)
-    const solWallet = wallets?.find(w => isSolAddr(w?.addr || w?.address || ""));
-    if (solWallet) return String(solWallet.addr || solWallet.address).trim();
-
-    // FALLBACK: phantomWallet directly connected
-    if (phantomWallet && isSolAddr(phantomWallet)) return String(phantomWallet).trim();
-
-    return "";
-  }, [user, phantomWallet, wallets]);
-
-  const isWalletConnected = useMemo(() => Boolean(solAddr), [solAddr]);
-  const isAdmin = useMemo(
-    () => Boolean(solAddr && String(solAddr).trim() === APP_OWNER_WALLET),
-    [solAddr]
-  );
 
   // useEffect(() => {
 //   const provider = getPhantomProvider();
@@ -1438,7 +1494,9 @@ const [connectingPhantom, setConnectingPhantom] = useState(false);
 
       if (!json) {
         try {
-          json = await api(`/coin/list?page=${page}&limit=50`);
+          json = USE_PLATFORM
+            ? await platformApi.fetchCoinList(page, 50)
+            : await api(`/coin/list?page=${page}&limit=50`);
         } catch {
           const base = String(API_BASE || "").replace(/\/$/, "");
           const res = await fetch(`${base}/coin/list?page=${page}&limit=50`, { cache: "no-store" });
@@ -1495,11 +1553,23 @@ const [connectingPhantom, setConnectingPhantom] = useState(false);
       setHot15m(incomingHot);
 
       setCoins((prev) => {
+        // Build a lookup of existing holders so loadCoins doesn't wipe them
+        const prevHolders = {};
+        (prev || []).forEach((c) => {
+          if (c?.id && c.holders && Object.keys(c.holders).length) {
+            prevHolders[String(c.id)] = c.holders;
+          }
+        });
+
         const base = append ? [...(prev || []), ...incoming] : incoming;
         const map = new Map();
 
         base.forEach((c) => {
-          if (c?.id) map.set(String(c.id), c);
+          if (!c?.id) return;
+          const merged = prevHolders[String(c.id)]
+            ? { ...c, holders: { ...prevHolders[String(c.id)], ...(c.holders || {}) } }
+            : c;
+          map.set(String(c.id), merged);
         });
 
         return Array.from(map.values()).sort(
@@ -1527,8 +1597,22 @@ const [connectingPhantom, setConnectingPhantom] = useState(false);
 
     try {
       setLoadingProfile(true);
-      const json = await api(`/profile/${wallet}`);
+      const json = USE_PLATFORM
+        ? await platformApi.fetchProfile(wallet)
+        : await api(`/profile/${wallet}`);
       setProfile(json?.profile || null);
+
+      // Inject user's token balances into coin holders map so sell validation works
+      const profileHoldingsList = Array.isArray(json?.profile?.holdings) ? json.profile.holdings : [];
+      if (profileHoldingsList.length > 0 && wallet) {
+        setCoins((prev) =>
+          (prev || []).map((c) => {
+            const h = profileHoldingsList.find((hh) => String(hh.coinId) === String(c.id));
+            if (!h) return c;
+            return { ...c, holders: { ...(c.holders || {}), [wallet]: h.amount } };
+          })
+        );
+      }
 
       if (json?.profile?.wallet_address) {
         loadBalance(json.profile.wallet_address);
@@ -1544,12 +1628,80 @@ const [connectingPhantom, setConnectingPhantom] = useState(false);
   async function loadBalance(wallet = solAddr) {
     if (!wallet) return;
     try {
-      const json = await api(`/balance/${wallet}`);
+      const json = USE_PLATFORM
+        ? await platformApi.fetchBalance(wallet)
+        : await api(`/balance/${wallet}`);
       setWalletSolBalance(Math.max(0, safeNum(json?.sol, 0)));
     } catch {
       setWalletSolBalance(0);
     }
   }
+
+  const handleWsLegacyEvent = useMemo(
+    () => (msg) => {
+      if (msg.event === "coin:update") {
+        const updated = normalizeCoin(msg.payload || {});
+        if (!updated?.id && !updated?.mintAddress) return;
+        setCoins((prev) =>
+          prev.map((c) => {
+            const match =
+              (updated.id && String(c.id) === String(updated.id)) ||
+              (updated.mintAddress && String(c.mintAddress) === String(updated.mintAddress));
+            if (!match) return c;
+            return {
+              ...c,
+              ...updated,
+              holders:
+                updated.holders && Object.keys(updated.holders).length
+                  ? { ...c.holders, ...updated.holders }
+                  : c.holders || {},
+            };
+          })
+        );
+      }
+      if (msg.event === "trade:new") {
+        setRecentTrades((prev) => [msg.payload, ...prev.slice(0, 24)]);
+      }
+      if (msg.event === "coin:created") {
+        loadCoins(0, false);
+      }
+      if (msg.event === "portfolio:update" && solAddr) {
+        const targetWallet = String(msg.payload?.wallet || "").trim();
+        if (targetWallet && targetWallet !== solAddr) return;
+        loadProfile(solAddr);
+      }
+      if (msg.event === "creator:update" && solAddr) {
+        const targetWallet = String(msg.payload?.wallet || "").trim();
+        if (targetWallet && targetWallet !== solAddr) return;
+        loadProfile(solAddr);
+        loadCoins(0, false);
+      }
+      if (msg.event === "referral:update" && solAddr) {
+        const targetWallet = String(msg.payload?.wallet || "").trim();
+        if (targetWallet && targetWallet !== solAddr) return;
+        loadProfile(solAddr);
+      }
+      if (msg.event === "notification:new") {
+        const targetWallet = String(msg.payload?.wallet || "").trim();
+        if (targetWallet && targetWallet !== solAddr) return;
+        const label = String(msg.payload?.title || msg.payload?.type || "Update");
+        showToast(label);
+      }
+    },
+    [solAddr, showToast]
+  );
+
+  const { connected: platformWsConnected } = usePlatformWs({
+    enabled: USE_PLATFORM,
+    getToken: getAccessToken,
+    wallet: solAddr || null,
+    activeMint: selectedCoin?.mintAddress || null,
+    onLegacyEvent: handleWsLegacyEvent,
+  });
+
+  useEffect(() => {
+    if (USE_PLATFORM) setWsConnected(platformWsConnected);
+  }, [USE_PLATFORM, platformWsConnected]);
 
   useEffect(() => {
     if (didBootRef.current) return;
@@ -1875,11 +2027,31 @@ const [connectingPhantom, setConnectingPhantom] = useState(false);
         creatorWallet: solAddr,
       };
 
-      const json = await api("/coin/create", {
-        method: "POST",
-        body: JSON.stringify(payload),
-        timeout: 120000,
-      });
+      const json = USE_PLATFORM
+        ? platformApi.normalizeCreateResponse(
+            await platformApi.createCoin(payload, await getAccessToken())
+          )
+        : await api("/coin/create", {
+            method: "POST",
+            body: JSON.stringify(payload),
+            timeout: 120000,
+          });
+
+      if (json?.onchain) {
+        setTokenName("");
+        setSymbol("");
+        setStory("");
+        setInitialSol("0.01");
+        setLogoFile(null);
+        setLogoPreview("");
+        showToast(
+          `Coin submitted (${String(json.signature || json.mintAddress || "").slice(0, 8)}…)`
+        );
+        clearCoinsCache();
+        setChartReloadKey((x) => x + 1);
+        await Promise.allSettled([loadProfile(solAddr), loadBalance(solAddr), loadCoins(0, false)]);
+        return;
+      }
 
       const created = normalizeCoin(json?.coin || {});
       if (!created?.id) throw new Error(json?.error || "Create failed");
@@ -1969,17 +2141,135 @@ const [connectingPhantom, setConnectingPhantom] = useState(false);
     try {
       setTrading(true);
 
-      const path = tradeMode === "BUY" ? "/coin/buy" : "/coin/sell";
-      const payload = {
-        wallet: solAddr,
-        coinId: current.id,
-        ...(tradeMode === "BUY" ? { sol: amount } : { tokens: amount }),
-      };
+      let json;
+      if (USE_PLATFORM) {
+        const token = await getAccessToken();
+        const idempotencyKey = platformApi.newIdempotencyKey(tradeMode === "BUY" ? "buy" : "sell");
+        json =
+          tradeMode === "BUY"
+            ? await platformApi.buyCoin({
+                coinId: current.id,
+                solAmount: amount,
+                authToken: token,
+                idempotencyKey,
+              })
+            : await platformApi.sellCoin({
+                coinId: current.id,
+                tokenAmount: amount,
+                authToken: token,
+                idempotencyKey,
+              });
+        json = platformApi.normalizeTradeResponse(json, tradeMode);
+      } else {
+        const path = tradeMode === "BUY" ? "/coin/buy" : "/coin/sell";
+        const payload = {
+          wallet: solAddr,
+          coinId: current.id,
+          ...(tradeMode === "BUY" ? { sol: amount } : { tokens: amount }),
+        };
+        json = await api(path, {
+          method: "POST",
+          body: JSON.stringify(payload),
+        });
+      }
 
-      const json = await api(path, {
-        method: "POST",
-        body: JSON.stringify(payload),
-      });
+      if (json?.onchain) {
+        setTradeAmount("");
+        clearCoinsCache();
+        const sigShort = String(json.signature || "").slice(0, 8);
+        const isBuy = tradeMode === "BUY";
+        showToast(`${isBuy ? "Buy" : "Sell"} submitted (${sigShort}…)`);
+
+        // Snapshot baseline from current state BEFORE any async refresh.
+        // Fetch live profile if React state is stale/null so balance comparison works.
+        const baseHolding = currentHolder;
+        let baseRunBalance = safeNum(profile?.runBalance, 0);
+        const pollCoinId = current.id;
+        const pollAddr = solAddr;
+        if (baseRunBalance === 0 && pollAddr) {
+          try {
+            const liveSnap = USE_PLATFORM
+              ? await platformApi.fetchProfile(pollAddr)
+              : await api(`/profile/${pollAddr}`);
+            baseRunBalance = safeNum(liveSnap?.profile?.runBalance, 0);
+          } catch { /* keep 0 */ }
+        }
+
+        // Show "waiting" toast after submitted toast dismisses (~3.5s)
+        const waitTimer = setTimeout(
+          () => showToast("Waiting for blockchain confirmation…", "warning", 45000),
+          3500,
+        );
+
+        // All background work — nothing blocks the trade button from here
+        (async () => {
+          // Fire initial refresh immediately (non-blocking to the button)
+          void Promise.allSettled([loadProfile(pollAddr), loadBalance(pollAddr), loadCoins(0, false)]);
+
+          const POLL_MS = 3000;
+          const MAX_POLLS = 15; // 45 s total
+          for (let i = 0; i < MAX_POLLS; i++) {
+            await new Promise((r) => setTimeout(r, POLL_MS));
+            try {
+              const snap = USE_PLATFORM
+                ? await platformApi.fetchProfile(pollAddr)
+                : await api(`/profile/${pollAddr}`);
+              const snapHoldings = Array.isArray(snap?.profile?.holdings) ? snap.profile.holdings : [];
+              const snapCoin = snapHoldings.find((h) => String(h.coinId) === String(pollCoinId));
+              const snapHolding = Math.max(0, safeNum(snapCoin?.amount, 0));
+              const snapBalance = safeNum(snap?.profile?.runBalance, 0);
+
+              const holdingsChanged = isBuy
+                ? snapHolding > baseHolding
+                : snapHolding < baseHolding;
+              const balanceChanged = isBuy
+                ? snapBalance < baseRunBalance
+                : snapBalance > baseRunBalance;
+              const done = holdingsChanged || balanceChanged;
+
+              if (done) {
+                clearTimeout(waitTimer);
+                setProfile(snap.profile);
+                // Only update coin holders display if holdings actually updated in DB
+                if (holdingsChanged && Array.isArray(snap.profile?.holdings) && pollAddr) {
+                  setCoins((prev) =>
+                    (prev || []).map((c) => {
+                      const h = snap.profile.holdings.find((hh) => String(hh.coinId) === String(c.id));
+                      if (!h) return c;
+                      return { ...c, holders: { ...(c.holders || {}), [pollAddr]: h.amount } };
+                    })
+                  );
+                }
+                try {
+                  const coinSnap = USE_PLATFORM
+                    ? await platformApi.fetchCoin(pollCoinId)
+                    : await api(`/coin/${pollCoinId}`);
+                  const latestCoin = normalizeCoin(coinSnap?.coin || {});
+                  if (latestCoin?.id) {
+                    setCoins((prev) =>
+                      (prev || []).map((c) =>
+                        String(c.id) === String(latestCoin.id)
+                          ? { ...c, ...latestCoin, holders: { ...(c.holders || {}), ...(latestCoin.holders || {}) } }
+                          : c
+                      )
+                    );
+                  }
+                } catch {}
+                setChartReloadKey((k) => k + 1);
+                showToast(isBuy ? "Buy successful" : "Sell successful");
+                return;
+              }
+            } catch {}
+          }
+          // Timeout — tx confirmed on-chain but indexer slow
+          clearTimeout(waitTimer);
+          showToast("Confirmed on-chain — refreshing…", "default", 4000);
+          void Promise.allSettled([loadProfile(pollAddr), loadCoins(0, false)]);
+          setChartReloadKey((k) => k + 1);
+        })();
+
+        return;
+      }
 
       if (json?.ok === false) {
         throw new Error(json?.error || "Trade failed");
@@ -2021,7 +2311,9 @@ const [connectingPhantom, setConnectingPhantom] = useState(false);
       clearCoinsCache();
 
       try {
-        const latestJson = await api(`/coin/${current.id}`);
+        const latestJson = USE_PLATFORM
+          ? await platformApi.fetchCoin(current.id)
+          : await api(`/coin/${current.id}`);
         const latestCoin = normalizeCoin(latestJson?.coin || updated || {});
         if (latestCoin?.id) {
           const latestHolder = Math.max(0, safeNum(latestCoin?.holders?.[solAddr], resolvedHolder));
@@ -2065,13 +2357,18 @@ const [connectingPhantom, setConnectingPhantom] = useState(false);
       const saved = (localStorage.getItem("ref") || "").trim();
       if (!saved || saved === solAddr) return;
 
-      await api("/referral/set", {
-        method: "POST",
-        body: JSON.stringify({
-          wallet: solAddr,
-          referrer: saved,
-        }),
-      });
+      if (USE_PLATFORM) {
+        const token = await getAccessToken();
+        await platformApi.bindReferrer({ wallet: solAddr, referrer: saved, authToken: token });
+      } else {
+        await api("/referral/set", {
+          method: "POST",
+          body: JSON.stringify({
+            wallet: solAddr,
+            referrer: saved,
+          }),
+        });
+      }
     } catch {}
   }
 
@@ -2086,16 +2383,26 @@ const [connectingPhantom, setConnectingPhantom] = useState(false);
 
 
     try {
-      const json = await api("/claim", {
-        method: "POST",
-        body: JSON.stringify({
-          wallet: solAddr,
-          kind,
-        }),
-      });
+      const json = USE_PLATFORM
+        ? await platformApi.claimRewards({
+            wallet: solAddr,
+            kind,
+            authToken: await getAccessToken(),
+          })
+        : await api("/claim", {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${await getAccessToken()}`,
+            },
+            body: JSON.stringify({
+              wallet: solAddr,
+              kind,
+            }),
+          });
 
       if (json?.ok) {
-        showToast(`Claimed ${fmtSol(json.amount)} SOL 🚀`);
+        const claimedAmount = safeNum(json.amountSol ?? json.amount, 0);
+        showToast(`Claimed ${fmtSol(claimedAmount)} SOL`);
         loadProfile(solAddr);
         loadBalance(solAddr);
         loadCoins(0, false);
@@ -2144,16 +2451,21 @@ const withdrawHistory = Array.isArray(profile?.withdrawHistory)
 
 const walletHistory = [
   ...depositHistory.map((d) => ({
+    id: d.id,
     type: "DEPOSIT",
-    amount: d.amount,
-    txHash: d.tx_hash,
-    createdAt: d.created_at,
+    amount: d.amount ?? 0,
+    txHash: d.tx_hash || d.txHash || "",
+    status: d.status || "confirmed",
+    createdAt: d.created_at || d.createdAt,
   })),
   ...withdrawHistory.map((w) => ({
+    id: w.id,
     type: "WITHDRAW",
-    amount: w.amount,
-    txHash: w.tx_hash,
-    createdAt: w.created_at,
+    amount: w.amount ?? 0,
+    txHash: w.tx_hash || w.txHash || "",
+    status: w.status || "pending",
+    destination: w.destination || "",
+    createdAt: w.created_at || w.createdAt,
   })),
 ].sort(
   (a, b) =>
@@ -2203,10 +2515,15 @@ const walletHistory = [
   async function handleRevealPhrase() {
     setPhraseLoading(true);
     try {
-      const json = await api("/wallet/reveal-mnemonic", {
-        method: "POST",
-        body: JSON.stringify({ wallet: solAddr }),
-      });
+      const json = USE_PLATFORM
+        ? await platformApi.revealMnemonic({
+            wallet: solAddr,
+            authToken: await getAccessToken(),
+          })
+        : await api("/wallet/reveal-mnemonic", {
+            method: "POST",
+            body: JSON.stringify({ wallet: solAddr }),
+          });
       if (json?.words) {
         setPhraseWords(json.words);
         setPhraseOpen(true);
@@ -2384,18 +2701,26 @@ const walletHistory = [
                     const idempotencyKey = withdrawKeyRef.current;
 
                     const token = await getAccessToken();
-                    const json = await api("/withdraw", {
-                      method: "POST",
-                      headers: {
-                        "Authorization": `Bearer ${token}`,
-                      },
-                      body: JSON.stringify({
-                        wallet: profile?.wallet,
-                        destination: withdrawAddr,
-                        amount: Number(withdrawAmt),
-                        idempotencyKey,
-                      }),
-                    });
+                    const json = USE_PLATFORM
+                      ? await platformApi.withdrawSol({
+                          wallet: profile?.wallet,
+                          destination: withdrawAddr,
+                          amount: Number(withdrawAmt),
+                          authToken: token,
+                          idempotencyKey,
+                        })
+                      : await api("/withdraw", {
+                          method: "POST",
+                          headers: {
+                            Authorization: `Bearer ${token}`,
+                          },
+                          body: JSON.stringify({
+                            wallet: profile?.wallet,
+                            destination: withdrawAddr,
+                            amount: Number(withdrawAmt),
+                            idempotencyKey,
+                          }),
+                        });
 
                     if (json?.ok) {
                       // Success (ya already-processed duplicate) — key clear karo
@@ -2484,7 +2809,7 @@ const walletHistory = [
         </Modal>
       ) : null}
 
-      <Toast message={toast.text} type={toast.type} onClose={clearToast} />
+      <Toast message={toast.text} type={toast.type} duration={toast.duration} onClose={clearToast} />
 
       {showIntro ? (
         <IntroSplash
@@ -2874,6 +3199,7 @@ const walletHistory = [
             referralLink={solAddr ? getReferralLink(solAddr) : ""}
             referralCount={profile?.referralCount || 0}
             referralRewardsSol={profile?.referralRewardsSol || 0}
+            referralActivity={profile?.referralActivity || []}
             solPriceUsd={solPriceUsd}
             onCopyLink={async () => {
               const ok = await copyText(solAddr ? getReferralLink(solAddr) : "");

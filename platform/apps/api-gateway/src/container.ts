@@ -3,7 +3,7 @@
  * Holds singleton service instances for the lifetime of the process.
  * Services register themselves here during startup and are resolved by plugins/routes.
  */
-import type Redis from 'ioredis';
+import type { RedisInstance as Redis } from '@funrun/redis';
 
 import type { AppConfig } from '@funrun/config';
 import type { DatabaseClientOptions } from '@funrun/database';

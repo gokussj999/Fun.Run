@@ -29,6 +29,7 @@ export class BackfillOrchestrator {
     private readonly processor: EventProcessor,
     private readonly retryManager: RetryManager,
     private readonly logger: Logger,
+    private readonly onCursorAdvance?: (slot: bigint, signature: string) => void,
   ) {}
 
   /**
@@ -43,66 +44,58 @@ export class BackfillOrchestrator {
     );
 
     let totalProcessed = 0;
-    let before: string | undefined = undefined;
-    const batches: RawLogEntry[][] = [];
 
-    // Page backward through signatures until we reach our cursor
-    while (true) {
-      const sigs = await this.fetcher.fetchSignaturesSince(
-        this.programId,
-        opts.fromSignature,
-        before,
-      );
+    // fetchSignaturesSince handles pagination internally and returns oldest-first
+    const allSigs = await this.fetcher.fetchSignaturesSince(
+      this.programId,
+      opts.fromSignature ?? null,
+    );
 
-      if (sigs.length === 0) break;
-
-      const txBatch = await this.fetcher.fetchTransactionsBatch(sigs.map((s) => s.signature));
-      const entries: RawLogEntry[] = [];
-
-      for (let i = 0; i < sigs.length; i++) {
-        const tx = txBatch[i];
-        const meta = sigs[i];
-        if (!tx || !meta) continue;
-
-        // Skip transactions past the safe reorg boundary
-        if (opts.toSlot !== undefined && BigInt(meta.slot) > opts.toSlot) continue;
-
-        entries.push({
-          signature: meta.signature,
-          slot:      BigInt(meta.slot),
-          err:       meta.err ?? null,
-          logs:      tx.meta?.logMessages ?? [],
-          blockTime: tx.blockTime ?? Math.floor(Date.now() / 1000),
-        });
-      }
-
-      batches.push(entries);
-      before = sigs[sigs.length - 1]?.signature;
-
-      // Reached a slot below fromSlot — no need to page further
-      const oldestSlot = sigs[sigs.length - 1]?.slot;
-      if (opts.fromSlot !== undefined && oldestSlot !== undefined && BigInt(oldestSlot) <= opts.fromSlot) {
-        break;
-      }
-
-      await sleep(BACKFILL_RATE_LIMIT_MS);
+    if (allSigs.length === 0) {
+      this.logger.info({ totalProcessed }, 'Backfill: no new signatures, complete');
+      return totalProcessed;
     }
 
-    // Process in chronological order (reverse the batches, then each batch)
-    const chronological = batches.reverse().flatMap((b) => b.reverse());
+    const txBatch = await this.fetcher.fetchTransactionsBatch(allSigs.map((s) => s.signature));
+    const entries: RawLogEntry[] = [];
 
-    for (const entry of chronological) {
+    for (let i = 0; i < allSigs.length; i++) {
+      const tx    = txBatch[i];
+      const sig   = allSigs[i];
+      if (!tx || !sig) continue;
+
+      if (opts.toSlot !== undefined && BigInt(sig.slot) > opts.toSlot) continue;
+
+      entries.push({
+        signature: sig.signature,
+        slot:      BigInt(sig.slot),
+        err:       sig.err ?? null,
+        logs:      tx.logs,
+        blockTime: tx.blockTime ?? Math.floor(Date.now() / 1000),
+      });
+    }
+
+    for (const entry of entries) {
+      if (!this.slotTracker.isSafeSlot(entry.slot)) {
+        this.logger.debug(
+          { slot: entry.slot.toString(), safeSlot: safeSlot.toString() },
+          'Backfill: skipping slot above safe depth',
+        );
+        continue;
+      }
+
       const events = parseEvents(entry);
-
       for (const event of events) {
         try {
           await this.processor.processEvent(event);
           totalProcessed++;
+          this.onCursorAdvance?.(entry.slot, entry.signature);
         } catch (err) {
           this.retryManager.enqueue(entry);
           this.logger.error({ err, sig: entry.signature }, 'Backfill: handler error — queued for retry');
         }
       }
+      await sleep(BACKFILL_RATE_LIMIT_MS);
     }
 
     this.logger.info({ totalProcessed }, 'Backfill: complete');

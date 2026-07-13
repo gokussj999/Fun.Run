@@ -18,11 +18,13 @@
     "@fastify/rate-limit": "^10.2.0",
     "@fastify/swagger": "^9.3.0",
     "@fastify/swagger-ui": "^5.2.0",
+    "@funrun/auth": "workspace:*",
     "@funrun/config": "workspace:*",
     "@funrun/database": "workspace:*",
     "@funrun/logger": "workspace:*",
     "@funrun/redis": "workspace:*",
     "@funrun/shared": "workspace:*",
+    "dotenv": "^16.4.7",
     "fastify": "^5.2.0",
     "zod": "^3.24.1"
   },

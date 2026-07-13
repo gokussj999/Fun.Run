@@ -166,6 +166,8 @@ export class ConnectionManager {
                 type: 'event', channel: msg.channel,
                 seq: entry.seq, ts: entry.ts, event: entry.event, data: entry.data,
               });
+              const prev = conn.sentSeqs.get(msg.channel) ?? 0;
+              if (entry.seq > prev) conn.sentSeqs.set(msg.channel, entry.seq);
             }
           }
         } else {
@@ -215,26 +217,43 @@ export class ConnectionManager {
     const result = await verifyWsToken(token, tokenVerifier);
     if (!result) return false;
 
-    // Fetch role from DB
     let role: UserRole = 'USER';
+    let walletAddress = result.walletAddress;
+
     try {
-      const profile = await db.profile.findUnique({
-        where:  { walletAddress: result.walletAddress },
-        select: { role: true },
-      });
+      let profile = walletAddress
+        ? await db.profile.findUnique({
+            where:  { walletAddress },
+            select: { role: true, walletAddress: true },
+          })
+        : null;
+
+      if (!profile && result.privyUserId) {
+        profile = await db.profile.findFirst({
+          where:  { privyUserId: result.privyUserId },
+          select: { role: true, walletAddress: true },
+        });
+      }
+
+      if (profile?.walletAddress) walletAddress = profile.walletAddress;
       if (profile?.role) role = profile.role as UserRole;
     } catch (err) {
       logger.warn({ err }, 'ConnectionManager: DB role fetch failed — defaulting to USER');
     }
 
-    conn.walletAddress = result.walletAddress;
+    if (!walletAddress) {
+      logger.warn({ privyUserId: result.privyUserId }, 'ConnectionManager: no Solana wallet resolved');
+      return false;
+    }
+
+    conn.walletAddress = walletAddress;
     conn.role          = role;
 
-    registry.associateWallet(conn.id, result.walletAddress);
-    await presence.updateWallet(conn.id, result.walletAddress);
+    registry.associateWallet(conn.id, walletAddress);
+    await presence.updateWallet(conn.id, walletAddress);
 
     logger.info(
-      { connId: conn.id.slice(0, 8), wallet: result.walletAddress.slice(0, 8), role },
+      { connId: conn.id.slice(0, 8), wallet: walletAddress.slice(0, 8), role },
       'Connection authenticated',
     );
     return true;
@@ -255,7 +274,7 @@ export class ConnectionManager {
     code:    ServerMessage extends { code: infer C } ? C : string,
     message: string,
   ): void {
-    this.send(socket, { type: 'error', id, code: code as never, message });
+    this.send(socket, { type: 'error', id: id ?? '', code: code as never, message });
   }
 
   private extractIp(req: IncomingMessage): string {

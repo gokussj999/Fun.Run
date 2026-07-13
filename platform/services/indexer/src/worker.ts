@@ -2,8 +2,10 @@ import http from 'node:http';
 
 import type { PrismaClient } from '@funrun/database';
 import type { Logger } from '@funrun/logger';
-import type Redis from 'ioredis';
+import type { RedisInstance as Redis } from '@funrun/redis';
+import { Connection } from '@solana/web3.js';
 
+import { RpcCircuitBreaker } from './solana/connection.js';
 import { parseEvents } from './parser/index.js';
 import { EventProcessor } from './processor/index.js';
 import { CursorStore } from './cursor/store.js';
@@ -14,25 +16,21 @@ import { RetryManager } from './retry/manager.js';
 import { LogSubscriber } from './solana/subscriber.js';
 import { TransactionFetcher } from './solana/fetcher.js';
 import { SlotTracker } from './solana/slot-tracker.js';
+import type { RedisDependencyMode } from './config/redis-dependency.js';
 import type { RawLogEntry } from './types.js';
 
 export interface IndexerWorkerDeps {
-  db:        PrismaClient;
-  redis:     Redis;
-  pubsub:    Redis;
-  logger:    Logger;
-  programId: string;
-  rpcUrl:    string;
-  wsUrl:     string;
+  db:                 PrismaClient;
+  redis:              Redis;
+  pubsub:             Redis;
+  logger:             Logger;
+  programId:          string;
+  rpcUrl:             string;
+  wsUrl:              string;
+  fallbackRpcUrl?:    string;
+  redisDependencyMode?: RedisDependencyMode;
 }
 
-/**
- * IndexerWorker is the top-level orchestrator.
- *
- * Lifecycle:
- *   start() → backfill missed slots → begin live subscription → periodic retry drain
- *   stop()  → stop subscriber → flush cursor → drain pending
- */
 export class IndexerWorker {
   private readonly processor:   EventProcessor;
   private readonly cursorStore: CursorStore;
@@ -42,29 +40,34 @@ export class IndexerWorker {
   private readonly fetcher:     TransactionFetcher;
   private readonly backfiller:  BackfillOrchestrator;
   private readonly metrics:     IndexerMetrics;
+  private readonly rpcConn:     Connection;
   private subscriber:           LogSubscriber | null = null;
   private retryInterval:        ReturnType<typeof setInterval> | null = null;
   private metricsInterval:      ReturnType<typeof setInterval> | null = null;
+  private periodicBackfill:     ReturnType<typeof setInterval> | null = null;
   private metricsServer:        http.Server | null = null;
   private backfillRunning  = false;
   private stopped          = false;
 
   constructor(private readonly deps: IndexerWorkerDeps) {
-    const { db, redis, pubsub, logger, programId, rpcUrl, wsUrl } = deps;
+    const {
+      db, redis, pubsub, logger, programId, rpcUrl, wsUrl,
+      fallbackRpcUrl, redisDependencyMode = 'degraded',
+    } = deps;
 
-    this.processor   = new EventProcessor(db, pubsub, logger);
+    this.processor   = new EventProcessor(db, redis, pubsub, logger, redisDependencyMode);
     this.cursorStore = new CursorStore(db, redis, logger);
     this.cursor      = new CursorManager(this.cursorStore, logger);
     this.retryMgr    = new RetryManager(logger);
     this.metrics     = new IndexerMetrics(redis, logger);
 
-    // We import Connection lazily to avoid issues in unit tests
-    const { Connection } = require('@solana/web3.js') as typeof import('@solana/web3.js');
     const wsConn  = new Connection(rpcUrl, { wsEndpoint: wsUrl, commitment: 'confirmed' });
-    const rpcConn = new Connection(rpcUrl, 'confirmed');
+    this.rpcConn  = new Connection(rpcUrl, 'confirmed');
+    const fallbackConn = fallbackRpcUrl ? new Connection(fallbackRpcUrl, 'confirmed') : null;
 
-    this.slotTracker = new SlotTracker(rpcConn, logger);
-    this.fetcher     = new TransactionFetcher(rpcConn, logger);
+    this.slotTracker = new SlotTracker(this.rpcConn, logger);
+    const breaker    = new RpcCircuitBreaker(this.rpcConn, fallbackConn, logger);
+    this.fetcher     = new TransactionFetcher(breaker, logger);
 
     this.backfiller = new BackfillOrchestrator(
       programId,
@@ -73,6 +76,7 @@ export class IndexerWorker {
       this.processor,
       this.retryMgr,
       logger,
+      (slot, signature) => this.cursor.advance(slot, signature),
     );
 
     this.subscriber = new LogSubscriber(
@@ -88,21 +92,26 @@ export class IndexerWorker {
     this.deps.logger.info('IndexerWorker: starting');
 
     await this.cursor.initialize();
-    await this.slotTracker.start();
+    this.slotTracker.start();
+    await new Promise((r) => setTimeout(r, 3_000));
 
-    // Run initial backfill to catch missed events since last run
-    await this.runBackfill();
+    try {
+      await this.runBackfill();
+    } catch (err) {
+      this.deps.logger.error(
+        { err: err instanceof Error ? err.message : String(err) },
+        'Backfill failed on startup — continuing with live WebSocket subscriber',
+      );
+    }
 
-    // Begin live WebSocket subscription
     this.subscriber!.start();
 
-    // Drain retry queue every 5 seconds
-    this.retryInterval = setInterval(() => { void this.drainRetryQueue(); }, 5_000);
+    this.retryInterval    = setInterval(() => { void this.drainRetryQueue(); }, 5_000);
+    this.metricsInterval  = setInterval(() => { void this.flushMetrics(); }, 15_000);
+    // Catch deferred live logs (slot not safe from reorg at receipt time) without waiting
+    // for the 60-second WS idle health-check reconnect to trigger backfill.
+    this.periodicBackfill = setInterval(() => { void this.runBackfill(); }, 20_000);
 
-    // Flush metrics every 15 seconds
-    this.metricsInterval = setInterval(() => { void this.flushMetrics(); }, 15_000);
-
-    // Start Prometheus metrics HTTP server on port 9091
     this.startMetricsServer();
 
     this.deps.logger.info('IndexerWorker: running');
@@ -114,8 +123,9 @@ export class IndexerWorker {
 
     this.deps.logger.info('IndexerWorker: stopping');
 
-    if (this.retryInterval)  { clearInterval(this.retryInterval);  this.retryInterval = null; }
-    if (this.metricsInterval){ clearInterval(this.metricsInterval); this.metricsInterval = null; }
+    if (this.retryInterval)    { clearInterval(this.retryInterval);    this.retryInterval    = null; }
+    if (this.metricsInterval)  { clearInterval(this.metricsInterval);  this.metricsInterval  = null; }
+    if (this.periodicBackfill) { clearInterval(this.periodicBackfill); this.periodicBackfill = null; }
 
     this.subscriber?.stop();
     await this.slotTracker.stop();
@@ -126,10 +136,16 @@ export class IndexerWorker {
     this.deps.logger.info('IndexerWorker: stopped');
   }
 
-  // ─── Private ─────────────────────────────────────────────────────────────────
-
   private async handleLiveLog(entry: RawLogEntry): Promise<void> {
     if (entry.err !== null) return;
+
+    if (!this.slotTracker.isSafeSlot(entry.slot)) {
+      this.deps.logger.debug(
+        { slot: entry.slot.toString(), safeSlot: this.slotTracker.getSafeSlot().toString() },
+        'Live log deferred — slot not yet safe from reorg; backfill will catch up',
+      );
+      return;
+    }
 
     const events = parseEvents(entry);
 
@@ -148,7 +164,14 @@ export class IndexerWorker {
 
   private async onWsReconnect(): Promise<void> {
     this.deps.logger.warn('WebSocket reconnected — triggering backfill');
-    await this.runBackfill();
+    try {
+      await this.runBackfill();
+    } catch (err) {
+      this.deps.logger.error(
+        { err: err instanceof Error ? err.message : String(err) },
+        'Backfill failed after reconnect — live subscriber continues',
+      );
+    }
   }
 
   private async runBackfill(): Promise<void> {
@@ -157,9 +180,18 @@ export class IndexerWorker {
 
     try {
       const cur = this.cursor.get();
+      if (!cur?.lastProcessedSignature) {
+        this.deps.logger.warn(
+          'Backfill: no cursor — running genesis catch-up from program signatures',
+        );
+      }
       await this.backfiller.run({
-        fromSignature: cur?.lastProcessedSignature,
-        fromSlot:      cur?.lastProcessedSlot,
+        ...(cur?.lastProcessedSignature
+          ? {
+              fromSignature: cur.lastProcessedSignature,
+              ...(cur.lastProcessedSlot !== undefined ? { fromSlot: cur.lastProcessedSlot } : {}),
+            }
+          : {}),
       });
     } finally {
       this.backfillRunning = false;
@@ -169,6 +201,8 @@ export class IndexerWorker {
   private async drainRetryQueue(): Promise<void> {
     const ready = this.retryMgr.popReady();
     for (const { entry, attempts } of ready) {
+      if (!this.slotTracker.isSafeSlot(entry.slot)) continue;
+
       const events = parseEvents(entry);
       this.metrics.incrementRetried();
       for (const event of events) {
@@ -184,24 +218,88 @@ export class IndexerWorker {
 
   private async flushMetrics(): Promise<void> {
     const snap = await this.metrics.snapshot({
-      lastSlot:       this.cursor.getLastSlot(),
-      lagSlots:       this.slotTracker.getLagSlots(),
+      lastSlot:        this.cursor.getLastSlot(),
+      lagSlots:        Number(this.slotTracker.getLagSlots(this.cursor.getLastSlot())),
       backfillRunning: this.backfillRunning,
-      wsConnected:    this.subscriber?.getStatus().status === 'CONNECTED',
-      retryQueueSize: this.retryMgr.size,
+      wsConnected:     this.subscriber?.getStatus().status === 'CONNECTED',
+      retryQueueSize:  this.retryMgr.size,
     });
     await this.metrics.flush(snap);
   }
 
+  private async readiness(): Promise<{ ready: boolean; components: Record<string, { status: string; detail?: string }> }> {
+    const components: Record<string, { status: string; detail?: string }> = {};
+
+    try {
+      await this.deps.db.$queryRaw`SELECT 1`;
+      components['database'] = { status: 'ok' };
+    } catch (err) {
+      components['database'] = {
+        status: 'down',
+        detail: err instanceof Error ? err.message : String(err),
+      };
+    }
+
+    try {
+      await this.deps.redis.ping();
+      components['redis_cache'] = { status: 'ok' };
+    } catch (err) {
+      components['redis_cache'] = {
+        status: 'down',
+        detail: err instanceof Error ? err.message : String(err),
+      };
+    }
+
+    try {
+      await this.deps.pubsub.ping();
+      components['redis_pubsub'] = { status: 'ok' };
+    } catch (err) {
+      components['redis_pubsub'] = {
+        status: 'down',
+        detail: err instanceof Error ? err.message : String(err),
+      };
+    }
+
+    try {
+      await this.rpcConn.getSlot('confirmed');
+      components['rpc'] = { status: 'ok' };
+    } catch (err) {
+      components['rpc'] = {
+        status: 'down',
+        detail: err instanceof Error ? err.message : String(err),
+      };
+    }
+
+    const wsStatus = this.subscriber?.getStatus().status ?? 'DISCONNECTED';
+    components['ws_subscriber'] = {
+      status: wsStatus === 'CONNECTED' ? 'ok' : 'degraded',
+      detail: wsStatus,
+    };
+
+    const ready = Object.values(components).every((c) => c.status !== 'down');
+    return { ready, components };
+  }
+
   private startMetricsServer(): void {
     this.metricsServer = http.createServer(async (req, res) => {
-      if (req.url !== '/metrics') {
+      const url = req.url ?? '/';
+
+      if (url === '/readyz') {
+        const result = await this.readiness();
+        const code = result.ready ? 200 : 503;
+        res.writeHead(code, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ready: result.ready, components: result.components }));
+        return;
+      }
+
+      if (url !== '/metrics') {
         res.writeHead(404).end();
         return;
       }
+
       const snap = await this.metrics.snapshot({
         lastSlot:        this.cursor.getLastSlot(),
-        lagSlots:        this.slotTracker.getLagSlots(),
+        lagSlots:        Number(this.slotTracker.getLagSlots(this.cursor.getLastSlot())),
         backfillRunning: this.backfillRunning,
         wsConnected:     this.subscriber?.getStatus().status === 'CONNECTED',
         retryQueueSize:  this.retryMgr.size,
@@ -210,8 +308,16 @@ export class IndexerWorker {
       res.end(this.metrics.toPrometheus(snap));
     });
 
+    this.metricsServer.on('error', (err) => {
+      this.deps.logger.warn(
+        { err: err instanceof Error ? err.message : String(err) },
+        'Indexer monitoring server failed to bind — continuing without /metrics',
+      );
+      this.metricsServer = null;
+    });
+
     this.metricsServer.listen(9091, () => {
-      this.deps.logger.info('Prometheus metrics: http://0.0.0.0:9091/metrics');
+      this.deps.logger.info('Indexer monitoring: http://0.0.0.0:9091/metrics, /readyz');
     });
   }
 }

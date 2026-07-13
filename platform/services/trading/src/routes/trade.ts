@@ -1,5 +1,4 @@
-import type { FastifyInstance } from 'fastify';
-import type { TradeExecutor } from '../trading/executor.js';
+import type { FastifyInstance, FastifyReply } from 'fastify';
 import type { TradeLogger } from '../logger/trade.logger.js';
 import type { IdempotencyStore } from '../idempotency/store.js';
 import type { QuoteCache } from '../quote/cache.js';
@@ -10,21 +9,22 @@ import {
   SellBodySchema,
   QuoteQuerySchema,
 } from '../validation/trade.schema.js';
-import type { QuoteResult } from '../types.js';
 import type { PrismaClient } from '@funrun/database';
 import { QUOTE_CACHE_TTL_MS } from '../constants.js';
+import type { TradeRouter } from '../trading/trade-router.js';
+import { buildTradeBuyBody, buildTradeSellBody } from '../trading/trade-response.js';
 
 export function registerTradeRoutes(
   app: FastifyInstance,
   deps: {
     db: PrismaClient;
-    executor: TradeExecutor;
+    tradeRouter: TradeRouter;
     idempotency: IdempotencyStore;
     tradeLogger: TradeLogger;
     quoteCache: QuoteCache;
   },
 ): void {
-  const { db, executor, idempotency, tradeLogger, quoteCache } = deps;
+  const { db, tradeRouter, idempotency, tradeLogger, quoteCache } = deps;
 
   // ── POST /trade/buy ──────────────────────────────────────────────────────────
   app.post('/trade/buy', async (request, reply) => {
@@ -48,31 +48,12 @@ export function registerTradeRoutes(
       slippageBps: parsed.data.slippageBps,
     };
     const ctx = { requestId, walletAddress, startedAt: start };
+    const idempotencyKey = getIdempotencyKey(request);
 
     try {
-      const result = await executor.buy(req, ctx);
+      const result = await tradeRouter.buy(req, ctx, idempotencyKey);
+      const body = buildTradeBuyBody(result, requestId);
 
-      const body = {
-        txId: result.txId,
-        coinId: result.coinId,
-        tradeType: result.tradeType,
-        solAmount: result.solAmount.toString(),
-        tokenAmount: result.tokenAmount.toString(),
-        pricePerToken: result.pricePerToken,
-        priceImpactBps: result.priceImpactBps,
-        fees: {
-          totalFee: result.fees.totalFee.toString(),
-          creatorFee: result.fees.creatorFee.toString(),
-          referrerFee: result.fees.referrerFee.toString(),
-          treasuryFee: result.fees.treasuryFee.toString(),
-        },
-        virtualSolAfter: result.virtualSolAfter.toString(),
-        virtualTokensAfter: result.virtualTokensAfter.toString(),
-        graduated: result.graduated,
-        requestId,
-      };
-
-      const idempotencyKey = getIdempotencyKey(request);
       if (idempotencyKey) {
         await idempotency.set(idempotencyKey, { status: 200, body, cachedAt: new Date().toISOString() });
       }
@@ -103,35 +84,17 @@ export function registerTradeRoutes(
       tokenAmountRaw: parsed.data.tokenAmountRaw,
       minSolOut: parsed.data.minSolOut,
       slippageBps: parsed.data.slippageBps,
-      maxPriceImpactBps: parsed.data.maxPriceImpactBps,
+      ...(parsed.data.maxPriceImpactBps !== undefined
+        ? { maxPriceImpactBps: parsed.data.maxPriceImpactBps }
+        : {}),
     };
     const ctx = { requestId, walletAddress, startedAt: start };
+    const idempotencyKey = getIdempotencyKey(request);
 
     try {
-      const result = await executor.sell(req, ctx);
+      const result = await tradeRouter.sell(req, ctx, idempotencyKey);
+      const body = buildTradeSellBody(result, requestId);
 
-      const body = {
-        txId: result.txId,
-        coinId: result.coinId,
-        tradeType: result.tradeType,
-        solAmount: result.solAmount.toString(),
-        tokenAmount: result.tokenAmount.toString(),
-        pricePerToken: result.pricePerToken,
-        priceImpactBps: result.priceImpactBps,
-        fees: {
-          totalFee: result.fees.totalFee.toString(),
-          creatorFee: result.fees.creatorFee.toString(),
-          referrerFee: result.fees.referrerFee.toString(),
-          treasuryFee: result.fees.treasuryFee.toString(),
-        },
-        virtualSolAfter: result.virtualSolAfter.toString(),
-        virtualTokensAfter: result.virtualTokensAfter.toString(),
-        remainingTokenBalance: result.remainingTokenBalance.toString(),
-        graduated: false,
-        requestId,
-      };
-
-      const idempotencyKey = getIdempotencyKey(request);
       if (idempotencyKey) {
         await idempotency.set(idempotencyKey, { status: 200, body, cachedAt: new Date().toISOString() });
       }
@@ -272,14 +235,19 @@ const KNOWN_ERROR_CODES: Record<string, number> = {
   COIN_PAUSED:            422,
   INSUFFICIENT_BALANCE:   422,
   NOT_FOUND:              404,
+  WALLET_NOT_READY:       422,
+  MNEMONIC_FORMAT_INVALID: 422,
+  MINT_NOT_FOUND:         422,
+  ACCOUNT_BANNED:         403,
+  IDEMPOTENCY_CONFLICT:   409,
   P2025:                  404, // Prisma: record not found (findUniqueOrThrow)
 };
 
 function handleTradeError(
   err: unknown,
-  reply: Parameters<Parameters<FastifyInstance['post']>[1]>[1],
+  reply: FastifyReply,
   requestId: string,
-): ReturnType<typeof reply.send> {
+): ReturnType<FastifyReply['send']> {
   const code = (err as { code?: string }).code;
   const status = (code && KNOWN_ERROR_CODES[code]) ? KNOWN_ERROR_CODES[code]! : 500;
 

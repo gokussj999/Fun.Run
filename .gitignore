@@ -3,6 +3,7 @@
 
 # env
 **/.env
+**/.env.*
 
 # logs
 **/*.log
@@ -19,3 +20,8 @@ backend/test-ledger/
 **/test-ledger/
 
 backend/new-treasury.json
+
+# E2E / scripts - sensitive browser data
+platform/scripts/.e2e-browser-profile/
+platform/scripts/.e2e-cookies.json
+platform/scripts/scripts/.e2e-browser-profile/

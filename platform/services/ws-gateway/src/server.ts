@@ -61,16 +61,44 @@ export async function buildGatewayServers(
   const app = Fastify({ logger: false });
 
   app.get('/healthz', { logLevel: 'silent' as never }, (_req, reply) => {
-    reply.send({ status: 'ok', uptime: process.uptime() });
+    reply.send({ status: 'ok', alive: true, uptime: process.uptime() });
   });
 
   app.get('/readyz', async (_req, reply) => {
+    const components: Record<string, { status: string; detail?: string }> = {};
+
     try {
       await redisForHealth.ping();
-      reply.send({ status: 'ready', connections: container.registry.size });
+      components['redis'] = { status: 'ok' };
     } catch (err) {
-      reply.code(503).send({ status: 'unhealthy', error: 'Redis ping failed' });
+      components['redis'] = {
+        status: 'down',
+        detail: err instanceof Error ? err.message : String(err),
+      };
     }
+
+    try {
+      await container.db.$queryRaw`SELECT 1`;
+      components['database'] = { status: 'ok' };
+    } catch (err) {
+      components['database'] = {
+        status: 'down',
+        detail: err instanceof Error ? err.message : String(err),
+      };
+    }
+
+    components['pubsub'] = {
+      status: container.redisSubscriber.activeChannels.length >= 0 ? 'ok' : 'degraded',
+      detail: `${container.redisSubscriber.activeChannels.length} active channels`,
+    };
+
+    const ready = Object.values(components).every((c) => c.status !== 'down');
+    const code = ready ? 200 : 503;
+    reply.code(code).send({
+      ready,
+      connections: container.registry.size,
+      components,
+    });
   });
 
   app.get('/metrics', (_req, reply) => {

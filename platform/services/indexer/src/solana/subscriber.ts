@@ -1,4 +1,4 @@
-import { PublicKey, type Connection, type LogsFilter } from '@solana/web3.js';
+import { PublicKey, type Connection } from '@solana/web3.js';
 
 import type { Logger } from '@funrun/logger';
 
@@ -56,8 +56,6 @@ export class LogSubscriber {
     this.state = { ...this.state, status: 'CONNECTING' };
     this.logger.info({ programId: this.programId }, 'Subscribing to program logs');
 
-    const filter: LogsFilter = { mentions: [this.programId] };
-
     const subId = this.connection.onLogs(
       new PublicKey(this.programId),
       (logs, context) => {
@@ -76,7 +74,7 @@ export class LogSubscriber {
           err: logs.err,
         };
 
-        void this.handler(entry).catch((err) => {
+        Promise.resolve(this.handler(entry)).catch((err) => {
           this.logger.error(
             { sig: logs.signature, err: err instanceof Error ? err.message : String(err) },
             'Log handler error',
@@ -129,10 +127,12 @@ export class LogSubscriber {
       this.state.status === 'CONNECTING'
     ) return;
 
-    this.state = { ...this.state, status: 'RECONNECTING', subscriptionId: null };
+    const oldSubId = this.state.subscriptionId;
+    // Reset lastMessageAt so the health check doesn't immediately re-trigger after reconnect
+    this.state = { ...this.state, status: 'RECONNECTING', subscriptionId: null, lastMessageAt: null };
 
-    if (this.state.subscriptionId !== null) {
-      try { this.connection.removeOnLogsListener(this.state.subscriptionId); } catch { /* noop */ }
+    if (oldSubId !== null) {
+      try { this.connection.removeOnLogsListener(oldSubId); } catch { /* noop */ }
     }
 
     const delay = Math.min(

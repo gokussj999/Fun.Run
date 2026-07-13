@@ -35,7 +35,7 @@ export async function handleGraduationInitiated(
         graduationInitiatedAt: new Date(event.blockTime * 1000),
         creatorFeeSnapshot:   data.creatorFeeSnapshot.toString(),
         referrerFeeSnapshot:  data.referrerFeeSnapshot.toString(),
-        referrerWallet:       data.referrer ?? undefined,
+        referrerWallet:       data.referrer ?? null,
         version:              { increment: 1 },
       },
     });

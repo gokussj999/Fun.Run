@@ -1,17 +1,20 @@
 import rateLimit from '@fastify/rate-limit';
 import type { FastifyInstance } from 'fastify';
-import type Redis from 'ioredis';
+import type { AuthenticatedUser } from '@funrun/auth';
+import type { RedisInstance as Redis } from '@funrun/redis';
 
 export async function registerRateLimit(app: FastifyInstance, redis: Redis): Promise<void> {
   await app.register(rateLimit, {
     global: true,
-    max: 1_000,
+    max: 200,
     timeWindow: 60_000,
     redis,
     keyGenerator: (request) => {
-      // Prefer user ID from JWT (set by auth plugin), fall back to IP
-      const userId = (request as Record<string, unknown>)['userId'];
-      return typeof userId === 'string' ? `user:${userId}` : `ip:${request.ip}`;
+      const actor = (request as { actor?: AuthenticatedUser }).actor;
+      if (actor?.walletAddress) {
+        return `wallet:${actor.walletAddress}`;
+      }
+      return `ip:${request.ip}`;
     },
     errorResponseBuilder: (_request, context) => ({
       success: false,

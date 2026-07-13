@@ -64,10 +64,13 @@ export const REORG_SAFE_DEPTH         = 32n;      // slots considered final
 // ─── Redis keys ───────────────────────────────────────────────────────────────
 
 export const REDIS_KEYS_INDEXER = {
-  cursor:                  () => 'indexer:cursor',
-  processedSig:  (sig: string) => `indexer:sig:${sig}`,
-  workerLock:              () => 'indexer:worker_lock',
-  metrics:                 () => 'indexer:metrics',
+  cursor:       () => 'indexer:cursor',
+  /** Per-signature dedup (legacy — prefer processedEvent). */
+  processedSig: (sig: string) => `indexer:sig:${sig}`,
+  /** Per-event dedup — one tx may emit multiple Anchor events (Sprint 4). */
+  processedEvent: (sig: string, eventName: string) => `indexer:sig:${sig}:${eventName}`,
+  workerLock:   () => 'indexer:worker_lock',
+  metrics:      () => 'indexer:metrics',
 } as const;
 
 // ─── Redis pub/sub channels ───────────────────────────────────────────────────
@@ -83,5 +86,9 @@ export const PUBSUB_CHANNELS = {
   indexerMetrics:                     'metrics:indexer',
   priceUpdate:  (mint: string) => `price:${mint}`,
   graduation:   (mint: string) => `graduation:${mint}`,
+  creator:      (wallet: string) => `events:creator:${wallet}`,
+  referral:     (wallet: string) => `events:referral:${wallet}`,
+  portfolio:    (wallet: string) => `events:portfolio:${wallet}`,
+  notifications:(wallet: string) => `events:notifications:${wallet}`,
 } as const;
 

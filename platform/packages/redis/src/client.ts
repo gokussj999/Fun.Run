@@ -4,7 +4,7 @@ import type { Logger } from '@funrun/logger';
 
 export interface RedisClientOptions {
   url: string;
-  password?: string;
+  password?: string | undefined;
   db?: number;
   logger: Logger;
   name?: string;

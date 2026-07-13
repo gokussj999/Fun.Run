@@ -6,3 +6,5 @@ export {
 } from './client.js';
 
 export type { DatabaseClientOptions, Prisma } from './client.js';
+
+export { $Enums } from './generated/client/index.js';

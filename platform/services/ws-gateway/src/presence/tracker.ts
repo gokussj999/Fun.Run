@@ -1,4 +1,4 @@
-import type Redis from 'ioredis';
+import type { Redis } from 'ioredis';
 import type { Logger } from '@funrun/logger';
 
 import type { PresenceRecord } from '../types.js';

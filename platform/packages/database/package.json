@@ -14,7 +14,7 @@
     }
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.json && node scripts/copy-generated.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "dev": "tsc -p tsconfig.json --watch",
     "db:generate": "prisma generate --schema=./prisma/schema.prisma",
@@ -23,7 +23,11 @@
     "db:push": "prisma db push --schema=./prisma/schema.prisma",
     "db:studio": "prisma studio --schema=./prisma/schema.prisma",
     "db:seed": "tsx prisma/seed.ts",
-    "db:reset": "prisma migrate reset --schema=./prisma/schema.prisma"
+    "db:reset": "prisma migrate reset --schema=./prisma/schema.prisma",
+    "db:inventory": "node scripts/migration-inventory.mjs",
+    "db:verify-baseline": "node scripts/verify-baseline-migration.mjs",
+    "db:verify-tree": "node scripts/verify-migration-tree.mjs",
+    "db:verify-smoke": "node scripts/verify-schema-smoke.mjs"
   },
   "dependencies": {
     "@prisma/client": "^6.1.0"

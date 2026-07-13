@@ -121,14 +121,24 @@ describe('SessionManager.validate', () => {
     await expect(manager.validate(session.sessionId)).rejects.toThrow('expired');
   });
 
-  it('extends TTL when session was not recently seen', async () => {
-    const session = makeSession({ lastSeenAt: Date.now() - 10 * 60 * 1000 }); // 10 min ago
+  it('extends TTL on every successful validation (sliding window)', async () => {
+    const session = makeSession({ lastSeenAt: Date.now() });
     const touch = vi.fn();
     const store = makeStore({ get: vi.fn().mockResolvedValue(session), touch });
     const manager = new SessionManager(store, makeLogger());
 
     await manager.validate(session.sessionId);
     expect(touch).toHaveBeenCalledOnce();
+  });
+
+  it('rejects session when wallet does not match (H-06)', async () => {
+    const session = makeSession();
+    const store = makeStore({ get: vi.fn().mockResolvedValue(session) });
+    const manager = new SessionManager(store, makeLogger());
+
+    await expect(
+      manager.validate(session.sessionId, 'DifferentWallet111111111111111111111111111'),
+    ).rejects.toThrow('does not belong');
   });
 });
 

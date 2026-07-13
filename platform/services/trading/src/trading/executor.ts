@@ -7,6 +7,11 @@ import { executeBuy } from './buy.js';
 import { executeSell } from './sell.js';
 import type { BuyRequest, SellRequest, TradeContext, TradeResult } from '../types.js';
 
+/**
+ * Legacy off-chain DB AMM executor (oc_* txIds).
+ * Default path when TRADING_MODE=offchain. Prefer TRADING_MODE=onchain for Solana settlement.
+ * Routed via TradeRouter — do not call directly from HTTP handlers.
+ */
 export class TradeExecutor {
   constructor(
     private readonly db: PrismaClient,

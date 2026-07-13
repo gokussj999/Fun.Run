@@ -56,6 +56,18 @@ enum AuditAction {
   ADMIN_GRANTED
 }
 
+enum TxStatus {
+  BUILDING
+  SIGNING
+  PENDING
+  SUBMITTED
+  CONFIRMED
+  FINALIZED
+  FAILED
+  EXPIRED
+  ABANDONED
+}
+
 // ─── Tables ───────────────────────────────────────────────────────────────────
 
 /// User identity and custodial wallet state.
@@ -69,6 +81,11 @@ model Profile {
   mnemonicIv        String?   @map("mnemonic_iv") @db.VarChar(64)
   mnemonicTag       String?   @map("mnemonic_tag") @db.VarChar(64)
   isBanned          Boolean   @default(false) @map("is_banned")
+  /// Spendable SOL balance (legacy run_balance parity — Sprint 7).
+  runBalanceSol     Decimal   @default(0) @map("run_balance_sol") @db.Decimal(20, 9)
+  creatorRewardsSol Decimal   @default(0) @map("creator_rewards_sol") @db.Decimal(20, 9)
+  referralRewardsSol Decimal  @default(0) @map("referral_rewards_sol") @db.Decimal(20, 9)
+  ownerRewardsSol   Decimal   @default(0) @map("owner_rewards_sol") @db.Decimal(20, 9)
   createdAt         DateTime  @default(now()) @map("created_at")
   updatedAt         DateTime  @updatedAt @map("updated_at")
   lastSeenAt        DateTime? @map("last_seen_at")
@@ -274,6 +291,50 @@ model IndexerState {
   @@map("indexer_state")
 }
 
+/// On-chain transaction lifecycle record — one row per logical operation attempt.
+/// Provides idempotency, duplicate protection, and full audit trail for all Solana txs.
+model PendingTx {
+  id                   String    @id @default(cuid())
+
+  /// Caller-supplied idempotency key — prevents duplicate submissions.
+  idempotencyKey       String    @unique @map("idempotency_key") @db.VarChar(128)
+
+  walletAddress        String    @map("wallet_address") @db.VarChar(44)
+  /// BUY | SELL | CREATE_COIN | INITIATE_GRADUATION | COMPLETE_GRADUATION
+  operationType        String    @map("operation_type") @db.VarChar(32)
+  coinId               String?   @map("coin_id")
+
+  status               TxStatus  @default(BUILDING)
+
+  /// Serialized VersionedTransaction bytes — set when status = PENDING.
+  serializedTx         Bytes?    @map("serialized_tx")
+  /// Base-58 signature — set when status = SUBMITTED.
+  signature            String?   @unique @map("signature") @db.VarChar(88)
+  blockhash            String?   @map("blockhash") @db.VarChar(88)
+  lastValidBlockHeight BigInt?   @map("last_valid_block_height")
+
+  confirmedSlot        BigInt?   @map("confirmed_slot")
+  finalizedAt          DateTime? @map("finalized_at")
+
+  errorMessage         String?   @map("error_message") @db.Text
+  errorCode            String?   @map("error_code") @db.VarChar(64)
+
+  /// When true, this record is eligible to be reset to BUILDING for re-submission.
+  canResubmit          Boolean   @default(false) @map("can_resubmit")
+  submitAttempts       Int       @default(0) @map("submit_attempts")
+  lastSubmittedAt      DateTime? @map("last_submitted_at")
+
+  /// Optional hard deadline — TxConfirmer marks SUBMITTED rows EXPIRED after this.
+  expiresAt            DateTime? @map("expires_at")
+  createdAt            DateTime  @default(now()) @map("created_at")
+  updatedAt            DateTime  @updatedAt @map("updated_at")
+
+  @@index([walletAddress, status])
+  @@index([status, createdAt(sort: Desc)])
+  @@index([status, lastValidBlockHeight])
+  @@map("pending_txs")
+}
+
 /// Device tokens for push notifications.
 model PushSubscription {
   id          String   @id @default(cuid())
@@ -287,4 +348,41 @@ model PushSubscription {
   @@unique([walletAddress, token])
   @@index([walletAddress])
   @@map("push_subscriptions")
+}
+
+/// On-chain SOL deposit credited to custodial wallet (Sprint 7).
+model Deposit {
+  id            String   @id @default(cuid())
+  walletAddress String   @map("wallet_address") @db.VarChar(44)
+  txSignature   String   @unique @map("tx_signature") @db.VarChar(88)
+  amountSol     Decimal  @map("amount_sol") @db.Decimal(20, 9)
+  status        String   @default("confirmed") @db.VarChar(20)
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@index([walletAddress, createdAt(sort: Desc)])
+  @@map("deposits")
+}
+
+/// Deposit scanner cursor per wallet.
+model DepositScan {
+  walletAddress String   @id @map("wallet_address") @db.VarChar(44)
+  lastSignature String?  @map("last_signature") @db.VarChar(88)
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  @@map("deposit_scans")
+}
+
+/// Withdrawal request (Sprint 7).
+model Withdrawal {
+  id             String   @id @default(cuid())
+  walletAddress  String   @map("wallet_address") @db.VarChar(44)
+  destination    String   @db.VarChar(44)
+  amountSol      Decimal  @map("amount_sol") @db.Decimal(20, 9)
+  txSignature    String?  @map("tx_signature") @db.VarChar(88)
+  status         String   @default("pending") @db.VarChar(20)
+  idempotencyKey String?  @unique @map("idempotency_key") @db.VarChar(128)
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  @@index([walletAddress, createdAt(sort: Desc)])
+  @@map("withdrawals")
 }

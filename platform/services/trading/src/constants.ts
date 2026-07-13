@@ -83,3 +83,12 @@ export const TIMEFRAME_DB_VALUE: Record<TF, string> = {
   h4:  '4h',
   d1:  '1d',
 } as const;
+
+// ─── Trading mode (Sprint 1 Task 5) ───────────────────────────────────────────
+
+export {
+  TRADING_MODES,
+  DEFAULT_TRADING_MODE,
+  type TradingMode,
+  resolveTradingMode,
+} from './config/trading-mode.js';

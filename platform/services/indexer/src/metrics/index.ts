@@ -1,5 +1,5 @@
 import type { Logger } from '@funrun/logger';
-import type Redis from 'ioredis';
+import type { RedisInstance as Redis } from '@funrun/redis';
 
 import { REDIS_KEYS_INDEXER } from '../constants.js';
 

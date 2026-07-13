@@ -35,7 +35,7 @@ export function CoinHeader({
   return (
     <div className={`coinHeader ${isMobile ? "coinHeader--mobile" : "coinHeader--desktop"}`}>
       <div className="coinHeaderMain">
-        <CoinLogo c={coin} size={isMobile ? 56 : 64} radius={18} />
+        <CoinLogo c={coin} size={isMobile ? 48 : 64} radius={isMobile ? 14 : 18} />
 
         <div className="coinHeaderIdentity">
           <div className="coinHeaderTitleRow">
@@ -65,25 +65,26 @@ export function CoinHeader({
         </div>
       </div>
 
-      <div className="coinHeaderToolbar">
-        <MiniBtn className="coinHeaderActionBtn" onClick={onToggleFavorite}>
+      <div className="coinHeaderToolbar coinHeaderToolbar--scroll">
+        <MiniBtn className="coinHeaderActionBtn coinHeaderActionBtn--icon" onClick={onToggleFavorite} aria-label={isFavorite ? "Remove from favorites" : "Add to favorites"}>
           <span style={{ color: isFavorite ? "#fbbf24" : undefined }}>
-            {isFavorite ? "★ Favorited" : "☆ Favorite"}
+            {isMobile ? (isFavorite ? "★" : "☆") : isFavorite ? "★ Favorited" : "☆ Favorite"}
           </span>
         </MiniBtn>
-        <MiniBtn className="coinHeaderActionBtn" onClick={onOpenCreator}>
-          Creator
+        <MiniBtn className="coinHeaderActionBtn coinHeaderActionBtn--icon" onClick={onOpenCreator} aria-label="View creator">
+          {isMobile ? "👤" : "Creator"}
         </MiniBtn>
         <MiniBtn
-          className="coinHeaderActionBtn"
+          className="coinHeaderActionBtn coinHeaderActionBtn--icon"
           disabled={!coin?.mintAddress}
           onClick={onCopyMint}
+          aria-label="Copy mint address"
         >
-          {coin?.mintAddress ? "Copy Mint" : "Not minted"}
+          {isMobile ? "📋" : coin?.mintAddress ? "Copy Mint" : "Not minted"}
         </MiniBtn>
         {isCreator ? (
-          <MiniBtn className="coinHeaderActionBtn" tone="good" onClick={onOpenDex}>
-            Launch DEX
+          <MiniBtn className="coinHeaderActionBtn coinHeaderActionBtn--icon" tone="good" onClick={onOpenDex} aria-label="Launch on DEX">
+            {isMobile ? "🚀 DEX" : "Launch DEX"}
           </MiniBtn>
         ) : null}
       </div>

@@ -1,5 +1,5 @@
 import type { PrismaClient } from '@funrun/database';
-import type Redis from 'ioredis';
+import type { RedisInstance as Redis } from '@funrun/redis';
 import type { Logger } from '@funrun/logger';
 
 import type { IndexerCursor } from '../types.js';
@@ -38,9 +38,9 @@ export class CursorStore {
     if (!row) return null;
 
     const cursor: IndexerCursor = {
-      lastProcessedSlot:      BigInt(row.lastProcessedSlot),
-      lastProcessedSignature: row.lastProcessedSignature ?? undefined,
-      lastProcessedAt:        row.updatedAt,
+      lastProcessedSlot: row.lastSlot,
+      lastProcessedAt:   row.updatedAt,
+      ...(row.lastSignature !== null ? { lastProcessedSignature: row.lastSignature } : {}),
     };
 
     await this.writeRedis(cursor);
@@ -52,14 +52,14 @@ export class CursorStore {
     await this.db.indexerState.upsert({
       where: { id: 'singleton' },
       update: {
-        lastProcessedSlot:      cursor.lastProcessedSlot.toString(),
-        lastProcessedSignature: cursor.lastProcessedSignature ?? null,
-        updatedAt:              new Date(),
+        lastSlot:      cursor.lastProcessedSlot,
+        lastSignature: cursor.lastProcessedSignature ?? null,
+        updatedAt:     new Date(),
       },
       create: {
-        id:                     'singleton',
-        lastProcessedSlot:      cursor.lastProcessedSlot.toString(),
-        lastProcessedSignature: cursor.lastProcessedSignature ?? null,
+        id:            'singleton',
+        lastSlot:      cursor.lastProcessedSlot,
+        lastSignature: cursor.lastProcessedSignature ?? null,
       },
     });
 

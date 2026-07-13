@@ -9,7 +9,7 @@ function formatCrosshairPrice(n) {
   return fmtUsd(Math.max(0.00000001, safeNum(n, 0)));
 }
 
-export function PriceChart({ coin, height = 280, chartRange, setChartRange, reloadKey = 0, variant = "default" }) {
+export function PriceChart({ coin, height = 280, chartRange, setChartRange, reloadKey = 0, variant = "default", compact = false }) {
   const chartRef = useRef(null);
   const chartApiRef = useRef(null);
   const candleSeriesRef = useRef(null);
@@ -114,8 +114,8 @@ export function PriceChart({ coin, height = 280, chartRange, setChartRange, relo
         timeVisible: true,
         secondsVisible: false,
         rightOffset: 6,
-        barSpacing: 6,
-        minBarSpacing: 2,
+        barSpacing: compact ? 8 : 6,
+        minBarSpacing: compact ? 3 : 2,
         rightBarStaysOnScroll: true,
       },
       crosshair: {
@@ -232,7 +232,13 @@ export function PriceChart({ coin, height = 280, chartRange, setChartRange, relo
       candleSeriesRef.current = null;
       volumeSeriesRef.current = null;
     };
-  }, [height, themeCfg, isLight, up, livePrice]);
+  }, [height, themeCfg, isLight, up, livePrice, compact]);
+
+  const timeframes = compact
+    ? ["5M", "1H", "1D"]
+    : ["5M", "15M", "1H", "4H", "1D", "1W"];
+
+  const tfLabels = { "5M": "5m", "15M": "15m", "1H": "1h", "4H": "4h", "1D": "1D", "1W": "Week" };
 
   useEffect(() => {
     if (!candleSeriesRef.current || !chartApiRef.current || !candlePoints.length) return;
@@ -249,21 +255,21 @@ export function PriceChart({ coin, height = 280, chartRange, setChartRange, relo
   const ohlc = crosshairInfo;
 
   return (
-    <div className={`chartPanel ${isLight ? "chartPanel--light" : ""} ${isHero ? "chartPanel--hero" : ""}`}>
+    <div className={`chartPanel ${isLight ? "chartPanel--light" : ""} ${isHero ? "chartPanel--hero" : ""} ${compact ? "chartPanel--compact" : ""}`}>
       <div className="chartPanelHead">
         <div className="chartPanelHeadRow">
-          <div className="chartPanelLabel">{ohlc ? "Crosshair" : "Live Price"}</div>
+          {!compact ? <div className="chartPanelLabel">{ohlc ? "Crosshair" : "Live Price"}</div> : null}
           <div className="chartPanelToolbar">
             <button
               type="button"
               className="chartToolBtn chartToolBtn--theme"
               onClick={() => setChartLook(chartLook === "dark" ? "light" : "dark")}
+              aria-label={chartLook === "dark" ? "Switch to light chart" : "Switch to dark chart"}
             >
-              {chartLook === "dark" ? "☀ Light" : "● Dark"}
+              {compact ? (chartLook === "dark" ? "☀" : "●") : chartLook === "dark" ? "☀ Light" : "● Dark"}
             </button>
-            {["5M", "15M", "1H", "4H", "1D", "1W"].map((value) => {
+            {timeframes.map((value) => {
               const active = chartRange === value;
-              const labels = { "5M": "5m", "15M": "15m", "1H": "1h", "4H": "4h", "1D": "1D", "1W": "Week" };
               return (
                 <button
                   key={value}
@@ -271,7 +277,7 @@ export function PriceChart({ coin, height = 280, chartRange, setChartRange, relo
                   className={`chartTfBtn ${active ? "active" : ""}`}
                   onClick={() => setChartRange?.(value)}
                 >
-                  {labels[value]}
+                  {tfLabels[value]}
                 </button>
               );
             })}
@@ -282,7 +288,7 @@ export function PriceChart({ coin, height = 280, chartRange, setChartRange, relo
           </div>
         </div>
 
-        <div className="chartPanelPrice">{fmtUsd(displayPrice)}</div>
+        {!compact ? <div className="chartPanelPrice">{fmtUsd(displayPrice)}</div> : null}
 
         {ohlc ? (
           <div className="chartOhlcRow" aria-live="polite">
@@ -304,9 +310,9 @@ export function PriceChart({ coin, height = 280, chartRange, setChartRange, relo
               </span>
             ) : null}
           </div>
-        ) : (
+        ) : !compact ? (
           <div className="chartPanelMeta">Created {createdAgo} • Hover chart for OHLC</div>
-        )}
+        ) : null}
       </div>
 
       <div className="chartPanelCanvas" style={{ height }}>

@@ -3,11 +3,13 @@ import 'dotenv/config';
 import { createDatabaseClient } from '@funrun/database';
 import { createLogger } from '@funrun/logger';
 import { createRedisClient } from '@funrun/redis';
+import { extractSolanaWallet } from '@funrun/shared';
 
 import { buildContainer } from './container.js';
 import { buildGatewayServers } from './server.js';
+import { resolveRedisDependencyMode } from './config/redis-dependency.js';
 
-const logger = createLogger('ws-gateway');
+const logger = createLogger({ service: 'ws-gateway' });
 
 async function main(): Promise<void> {
   // ─── Validate required env vars ─────────────────────────────────────────────
@@ -29,40 +31,51 @@ async function main(): Promise<void> {
   //   pubsub: for SUBSCRIBE — must be in subscriber mode, cannot issue other commands
   //   health: for /readyz PING check (separate to avoid blocking pubsub)
 
-  const cache  = createRedisClient(redisUrl, { db: 0 }, logger);
-  const pubsub = createRedisClient(redisUrl, { db: 1 }, logger);
-  const health = createRedisClient(redisUrl, { db: 0 }, logger);
+  const cache  = createRedisClient({ url: redisUrl, db: 0, logger, name: 'ws-cache' });
+  const pubsub = createRedisClient({ url: redisUrl, db: 1, logger, name: 'ws-pubsub' });
+  const health = createRedisClient({ url: redisUrl, db: 0, logger, name: 'ws-health' });
 
   // ─── Database ────────────────────────────────────────────────────────────────
 
-  const db = createDatabaseClient();
+  const db = createDatabaseClient({ url: process.env['DATABASE_URL']! });
   await db.$connect();
   logger.info('Database connected');
 
   // ─── Privy token verifier ────────────────────────────────────────────────────
   // We import @privy-io/server-auth dynamically to match the pattern from Phase 8.2
 
+  const redisDependencyMode = resolveRedisDependencyMode(process.env);
+  logger.info({ redisDependencyMode }, 'WS Gateway hardening configuration');
+
   const { PrivyClient } = await import('@privy-io/server-auth');
   const privy = new PrivyClient(privyId, privySecret);
+
+  interface LinkedAccount {
+    type: string;
+    chainType?: string;
+    walletClientType?: string;
+    address?: string;
+  }
 
   const tokenVerifier = async (token: string) => {
     try {
       const claims = await privy.verifyAuthToken(token);
-      const solanaAccount = claims.linkedAccounts?.find(
-        (a) => a.type === 'wallet' && a.chainType === 'solana',
-      );
+      const linkedAccounts = (
+        claims as unknown as { linkedAccounts?: LinkedAccount[] }
+      ).linkedAccounts ?? [];
+      const walletAddress = extractSolanaWallet(linkedAccounts);
       return {
-        userId:        claims.userId,
-        walletAddress: (solanaAccount as { address?: string })?.address ?? '',
+        userId: claims.userId,
+        ...(walletAddress ? { walletAddress } : {}),
       };
     } catch {
       return null;
     }
   };
 
-  // ─── Build container ─────────────────────────────────────────────────────────
-
-  const container = buildContainer({ db, cache, pubsub, logger, tokenVerifier });
+  const container = buildContainer({
+    db, cache, pubsub, logger, tokenVerifier, redisDependencyMode,
+  });
 
   // ─── Build and start servers ──────────────────────────────────────────────────
 

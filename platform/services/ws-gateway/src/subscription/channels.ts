@@ -2,7 +2,7 @@ import { CHANNEL_DEFS } from '../constants.js';
 import type { ParsedChannel, WsChannelKind } from '../types.js';
 
 const PARAM_KINDS = new Set<WsChannelKind>([
-  'coin', 'trades', 'candles', 'holders', 'creator', 'referral', 'portfolio',
+  'coin', 'trades', 'candles', 'holders', 'creator', 'referral', 'portfolio', 'notifications',
 ]);
 
 const NO_PARAM_KINDS = new Set<WsChannelKind>([

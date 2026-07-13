@@ -56,7 +56,7 @@ export class SessionManager {
     return session;
   }
 
-  async validate(sessionId: string): Promise<Session> {
+  async validate(sessionId: string, walletAddress?: string): Promise<Session> {
     const session = await this.store.get(sessionId);
 
     if (!session) {
@@ -72,13 +72,19 @@ export class SessionManager {
       throw new ForbiddenError('Session has expired');
     }
 
-    // Extend TTL if session was seen recently (sliding window)
-    const idleThreshold = now - SESSION_IDLE_EXTENSION_SECONDS * 1000;
-    if (session.lastSeenAt < idleThreshold) {
-      await this.store.touch(sessionId, session.walletAddress, SESSION_TTL_SECONDS);
+    // H-06: session must belong to the authenticated wallet
+    if (walletAddress && session.walletAddress !== walletAddress) {
+      throw new ForbiddenError('Session does not belong to this wallet');
     }
 
-    return session;
+    // H-24: sliding window — extend TTL on every successful validation
+    await this.store.touch(sessionId, session.walletAddress, SESSION_TTL_SECONDS);
+
+    return {
+      ...session,
+      lastSeenAt: now,
+      expiresAt: now + SESSION_TTL_SECONDS * 1000,
+    };
   }
 
   async revoke(sessionId: string, requestingWallet: string, requestingRole: UserRole): Promise<void> {

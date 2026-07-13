@@ -1,6 +1,7 @@
 import type { PrismaClient } from '@funrun/database';
 import type { Logger } from '@funrun/logger';
-import type Redis from 'ioredis';
+import { resolveIdentityWallet } from '@funrun/shared';
+import type { RedisInstance as Redis } from '@funrun/redis';
 
 import type { ParsedEvent, TokensPurchasedData, TokensSoldData } from '../../types.js';
 import { computePrice, upsertCandles } from '../candles.js';
@@ -14,6 +15,7 @@ export async function handleBuy(
   logger: Logger,
 ): Promise<void> {
   const data = event.data as TokensPurchasedData;
+  const identityBuyer = await resolveIdentityWallet(db, data.buyer);
   const price = computePrice(data.virtualSolAfter, data.virtualTokensAfter);
   const blockTimeMs = event.blockTime * 1000;
 
@@ -29,11 +31,11 @@ export async function handleBuy(
       return;
     }
 
-    // Upsert buyer profile
+    // Touch identity profile (Privy wallet — not custodial ghost row)
     await tx.profile.upsert({
-      where: { walletAddress: data.buyer },
+      where: { walletAddress: identityBuyer },
       update: { lastSeenAt: new Date(blockTimeMs) },
-      create: { walletAddress: data.buyer, privyUserId: `indexed:${data.buyer}`, role: 'USER' },
+      create: { walletAddress: identityBuyer, privyUserId: `indexed:${identityBuyer}`, role: 'USER' },
       select: { walletAddress: true },
     });
 
@@ -41,14 +43,14 @@ export async function handleBuy(
     await tx.transaction.create({
       data: {
         coinId:          coin.id,
-        walletAddress:   data.buyer,
+        walletAddress:   identityBuyer,
         tradeType:       'BUY',
         txSignature:     event.signature,
         slot:            event.slot,
         solAmount:       data.solAmount.toString(),
         tokenAmount:     data.tokenAmount.toString(),
         pricePerToken:   price,
-        totalFee:        data.feeTotal.toString(),
+        totalFee:        (data.treasuryFee + data.creatorFee + data.referrerFee).toString(),
         creatorFee:      data.creatorFee.toString(),
         referrerFee:     data.referrerFee.toString(),
         treasuryFee:     data.treasuryFee.toString(),
@@ -65,21 +67,21 @@ export async function handleBuy(
         virtualSolReserves:    data.virtualSolAfter.toString(),
         virtualTokenReserves:  data.virtualTokensAfter.toString(),
         realSolReserves:       data.realSolAfter.toString(),
-        totalFeesCollected:    { increment: parseFloat(data.feeTotal.toString()) },
+        totalFeesCollected:    { increment: parseFloat((data.treasuryFee + data.creatorFee + data.referrerFee).toString()) },
         version:               { increment: 1 },
       },
     });
 
     // Update buyer holdings
     await tx.holding.upsert({
-      where: { walletAddress_coinId: { walletAddress: data.buyer, coinId: coin.id } },
+      where: { walletAddress_coinId: { walletAddress: identityBuyer, coinId: coin.id } },
       update: {
         tokenBalance: { increment: parseFloat(data.tokenAmount.toString()) },
         costBasisSol: { increment: parseFloat(data.solAmount.toString()) / 1e9 },
         totalBought:  { increment: parseFloat(data.tokenAmount.toString()) },
       },
       create: {
-        walletAddress: data.buyer,
+        walletAddress: identityBuyer,
         coinId:        coin.id,
         tokenBalance:  data.tokenAmount.toString(),
         costBasisSol:  (Number(data.solAmount) / 1e9).toFixed(9),
@@ -115,10 +117,18 @@ export async function handleBuy(
     solAmount:   data.solAmount.toString(),
     tokenAmount: data.tokenAmount.toString(),
     tradeType:   'BUY',
+    buyer:       data.buyer,
     slot:        event.slot.toString(),
     signature:   event.signature,
     blockTime:   event.blockTime,
   });
+
+  await publishTradeSideEffects(
+    db, publisher, data.mint, identityBuyer, 'BUY',
+    data.solAmount.toString(), data.tokenAmount.toString(),
+    data.creatorFee, data.referrerFee,
+    event.slot.toString(), event.signature,
+  );
 }
 
 export async function handleSell(
@@ -129,6 +139,7 @@ export async function handleSell(
   logger: Logger,
 ): Promise<void> {
   const data = event.data as TokensSoldData;
+  const identitySeller = await resolveIdentityWallet(db, data.seller);
   const price = computePrice(data.virtualSolAfter, data.virtualTokensAfter);
   const blockTimeMs = event.blockTime * 1000;
 
@@ -144,23 +155,23 @@ export async function handleSell(
     }
 
     await tx.profile.upsert({
-      where: { walletAddress: data.seller },
+      where: { walletAddress: identitySeller },
       update: { lastSeenAt: new Date(blockTimeMs) },
-      create: { walletAddress: data.seller, privyUserId: `indexed:${data.seller}`, role: 'USER' },
+      create: { walletAddress: identitySeller, privyUserId: `indexed:${identitySeller}`, role: 'USER' },
       select: { walletAddress: true },
     });
 
     await tx.transaction.create({
       data: {
         coinId:          coin.id,
-        walletAddress:   data.seller,
+        walletAddress:   identitySeller,
         tradeType:       'SELL',
         txSignature:     event.signature,
         slot:            event.slot,
-        solAmount:       data.solAmount.toString(),
+        solAmount:       data.solNet.toString(),
         tokenAmount:     data.tokenAmount.toString(),
         pricePerToken:   price,
-        totalFee:        data.feeTotal.toString(),
+        totalFee:        (data.treasuryFee + data.creatorFee + data.referrerFee).toString(),
         creatorFee:      data.creatorFee.toString(),
         referrerFee:     data.referrerFee.toString(),
         treasuryFee:     data.treasuryFee.toString(),
@@ -176,19 +187,19 @@ export async function handleSell(
         virtualSolReserves:   data.virtualSolAfter.toString(),
         virtualTokenReserves: data.virtualTokensAfter.toString(),
         realSolReserves:      data.realSolAfter.toString(),
-        totalFeesCollected:   { increment: parseFloat(data.feeTotal.toString()) },
+        totalFeesCollected:   { increment: parseFloat((data.treasuryFee + data.creatorFee + data.referrerFee).toString()) },
         version:              { increment: 1 },
       },
     });
 
     await tx.holding.upsert({
-      where: { walletAddress_coinId: { walletAddress: data.seller, coinId: coin.id } },
+      where: { walletAddress_coinId: { walletAddress: identitySeller, coinId: coin.id } },
       update: {
         tokenBalance: { decrement: parseFloat(data.tokenAmount.toString()) },
         totalSold:    { increment: parseFloat(data.tokenAmount.toString()) },
       },
       create: {
-        walletAddress: data.seller,
+        walletAddress: identitySeller,
         coinId:        coin.id,
         tokenBalance:  '0',
         costBasisSol:  '0',
@@ -208,16 +219,115 @@ export async function handleSell(
       },
     });
 
-    await upsertCandles(tx as unknown as PrismaClient, coin.id, blockTimeMs, price, data.solAmount);
+    await upsertCandles(tx as unknown as PrismaClient, coin.id, blockTimeMs, price, data.solNet);
   });
 
   await publisher.publishPriceUpdate(data.mint, {
     price,
-    solAmount:   data.solAmount.toString(),
+    solAmount:   data.solNet.toString(),
     tokenAmount: data.tokenAmount.toString(),
     tradeType:   'SELL',
+    seller:      data.seller,
     slot:        event.slot.toString(),
     signature:   event.signature,
     blockTime:   event.blockTime,
+  });
+
+  await publishTradeSideEffects(
+    db, publisher, data.mint, identitySeller, 'SELL',
+    data.solNet.toString(), data.tokenAmount.toString(),
+    data.creatorFee, data.referrerFee,
+    event.slot.toString(), event.signature,
+  );
+}
+
+async function publishTradeSideEffects(
+  db: PrismaClient,
+  publisher: RedisPublisher,
+  mint: string,
+  wallet: string,
+  tradeType: 'BUY' | 'SELL',
+  solAmount: string,
+  tokenAmount: string,
+  creatorFee: bigint,
+  referrerFee: bigint,
+  slot: string,
+  signature: string,
+): Promise<void> {
+  const coin = await db.coin.findUnique({
+    where: { mintAddress: mint },
+    select: { creatorWallet: true, referrerWallet: true },
+  });
+  if (!coin) return;
+
+  await publisher.publishPortfolioUpdate(wallet, {
+    wallet,
+    mint,
+    tradeType,
+    tokenAmount,
+    solAmount,
+    slot,
+    signature,
+  });
+
+  if (creatorFee > 0n) {
+    // Credit creator's off-chain reward balance so claim endpoint returns correct amount
+    const creatorSol = Number(creatorFee) / 1e9;
+    await db.profile.upsert({
+      where:  { walletAddress: coin.creatorWallet },
+      update: { creatorRewardsSol: { increment: creatorSol } },
+      create: {
+        walletAddress:    coin.creatorWallet,
+        privyUserId:      `indexed:${coin.creatorWallet}`,
+        role:             'USER',
+        creatorRewardsSol: creatorSol,
+      },
+      select: { walletAddress: true },
+    });
+
+    await publisher.publishCreatorUpdate(coin.creatorWallet, {
+      wallet:    coin.creatorWallet,
+      mint,
+      eventType: 'fee_earned',
+      amount:    creatorFee.toString(),
+      tradeType,
+      slot,
+      signature,
+    });
+  }
+
+  if (coin.referrerWallet && referrerFee > 0n) {
+    // Credit referrer's off-chain reward balance
+    const referralSol = Number(referrerFee) / 1e9;
+    await db.profile.upsert({
+      where:  { walletAddress: coin.referrerWallet },
+      update: { referralRewardsSol: { increment: referralSol } },
+      create: {
+        walletAddress:      coin.referrerWallet,
+        privyUserId:        `indexed:${coin.referrerWallet}`,
+        role:               'USER',
+        referralRewardsSol: referralSol,
+      },
+      select: { walletAddress: true },
+    });
+
+    await publisher.publishReferralUpdate(coin.referrerWallet, {
+      wallet:    coin.referrerWallet,
+      mint,
+      eventType: 'fee_earned',
+      amount:    referrerFee.toString(),
+      tradeType,
+      slot,
+      signature,
+    });
+  }
+
+  await publisher.publishNotification(wallet, {
+    type:      tradeType === 'BUY' ? 'trade_buy' : 'trade_sell',
+    title:     tradeType === 'BUY' ? 'Buy confirmed' : 'Sell confirmed',
+    body:      `${tradeType} on ${mint.slice(0, 8)}… indexed`,
+    mint,
+    slot,
+    signature,
   });
 }

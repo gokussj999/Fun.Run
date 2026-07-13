@@ -1,4 +1,4 @@
-import type Redis from 'ioredis';
+import type { Redis } from 'ioredis';
 import type { Logger } from '@funrun/logger';
 import { QUOTE_CACHE_TTL_MS, RK } from '../constants.js';
 

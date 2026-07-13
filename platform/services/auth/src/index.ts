@@ -16,8 +16,10 @@ import fp from 'fastify-plugin';
 
 import { createPrivyClient } from './privy/client.js';
 import { AuthService } from './service.js';
+import { registerAuthErrorHandler } from './plugins/error-handler.js';
 import { authenticatePlugin } from './middleware/authenticate.js';
 import { authorizePlugin } from './middleware/authorize.js';
+import { serviceRawBodyPlugin } from './middleware/service-raw-body.js';
 import { serviceAuthPlugin } from './middleware/service-auth.js';
 import { registerAuthRoutes } from './routes/auth.js';
 import { registerSessionRoutes } from './routes/sessions.js';
@@ -25,7 +27,7 @@ import { registerApiKeyRoutes } from './routes/api-keys.js';
 
 import type { PrismaClient } from '@funrun/database';
 import type { Logger } from '@funrun/logger';
-import type Redis from 'ioredis';
+import type { RedisInstance as Redis } from '@funrun/redis';
 
 export interface AuthPluginOptions {
   privy: { appId: string; appSecret: string; verificationKey?: string };
@@ -46,8 +48,14 @@ export const authPlugin = fp(
     // ── Initialize Privy client ────────────────────────────────────────────────
     createPrivyClient({ ...privy, logger });
 
+    // ── Standard error envelope ────────────────────────────────────────────────
+    registerAuthErrorHandler(app);
+
     // ── Build AuthService (all components) ────────────────────────────────────
     const authService = new AuthService({ db, redis: redis.cache, logger });
+
+    // ── Raw body capture for service HMAC (H-05) ─────────────────────────────
+    await app.register(serviceRawBodyPlugin);
 
     // ── Service-to-service auth (runs first — before user auth) ──────────────
     await app.register(serviceAuthPlugin, {
@@ -59,6 +67,7 @@ export const authPlugin = fp(
     // ── User authentication ───────────────────────────────────────────────────
     await app.register(authenticatePlugin, {
       sessionManager: authService.sessionManager,
+      apiKeyManager: authService.apiKeyManager,
       auditLogger: authService.auditLogger,
       redis: redis.cache,
       db,

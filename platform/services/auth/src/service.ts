@@ -3,8 +3,9 @@
  * Consumed by the Fastify plugin to avoid direct dependency coupling.
  */
 import type { PrismaClient } from '@funrun/database';
+import type { $Enums } from '@funrun/database';
 import type { Logger } from '@funrun/logger';
-import type Redis from 'ioredis';
+import type { RedisInstance as Redis } from '@funrun/redis';
 
 import { AuditEventLogger } from './audit/logger.js';
 import { ApiKeyManager } from './api-keys/manager.js';
@@ -82,7 +83,7 @@ export class AuthService {
 
     await this.deps.db.profile.update({
       where: { walletAddress: targetWallet },
-      data: { role: newRole },
+      data: { role: newRole as $Enums.UserRole },
     });
 
     await this.auditLogger.write({

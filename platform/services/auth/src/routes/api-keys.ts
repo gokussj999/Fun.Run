@@ -48,7 +48,7 @@ export async function registerApiKeyRoutes(
         walletAddress: actor.walletAddress,
         role: actor.role,
         permissions: body.permissions as Permission[],
-        expiresIn: body.expiresIn,
+        ...(body.expiresIn !== undefined ? { expiresIn: body.expiresIn } : {}),
       });
 
       await auditLogger.write({
@@ -78,7 +78,7 @@ export async function registerApiKeyRoutes(
     { config: { requirePermission: 'auth:manage_api_keys' } },
     async (request, reply) => {
       const actor = request.actor as AuthenticatedUser;
-      const keys = apiKeyManager.listByWallet(actor.walletAddress);
+      const keys = await apiKeyManager.listByWallet(actor.walletAddress);
 
       return reply.send({
         success: true,

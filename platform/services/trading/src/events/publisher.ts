@@ -1,4 +1,4 @@
-import type Redis from 'ioredis';
+import type { Redis } from 'ioredis';
 import type { Logger } from '@funrun/logger';
 import { PUBSUB, TIMEFRAMES } from '../constants.js';
 import type { TradeResult } from '../types.js';

@@ -11,6 +11,7 @@ COPY packages/logger/package.json ./packages/logger/
 COPY packages/config/package.json ./packages/config/
 COPY packages/redis/package.json ./packages/redis/
 COPY packages/database/package.json ./packages/database/
+COPY services/auth/package.json ./services/auth/
 COPY apps/api-gateway/package.json ./apps/api-gateway/
 
 RUN pnpm install --frozen-lockfile --prod=false
@@ -20,6 +21,7 @@ FROM deps AS builder
 
 COPY tsconfig.base.json ./
 COPY packages/ ./packages/
+COPY services/auth/ ./services/auth/
 COPY apps/api-gateway/ ./apps/api-gateway/
 
 # Generate Prisma client
@@ -31,6 +33,7 @@ RUN pnpm --filter @funrun/logger build
 RUN pnpm --filter @funrun/config build
 RUN pnpm --filter @funrun/redis build
 RUN pnpm --filter @funrun/database build
+RUN pnpm --filter @funrun/auth build
 RUN pnpm --filter @funrun/api-gateway build
 
 # ── Stage 3: production image ─────────────────────────────────────────────────
@@ -61,6 +64,7 @@ COPY --from=builder /app/packages/config/dist ./packages/config/dist
 COPY --from=builder /app/packages/redis/dist ./packages/redis/dist
 COPY --from=builder /app/packages/database/dist ./packages/database/dist
 COPY --from=builder /app/packages/database/prisma ./packages/database/prisma
+COPY --from=builder /app/services/auth/dist ./services/auth/dist
 COPY --from=builder /app/apps/api-gateway/dist ./apps/api-gateway/dist
 
 USER funrun

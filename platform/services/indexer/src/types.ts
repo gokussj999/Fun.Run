@@ -43,42 +43,46 @@ export interface ParsedEvent {
 export interface CoinCreatedData {
   readonly mint: PubkeyStr;
   readonly creator: PubkeyStr;
+  readonly creatorReferrer: PubkeyStr | null;
   readonly name: string;
   readonly symbol: string;
   readonly uri: string;
   readonly virtualSolReserves: bigint;
   readonly virtualTokenReserves: bigint;
-  readonly realTokenReserves: bigint;
-  readonly creationFee: bigint;
-  readonly feeBps: number;
+  readonly creationFeePaid: bigint;
+  readonly timestamp: bigint;
 }
 
 export interface TokensPurchasedData {
   readonly mint: PubkeyStr;
   readonly buyer: PubkeyStr;
-  readonly solAmount: bigint;
-  readonly tokenAmount: bigint;
-  readonly feeTotal: bigint;
-  readonly creatorFee: bigint;
-  readonly referrerFee: bigint;
+  readonly solAmount: bigint;      // sol_amount: total SOL paid (inc fees)
+  readonly solNet: bigint;         // sol_net: SOL to bonding curve after fees
+  readonly tokenAmount: bigint;    // tokens_out
   readonly treasuryFee: bigint;
+  readonly creatorFee: bigint;
+  readonly referrerFee: bigint;    // creator_referrer_fee
+  readonly creatorReferrer: PubkeyStr | null;
   readonly virtualSolAfter: bigint;
   readonly virtualTokensAfter: bigint;
   readonly realSolAfter: bigint;
+  readonly timestamp: bigint;
 }
 
 export interface TokensSoldData {
   readonly mint: PubkeyStr;
   readonly seller: PubkeyStr;
-  readonly solAmount: bigint;
-  readonly tokenAmount: bigint;
-  readonly feeTotal: bigint;
-  readonly creatorFee: bigint;
-  readonly referrerFee: bigint;
+  readonly tokenAmount: bigint;    // token_amount: tokens sold
+  readonly solGross: bigint;       // sol_gross: SOL before fees
+  readonly solNet: bigint;         // sol_net: SOL to seller after fees
   readonly treasuryFee: bigint;
+  readonly creatorFee: bigint;
+  readonly referrerFee: bigint;    // creator_referrer_fee
+  readonly creatorReferrer: PubkeyStr | null;
   readonly virtualSolAfter: bigint;
   readonly virtualTokensAfter: bigint;
   readonly realSolAfter: bigint;
+  readonly timestamp: bigint;
 }
 
 export interface GraduationInitiatedData {

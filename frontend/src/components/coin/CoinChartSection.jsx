@@ -31,6 +31,7 @@ export function CoinChartSection({
   coin,
   height = 500,
   variant = "default",
+  compact = false,
   chartRange,
   onChartRangeChange,
   chartReloadKey = 0,
@@ -38,38 +39,41 @@ export function CoinChartSection({
   const [view, setView] = useState("CHART");
 
   return (
-    <div className="coinChartSection">
-      <div className="coinChartSectionTabs" role="tablist" aria-label="Chart views">
-        <button
-          type="button"
-          role="tab"
-          id="coin-chart-tab-chart"
-          aria-selected={view === "CHART"}
-          aria-controls="coin-chart-panel"
-          className={`coinChartSectionTab ${view === "CHART" ? "active" : ""}`}
-          onClick={() => setView("CHART")}
-        >
-          Price Chart
-        </button>
-        <button
-          type="button"
-          role="tab"
-          id="coin-chart-tab-depth"
-          aria-selected={view === "DEPTH"}
-          aria-controls="coin-chart-panel"
-          className={`coinChartSectionTab ${view === "DEPTH" ? "active" : ""}`}
-          onClick={() => setView("DEPTH")}
-        >
-          Market Depth
-        </button>
-      </div>
+    <div className={`coinChartSection ${compact ? "coinChartSection--compact" : ""}`}>
+      {!compact ? (
+        <div className="coinChartSectionTabs" role="tablist" aria-label="Chart views">
+          <button
+            type="button"
+            role="tab"
+            id="coin-chart-tab-chart"
+            aria-selected={view === "CHART"}
+            aria-controls="coin-chart-panel"
+            className={`coinChartSectionTab ${view === "CHART" ? "active" : ""}`}
+            onClick={() => setView("CHART")}
+          >
+            Price Chart
+          </button>
+          <button
+            type="button"
+            role="tab"
+            id="coin-chart-tab-depth"
+            aria-selected={view === "DEPTH"}
+            aria-controls="coin-chart-panel"
+            className={`coinChartSectionTab ${view === "DEPTH" ? "active" : ""}`}
+            onClick={() => setView("DEPTH")}
+          >
+            Market Depth
+          </button>
+        </div>
+      ) : null}
 
       <div className="coinChartSectionBody" id="coin-chart-panel" role="tabpanel" aria-labelledby={`coin-chart-tab-${view === "CHART" ? "chart" : "depth"}`}>
-        {view === "CHART" ? (
+        {view === "CHART" || compact ? (
           <PriceChart
             coin={coin}
             height={height}
             variant={variant}
+            compact={compact}
             chartRange={chartRange}
             setChartRange={onChartRangeChange}
             reloadKey={chartReloadKey}

@@ -1,0 +1,155 @@
+groups:
+  # ── Trading ──────────────────────────────────────────────────────────────────
+  - name: funrun_trading
+    interval: 30s
+    rules:
+
+      - alert: TradeErrorRateHigh
+        expr: |
+          rate(funrun_trade_completed_total{status="error"}[5m])
+          /
+          (rate(funrun_trade_attempts_total[5m]) + 1e-9)
+          > 0.05
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Trade error rate > 5% over 5 min"
+          description: "Operation {{ $labels.operation }} error rate is {{ $value | humanizePercentage }}."
+
+      - alert: TradeDurationP95High
+        expr: |
+          histogram_quantile(0.95, rate(funrun_trade_duration_ms_bucket[5m])) > 5000
+        for: 3m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Trade p95 latency > 5 s"
+          description: "Operation {{ $labels.operation }} p95 latency is {{ $value | humanizeDuration }}ms."
+
+  # ── Graduation ───────────────────────────────────────────────────────────────
+  - name: funrun_graduation
+    interval: 60s
+    rules:
+
+      - alert: GraduationQueueBacklogged
+        expr: funrun_graduation_coins_queued > 10
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "More than 10 coins stuck in GRADUATING status"
+          description: "{{ $value }} coins have been queued for graduation for > 5 min."
+
+      - alert: GraduationDispatchErrorRateHigh
+        expr: |
+          rate(funrun_graduation_dispatches_total{status="error"}[10m])
+          /
+          (rate(funrun_graduation_dispatches_total{status="attempt"}[10m]) + 1e-9)
+          > 0.2
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Graduation dispatch error rate > 20% over 10 min"
+          description: "Phase {{ $labels.phase }} error rate is {{ $value | humanizePercentage }}."
+
+      - alert: GraduationCrankNotRunning
+        expr: rate(funrun_graduation_crank_runs_total[5m]) == 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "GraduationCrank has not run in the last 5 minutes"
+          description: "The graduation background job may be crashed or deadlocked."
+
+  # ── Transaction lifecycle ─────────────────────────────────────────────────────
+  - name: funrun_tx_lifecycle
+    interval: 30s
+    rules:
+
+      - alert: TxFailedRateHigh
+        expr: rate(funrun_tx_failed_total[5m]) > 0.1
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "More than 6 transactions failing per minute"
+          description: "Error code {{ $labels.error_code }} — {{ $value | humanize }} failures/sec."
+
+      - alert: TxExpiredRateHigh
+        expr: rate(funrun_tx_expired_total[5m]) > 0.05
+        for: 3m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Transaction expiry rate elevated"
+          description: "Blockhash TTL may be too short or confirmation is taking too long."
+
+      - alert: StuckBuildingOrSigningTxs
+        expr: funrun_tx_by_status{status=~"BUILDING|SIGNING|PENDING"} > 50
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Unusual number of pre-submit transactions"
+          description: "{{ $value }} transactions stuck in status {{ $labels.status }}."
+
+      - alert: ReconcilerNotRunning
+        expr: rate(funrun_reconciler_runs_total[5m]) == 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "TxReconciler has not run in the last 5 minutes"
+          description: "Orphaned and stuck transactions will not be recovered."
+
+  # ── RPC ──────────────────────────────────────────────────────────────────────
+  - name: funrun_rpc
+    interval: 15s
+    rules:
+
+      - alert: RpcCircuitOpen
+        expr: funrun_rpc_circuit_open > 0
+        for: 30s
+        labels:
+          severity: critical
+        annotations:
+          summary: "RPC circuit breaker is OPEN for endpoint {{ $labels.endpoint }}"
+          description: "All RPC calls to {{ $labels.endpoint }} are failing. Trades cannot proceed."
+
+      - alert: RpcErrorRateHigh
+        expr: |
+          rate(funrun_rpc_requests_total{result="failure"}[5m])
+          /
+          (rate(funrun_rpc_requests_total[5m]) + 1e-9)
+          > 0.1
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "RPC error rate > 10% for endpoint {{ $labels.endpoint }}"
+          description: "RPC reliability is degraded — check validator/RPC node health."
+
+      - alert: RpcLatencyP99High
+        expr: |
+          histogram_quantile(0.99, rate(funrun_rpc_latency_ms_bucket[5m])) > 3000
+        for: 3m
+        labels:
+          severity: warning
+        annotations:
+          summary: "RPC p99 latency > 3 s for endpoint {{ $labels.endpoint }}"
+
+  # ── Process ───────────────────────────────────────────────────────────────────
+  - name: funrun_process
+    interval: 60s
+    rules:
+
+      - alert: TradingServiceDown
+        expr: absent(funrun_process_uptime_seconds)
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Fun.Run trading service is not emitting metrics"
+          description: "No scrape data received in the last minute. The process may be down."

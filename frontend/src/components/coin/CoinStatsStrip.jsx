@@ -1,13 +1,35 @@
 import React from "react";
 import { fmtSol, fmtUsd, getCoin24hMovePct, getCoinAgeLabel } from "../../lib/coin-display.js";
 
-export function CoinStatsStrip({ coin }) {
+export function CoinStatsStrip({ coin, compact = false, variant = "full" }) {
   if (!coin) return null;
 
   const move24h = getCoin24hMovePct(coin);
   const up = move24h >= 0;
   const holderCount = Object.keys(coin?.holders || {}).length;
   const price = coin?.priceUsd || coin?.lastPriceUsd || coin?.price || 0;
+
+  if (variant === "key") {
+    const keyStats = [
+      { label: "Market Cap", value: fmtUsd(coin.mc || 0) },
+      { label: "24h", value: `${up ? "+" : ""}${move24h.toFixed(2)}%`, tone: up ? "up" : "down" },
+      { label: "Volume", value: `${fmtSol(coin.volumeSol || 0)} SOL` },
+      { label: "Holders", value: holderCount.toLocaleString() },
+    ];
+
+    return (
+      <div className="coinMobileKeyStats" role="region" aria-label="Key coin statistics">
+        {keyStats.map((stat) => (
+          <div key={stat.label} className="coinMobileKeyStat">
+            <div className="coinMobileKeyStatLabel">{stat.label}</div>
+            <div className={`coinMobileKeyStatValue ${stat.tone ? `coinMobileKeyStatValue--${stat.tone}` : ""}`}>
+              {stat.value}
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
 
   const stats = [
     {
@@ -54,7 +76,7 @@ export function CoinStatsStrip({ coin }) {
   ];
 
   return (
-    <div className="coinStatsStrip" role="region" aria-label="Coin statistics">
+    <div className={`coinStatsStrip ${compact ? "coinStatsStrip--compact" : ""}`} role="region" aria-label="Coin statistics">
       {stats.map((stat) => (
         <div
           key={stat.label}

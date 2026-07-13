@@ -12,6 +12,11 @@ const envSchema = z.object({
   API_GATEWAY_HOST: z.string().default('0.0.0.0'),
   API_BASE_URL: z.string().url().default('http://localhost:3000'),
 
+  // Downstream services (Sprint 1 Task 13)
+  TRADING_SERVICE_URL: z.string().url().default('http://localhost:3003'),
+  INDEXER_METRICS_URL: z.string().url().optional(),
+  WS_GATEWAY_HTTP_URL: z.string().url().optional(),
+
   // Database
   DATABASE_URL: z.string().min(1),
   DATABASE_URL_REPLICA: z.string().optional(),
@@ -38,6 +43,8 @@ const envSchema = z.object({
 
   // Encryption
   MNEMONIC_ENCRYPTION_KEY: z.string().min(32),
+  /** @deprecated Use MNEMONIC_ENCRYPTION_KEY — kept for legacy backend parity (H-21). */
+  MNEMONIC_SECRET: z.string().min(32).optional(),
   TREASURY_KEYPAIR_PATH: z.string().optional(),
 
   // Privy
@@ -91,6 +98,19 @@ export function getConfig(): AppConfig {
     throw new Error('Config not loaded. Call loadConfig() at application startup.');
   }
   return _config;
+}
+
+/** Resolve mnemonic encryption key with legacy MNEMONIC_SECRET fallback (H-21). */
+export function resolveMnemonicEncryptionKey(
+  env: NodeJS.ProcessEnv = process.env,
+): string {
+  const key = env['MNEMONIC_ENCRYPTION_KEY'] ?? env['MNEMONIC_SECRET'];
+  if (!key || key.length < 32) {
+    throw new Error(
+      'MNEMONIC_ENCRYPTION_KEY (or MNEMONIC_SECRET) must be at least 32 characters',
+    );
+  }
+  return key;
 }
 
 // Convenience re-export of the schema for tests that need partial config objects.

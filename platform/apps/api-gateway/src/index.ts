@@ -1,3 +1,5 @@
+import './load-env.js';
+
 import { createDatabaseClient } from '@funrun/database';
 import { loadConfig } from '@funrun/config';
 import { createLogger } from '@funrun/logger';

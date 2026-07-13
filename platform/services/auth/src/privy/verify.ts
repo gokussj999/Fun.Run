@@ -1,6 +1,6 @@
 import type { AuthTokenClaims } from '@privy-io/server-auth';
 
-import { UnauthorizedError } from '@funrun/shared';
+import { UnauthorizedError, extractBearerToken, extractSolanaWallet } from '@funrun/shared';
 
 import type { PrivyTokenClaims, PrivyLinkedAccount } from '../types.js';
 import { getPrivyClient } from './client.js';
@@ -36,36 +36,22 @@ export async function verifyPrivyToken(rawToken: string): Promise<PrivyVerifyRes
       .linkedAccounts ?? [],
   };
 
-  // Extract the Solana embedded wallet address from linked accounts.
-  // Priority order: embedded wallet > external Solana wallet
-  const solanaWallet = extractSolanaWallet(tokenClaims.linkedAccounts ?? []);
-
-  return { claims: tokenClaims, solanaWallet };
-}
-
-function extractSolanaWallet(accounts: PrivyLinkedAccount[]): string | null {
-  // Prefer embedded Solana wallet (privy-managed)
-  const embedded = accounts.find(
-    (a) => a.type === 'wallet' && a.chainType === 'solana' && a.walletClientType === 'privy',
-  );
-  if (embedded?.address) return embedded.address;
-
-  // Fall back to any linked Solana wallet
-  const external = accounts.find(
-    (a) => a.type === 'wallet' && a.chainType === 'solana',
-  );
-  return external?.address ?? null;
-}
-
-/**
- * Extract bearer token from Authorization header.
- * Returns null if header is absent or malformed.
- */
-export function extractBearerToken(authorizationHeader: string | undefined): string | null {
-  if (!authorizationHeader) return null;
-  const parts = authorizationHeader.trim().split(' ');
-  if (parts.length !== 2 || parts[0]?.toLowerCase() !== 'bearer' || !parts[1]) {
-    return null;
+  // Access tokens from verifyAuthToken do not embed linked accounts — fetch user profile.
+  let linkedAccounts: PrivyLinkedAccount[] = tokenClaims.linkedAccounts ?? [];
+  let solanaWallet = extractSolanaWallet(linkedAccounts);
+  if (!solanaWallet) {
+    const user = await privy.getUser(claims.userId);
+    linkedAccounts = (user.linkedAccounts ?? []) as unknown as PrivyLinkedAccount[];
+    solanaWallet = extractSolanaWallet(linkedAccounts);
   }
-  return parts[1];
+
+  return {
+    claims: {
+      ...tokenClaims,
+      linkedAccounts,
+    },
+    solanaWallet,
+  };
 }
+
+export { extractBearerToken } from '@funrun/shared';

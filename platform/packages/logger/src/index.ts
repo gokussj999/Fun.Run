@@ -17,21 +17,21 @@ export function createLogger(opts: LoggerOptions): Logger {
   const isDev = process.env['NODE_ENV'] !== 'production';
   const usePretty = opts.pretty ?? isDev;
 
-  const transport = usePretty
-    ? {
-        target: 'pino-pretty',
-        options: {
-          colorize: true,
-          translateTime: 'SYS:HH:MM:ss',
-          ignore: 'pid,hostname',
-        },
-      }
-    : undefined;
-
   return pino({
     name: opts.service,
     level,
-    transport,
+    ...(usePretty
+      ? {
+          transport: {
+            target: 'pino-pretty',
+            options: {
+              colorize: true,
+              translateTime: 'SYS:HH:MM:ss',
+              ignore: 'pid,hostname',
+            },
+          },
+        }
+      : {}),
     base: {
       service: opts.service,
       env: process.env['NODE_ENV'] ?? 'development',

@@ -29,6 +29,7 @@ describe('parseChannel', () => {
   it('accepts "creator:<pubkey>"',   () => expect(parseChannel(`creator:${VALID_PUBKEY}`)).not.toBeNull());
   it('accepts "referral:<pubkey>"',  () => expect(parseChannel(`referral:${VALID_PUBKEY}`)).not.toBeNull());
   it('accepts "portfolio:<pubkey>"', () => expect(parseChannel(`portfolio:${VALID_PUBKEY}`)).not.toBeNull());
+  it('accepts "notifications:<pubkey>"', () => expect(parseChannel(`notifications:${VALID_PUBKEY}`)).not.toBeNull());
 
   // ─── Invalid inputs ───────────────────────────────────────────────────────
 

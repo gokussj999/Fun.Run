@@ -8,7 +8,7 @@ import { EmptyState } from "../components/ui/EmptyState.jsx";
 import { CoinListSkeleton } from "../components/ui/Skeleton.jsx";
 import { ReferralLinkSkeleton, ReferralSummarySkeleton } from "../components/referral";
 import { buildReferralSnapshot } from "../lib/referral-metrics.js";
-import { fmtSol, fmtUsd } from "../lib/coin-display.js";
+import { fmtSol, fmtUsd, timeAgo } from "../lib/coin-display.js";
 
 function SectionHeader({ title, sub, right }) {
   return (
@@ -44,6 +44,40 @@ function StatRow({ label, value, sub }) {
   );
 }
 
+function ReferralActivityList({ activity = [], shortWallet }) {
+  if (!activity.length) {
+    return (
+      <EmptyState
+        icon="🧾"
+        title="No recent referral activity"
+        description="New affiliate joins will appear here as soon as users connect through your link."
+        compact
+      />
+    );
+  }
+
+  return (
+    <div className="referralStatList">
+      {activity.slice(0, 10).map((item, idx) => {
+        const wallet = String(item.wallet || "").trim();
+        const createdAt = item.createdAt || item.created_at;
+
+        return (
+          <div key={`${wallet || "ref"}-${createdAt || idx}`} className="referralStatRow">
+            <div>
+              <div className="referralStatLabel">Affiliate joined</div>
+              <div className="referralStatSub">{createdAt ? timeAgo(createdAt) : "Recently"}</div>
+            </div>
+            <div className="referralStatValue">
+              {shortWallet?.(wallet) || wallet || "New user"}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 const HOW_IT_WORKS = [
   {
     step: "1",
@@ -73,6 +107,7 @@ export function ReferralDashboardPage({
   referralLink = "",
   referralCount = 0,
   referralRewardsSol = 0,
+  referralActivity = [],
   solPriceUsd = 0,
   onCopyLink,
   onShareLink,
@@ -267,13 +302,12 @@ export function ReferralDashboardPage({
       </Card>
 
       <Card>
-        <SectionHeader title="Recent Referral Activity" right={<Pill>0</Pill>} />
-        <EmptyState
-          icon="🧾"
-          title="Detailed activity coming soon"
-          description="Individual referral joins and fee events will appear here once the referral ledger is available. Your totals above are live."
-          compact
-        />
+        <SectionHeader title="Recent Referral Activity" right={<Pill>{referralActivity.length}</Pill>} />
+        {loading && !profile ? (
+          <CoinListSkeleton count={3} />
+        ) : (
+          <ReferralActivityList activity={referralActivity} shortWallet={shortWallet} />
+        )}
       </Card>
 
       <Card>

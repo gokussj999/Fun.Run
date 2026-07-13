@@ -74,13 +74,42 @@ const mockRedis = {
   zrange: vi.fn(() => Promise.resolve([])),
   zremrangebyscore: vi.fn(() => Promise.resolve(0)),
   zrem: vi.fn(() => Promise.resolve(1)),
-  pipeline: vi.fn(() => ({
-    set: vi.fn().mockReturnThis(),
-    expire: vi.fn().mockReturnThis(),
-    zadd: vi.fn().mockReturnThis(),
-    del: vi.fn().mockReturnThis(),
-    exec: vi.fn().mockResolvedValue([]),
-  })),
+  smembers: vi.fn(() => Promise.resolve([])),
+  sadd: vi.fn(() => Promise.resolve(1)),
+  srem: vi.fn(() => Promise.resolve(1)),
+  pipeline: vi.fn(() => {
+    const ops: Array<{ cmd: string; args: unknown[] }> = [];
+    const pipe = {
+      set: vi.fn((key: string, value: string, ...args: unknown[]) => {
+        ops.push({ cmd: 'set', args: [key, value, ...args] });
+        return pipe;
+      }),
+      expire: vi.fn((key: string, ttl: number) => {
+        ops.push({ cmd: 'expire', args: [key, ttl] });
+        return pipe;
+      }),
+      zadd: vi.fn((key: string, score: number, member: string) => {
+        ops.push({ cmd: 'zadd', args: [key, score, member] });
+        return pipe;
+      }),
+      del: vi.fn((key: string) => {
+        ops.push({ cmd: 'del', args: [key] });
+        return pipe;
+      }),
+      exec: vi.fn(async () => {
+        for (const op of ops) {
+          if (op.cmd === 'set') {
+            const [key, value, ...rest] = op.args as [string, string, ...unknown[]];
+            const exIdx = (rest as string[]).indexOf('EX');
+            const expiry = exIdx >= 0 ? Date.now() + Number(rest[exIdx + 1]) * 1000 : null;
+            store.set(key, { value, expiry });
+          }
+        }
+        return [];
+      }),
+    };
+    return pipe;
+  }),
   publish: vi.fn(() => Promise.resolve(0)),
   incr: vi.fn(() => Promise.resolve(1)),
   expire: vi.fn(() => Promise.resolve(1)),
@@ -225,10 +254,15 @@ describe('Auth flow — /api/v1/auth/logout', () => {
     expect(verify.statusCode).toBe(200);
 
     // Then log out
+    const sessionId = verify.headers['x-session-id'] as string;
+
     const logout = await app.inject({
       method: 'POST',
       url: '/api/v1/auth/logout',
-      headers: { authorization: 'Bearer valid-privy-token' },
+      headers: {
+        authorization: 'Bearer valid-privy-token',
+        'x-session-id': sessionId,
+      },
     });
     expect(logout.statusCode).toBe(200);
     const body = JSON.parse(logout.body) as { data: { message: string } };

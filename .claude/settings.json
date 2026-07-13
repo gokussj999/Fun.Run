@@ -52,7 +52,9 @@
       "Bash(wsl -- bash -c \"CARGO_NET_OFFLINE=false PATH=/home/ben10/.cargo/bin:/home/ben10/.local/share/solana/install/active_release/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin /home/ben10/.cargo/bin/cargo clippy --manifest-path /mnt/d/pump-mini/anchor/programs/funrun_v2/Cargo.toml -- -D warnings 2>&1 | grep -E '\\(error|warning\\\\[|Finished|error\\\\[\\)' | head -40\")",
       "Bash(wsl -- bash -c \"CARGO_NET_OFFLINE=false PATH=/home/ben10/.cargo/bin:/home/ben10/.local/share/solana/install/active_release/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin /home/ben10/.cargo/bin/cargo clippy --manifest-path /mnt/d/pump-mini/anchor/programs/funrun_v2/Cargo.toml 2>&1 | grep -E '^\\(error|warning\\\\[clippy|    Finished\\)' | head -40\")",
       "Bash(wsl -- bash -c \"CARGO_NET_OFFLINE=false PATH=/home/ben10/.cargo/bin:/home/ben10/.local/share/solana/install/active_release/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin /home/ben10/.cargo/bin/cargo clippy --manifest-path /mnt/d/pump-mini/anchor/programs/funrun_v2/Cargo.toml 2>&1 | grep -E '^\\(warning\\\\[clippy|error\\\\[\\)' | head -40\")",
-      "Bash(wsl -d Ubuntu bash -lc ' *)"
+      "Bash(wsl -d Ubuntu bash -lc ' *)",
+      "Bash(echo \"EXIT:$?\")",
+      "Bash(curl -s \"http://localhost:3000/api/v1/profile/kCzahAz2cTbvR5ujnG39HF1gYtseCxqmFKs97VJWqYY\")"
     ],
     "additionalDirectories": [
       "\\mnt\\d\\pump-mini\\anchor\\programs\\funrun_v2\\src"

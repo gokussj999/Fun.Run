@@ -1,9 +1,28 @@
 version: '3.9'
 
-# Fun.Run V2 Platform — Production Compose
-# Use Kubernetes for true production. This file is for single-node staging.
+# Fun.Run V2 Platform — Production Compose (single-node staging)
+# Sprint 1 Task 17 — full stack: migrate → trading → indexer → ws-gateway → api-gateway
+# Use Kubernetes for true production.
 
 services:
+  # ── Database migration (one-shot) ───────────────────────────────────────────
+  db-migrate:
+    build:
+      context: .
+      dockerfile: packages/database/Dockerfile.migrate
+    container_name: funrun-db-migrate
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-funrun}:${POSTGRES_PASSWORD:?required}@postgres:5432/${POSTGRES_DB:-funrun}
+      DATABASE_URL_REPLICA: postgresql://${POSTGRES_USER:-funrun}:${POSTGRES_PASSWORD:?required}@postgres:5432/${POSTGRES_DB:-funrun}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - funrun-internal
+    restart: 'no'
+
   # ── API Gateway ─────────────────────────────────────────────────────────────
   api-gateway:
     build:
@@ -14,36 +33,129 @@ services:
     restart: always
     env_file:
       - .env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-funrun}:${POSTGRES_PASSWORD:?required}@postgres:5432/${POSTGRES_DB:-funrun}
+      DATABASE_URL_REPLICA: postgresql://${POSTGRES_USER:-funrun}:${POSTGRES_PASSWORD:?required}@postgres:5432/${POSTGRES_DB:-funrun}
+      REDIS_URL: redis://:${REDIS_PASSWORD:?required}@redis:6379
+      TRADING_SERVICE_URL: http://trading:3003
+      WS_GATEWAY_HTTP_URL: http://ws-gateway:3002
+      INDEXER_METRICS_URL: http://indexer:9091/metrics
     ports:
-      - "3000:3000"
-      - "9090:9090"  # Prometheus metrics
+      - '3000:3000'
+      - '9090:9090'
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
+      db-migrate:
+        condition: service_completed_successfully
+      trading:
+        condition: service_healthy
     networks:
       - funrun-internal
-    deploy:
-      replicas: 2
-      resources:
-        limits:
-          cpus: '1.0'
-          memory: 512M
-        reservations:
-          cpus: '0.25'
-          memory: 128M
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "50m"
-        max-file: "5"
+      - funrun-edge
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:3000/healthz"]
+      test: ['CMD', 'wget', '-qO-', 'http://localhost:3000/healthz']
       interval: 10s
       timeout: 5s
       retries: 3
       start_period: 30s
+
+  # ── Trading Service ─────────────────────────────────────────────────────────
+  trading:
+    build:
+      context: .
+      dockerfile: services/trading/Dockerfile
+      target: production
+    container_name: funrun-trading
+    restart: always
+    env_file:
+      - .env
+    environment:
+      PORT: 3003
+      DATABASE_URL: postgresql://${POSTGRES_USER:-funrun}:${POSTGRES_PASSWORD:?required}@postgres:5432/${POSTGRES_DB:-funrun}
+      DATABASE_URL_REPLICA: postgresql://${POSTGRES_USER:-funrun}:${POSTGRES_PASSWORD:?required}@postgres:5432/${POSTGRES_DB:-funrun}
+      REDIS_URL: redis://:${REDIS_PASSWORD:?required}@redis:6379
+      SOLANA_RPC_URL: ${SOLANA_RPC_PRIMARY:-https://api.devnet.solana.com}
+      NETWORK: ${SOLANA_NETWORK:-devnet}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      db-migrate:
+        condition: service_completed_successfully
+    networks:
+      - funrun-internal
+    healthcheck:
+      test: ['CMD', 'wget', '-qO-', 'http://localhost:3003/healthz']
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  # ── Indexer ─────────────────────────────────────────────────────────────────
+  indexer:
+    build:
+      context: .
+      dockerfile: services/indexer/Dockerfile
+      target: production
+    container_name: funrun-indexer
+    restart: always
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-funrun}:${POSTGRES_PASSWORD:?required}@postgres:5432/${POSTGRES_DB:-funrun}
+      DATABASE_URL_REPLICA: postgresql://${POSTGRES_USER:-funrun}:${POSTGRES_PASSWORD:?required}@postgres:5432/${POSTGRES_DB:-funrun}
+      REDIS_URL: redis://:${REDIS_PASSWORD:?required}@redis:6379
+      SOLANA_RPC_PRIMARY: ${SOLANA_RPC_PRIMARY:-https://api.devnet.solana.com}
+      SOLANA_WS_URL: ${SOLANA_WS_URL:-wss://api.devnet.solana.com}
+      PROGRAM_ID: ${PROGRAM_ID:-HX1TXtjJ31aCA9AQZSUFzzyBVj34qh1uHGvcNUd2oBqP}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      db-migrate:
+        condition: service_completed_successfully
+    networks:
+      - funrun-internal
+    healthcheck:
+      test: ['CMD', 'wget', '-qO-', 'http://localhost:9091/metrics']
+      interval: 20s
+      timeout: 5s
+      retries: 3
+      start_period: 45s
+
+  # ── WebSocket Gateway ───────────────────────────────────────────────────────
+  ws-gateway:
+    build:
+      context: .
+      dockerfile: services/ws-gateway/Dockerfile
+      target: production
+    container_name: funrun-ws-gateway
+    restart: always
+    env_file:
+      - .env
+    environment:
+      REDIS_URL: redis://:${REDIS_PASSWORD:?required}@redis:6379
+      HTTP_PORT: 3002
+      WS_PORT: 3001
+    ports:
+      - '3001:3001'
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - funrun-internal
+      - funrun-edge
+    healthcheck:
+      test: ['CMD', 'wget', '-qO-', 'http://localhost:3002/healthz']
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
 
   # ── PostgreSQL ───────────────────────────────────────────────────────────────
   postgres:
@@ -58,13 +170,8 @@ services:
       - postgres_data:/var/lib/postgresql/data
     networks:
       - funrun-internal
-    deploy:
-      resources:
-        limits:
-          cpus: '2.0'
-          memory: 2G
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-funrun}"]
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-funrun}']
       interval: 5s
       timeout: 3s
       retries: 10
@@ -85,13 +192,8 @@ services:
       - redis_data:/data
     networks:
       - funrun-internal
-    deploy:
-      resources:
-        limits:
-          cpus: '1.0'
-          memory: 1200M
     healthcheck:
-      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      test: ['CMD', 'redis-cli', '-a', '${REDIS_PASSWORD}', 'ping']
       interval: 5s
       timeout: 3s
       retries: 10
@@ -105,4 +207,5 @@ volumes:
 networks:
   funrun-internal:
     driver: bridge
-    internal: true  # no external access to DB/Redis
+  funrun-edge:
+    driver: bridge

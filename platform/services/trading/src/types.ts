@@ -48,6 +48,19 @@ export interface TradeResult {
   requestId: string;
 }
 
+/** On-chain path result — submitted to Solana; DB sync via indexer. */
+export interface OnChainTradeResult {
+  txId: string;
+  signature: string;
+  coinId: string;
+  mintAddress: string;
+  walletAddress: string;
+  tradeType: 'BUY' | 'SELL';
+  status: 'SUBMITTED';
+  idempotent: boolean;
+  requestId: string;
+}
+
 export interface QuoteResult {
   coinId: string;
   direction: 'buy' | 'sell';

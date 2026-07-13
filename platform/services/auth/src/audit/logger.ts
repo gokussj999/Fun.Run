@@ -1,7 +1,8 @@
-import type Redis from 'ioredis';
+import type { RedisInstance as Redis } from '@funrun/redis';
 
 import type { Logger } from '@funrun/logger';
-import type { PrismaClient } from '@funrun/database';
+import type { PrismaClient, Prisma } from '@funrun/database';
+import type { $Enums } from '@funrun/database';
 
 import type { AuditEvent, AuditEventType } from '../types.js';
 
@@ -62,10 +63,10 @@ export class AuditEventLogger {
 
     await this.db.auditLog.create({
       data: {
-        action: mapEventToDbAction(event.eventType),
+        action: mapEventToDbAction(event.eventType) as $Enums.AuditAction,
         actorWallet: event.actorId ?? 'unknown',
-        targetId: event.targetId ?? undefined,
-        newValue: event.details as Record<string, unknown>,
+        targetId: event.targetId ?? null,
+        newValue: event.details as unknown as Prisma.InputJsonValue,
         ipAddress: event.ipAddress,
         userAgent: event.userAgent,
       },

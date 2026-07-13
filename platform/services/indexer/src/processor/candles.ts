@@ -5,8 +5,8 @@ import type { CandleUpsertInput, Timeframe } from '../types.js';
 
 // Prisma timeframe enum mapping
 const TF_MAP: Record<Timeframe, string> = {
-  '1m': 'm1', '5m': 'm5', '15m': 'm15',
-  '1h': 'h1', '4h': 'h4', '1d': 'd1',
+  '1m': '1m', '5m': '5m', '15m': '15m',
+  '1h': '1h', '4h': '4h', '1d': '1d',
 } as const;
 
 /**
@@ -65,15 +65,16 @@ export async function upsertCandles(
     slot: 0n,
   }));
 
-  // Execute all upserts in a transaction
-  await db.$transaction(
+  // Execute all upserts using the provided db/tx client directly
+  // (caller is already inside a $transaction, so we cannot nest another one)
+  await Promise.all(
     inputs.map((input) =>
       (db.$queryRaw as Function)`
-        INSERT INTO candles (id, coin_id, timeframe, open_time, open, high, low, close, volume, trades, updated_at)
+        INSERT INTO "funrun_platform"."candles" (id, coin_id, timeframe, open_time, open, high, low, close, volume, trades, updated_at)
         VALUES (
           gen_random_uuid(),
           ${input.coinId},
-          ${TF_MAP[input.timeframe]}::"Timeframe",
+          ${TF_MAP[input.timeframe]}::"funrun_platform"."Timeframe",
           ${input.openTime},
           ${input.price}::decimal,
           ${input.price}::decimal,
@@ -84,11 +85,11 @@ export async function upsertCandles(
           NOW()
         )
         ON CONFLICT (coin_id, timeframe, open_time) DO UPDATE SET
-          high       = GREATEST(candles.high, ${input.price}::decimal),
-          low        = LEAST(candles.low, ${input.price}::decimal),
+          high       = GREATEST("funrun_platform"."candles".high, ${input.price}::decimal),
+          low        = LEAST("funrun_platform"."candles".low, ${input.price}::decimal),
           close      = ${input.price}::decimal,
-          volume     = candles.volume + ${input.volumeLamports}::decimal,
-          trades     = candles.trades + 1,
+          volume     = "funrun_platform"."candles".volume + ${input.volumeLamports}::decimal,
+          trades     = "funrun_platform"."candles".trades + 1,
           updated_at = NOW()
       `
     ),

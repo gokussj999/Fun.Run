@@ -4,15 +4,6 @@ import fp from 'fastify-plugin';
 import type { Permission, UserRole } from '../types.js';
 import { requirePermission, requireRole } from '../rbac/guard.js';
 
-declare module 'fastify' {
-  interface RouteShorthandOptions {
-    config?: RouteAuthConfig;
-  }
-
-  interface RouteOptions {
-    config?: RouteAuthConfig;
-  }
-}
 
 export interface RouteAuthConfig {
   skipAuth?: boolean;
@@ -39,7 +30,7 @@ export const authorizePlugin = fp(
     app.addHook(
       'onRequest',
       async (request: FastifyRequest, _reply: FastifyReply) => {
-        const routeConfig = (request.routeOptions as RouteOptions | undefined)
+        const routeConfig = (request.routeOptions as unknown as RouteOptions | undefined)
           ?.config as RouteAuthConfig | undefined;
 
         if (!routeConfig) return;

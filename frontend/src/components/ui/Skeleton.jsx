@@ -9,12 +9,19 @@ const SHIMMER_CSS = `
 .fr-skeleton {
   background: linear-gradient(
     90deg,
-    rgba(148, 163, 184, 0.08) 0%,
-    rgba(148, 163, 184, 0.18) 50%,
-    rgba(148, 163, 184, 0.08) 100%
+    rgba(148, 163, 184, 0.07) 0%,
+    rgba(252, 213, 53, 0.11) 48%,
+    rgba(148, 163, 184, 0.07) 100%
   );
   background-size: 200% 100%;
   animation: fr-skeleton-shimmer 1.35s ease-in-out infinite;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.05);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fr-skeleton {
+    animation: none;
+  }
 }
 `;
 

@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { chartRangeToApiTf, normalizeCandleData } from "../lib/chart-candles.js";
+import { env } from "../lib/env.js";
 import { api } from "../services/api.js";
+import * as platformApi from "../services/platform-api.js";
 
 const CACHE_TTL_MS = 2500;
 const LIVE_POLL_MS = 30_000;
@@ -46,7 +48,9 @@ export function useCandles(coin, chartRange, reloadKey = 0) {
         }
 
         const tf = chartRangeToApiTf(chartRange);
-        const json = await api(`/coin/${coin.id}/candles?tf=${tf}&limit=120`);
+        const json = env.usePlatform
+          ? await platformApi.fetchCandles(coin.id, tf, 120)
+          : await api(`/coin/${coin.id}/candles?tf=${tf}&limit=120`);
 
         if (!mounted) return;
 

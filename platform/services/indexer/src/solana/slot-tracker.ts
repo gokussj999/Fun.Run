@@ -55,10 +55,19 @@ export class SlotTracker {
   }
 
   /**
+   * Returns the highest slot considered safe from reorgs.
+   */
+  getSafeSlot(): Slot {
+    return this.finalizedSlot > REORG_SAFE_DEPTH ? this.finalizedSlot - REORG_SAFE_DEPTH : 0n;
+  }
+
+  /**
    * A slot is considered "safe" from reorgs if it is at least REORG_SAFE_DEPTH
    * slots behind the current finalized slot.
    */
   isSafeSlot(slot: Slot): boolean {
+    // Before first successful RPC poll, accept confirmed logs so live indexing is not starved.
+    if (this.finalizedSlot <= REORG_SAFE_DEPTH) return true;
     return slot <= this.finalizedSlot - REORG_SAFE_DEPTH;
   }
 

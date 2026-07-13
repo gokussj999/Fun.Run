@@ -1,6 +1,6 @@
 import type { PrismaClient } from '@funrun/database';
 import type { Logger } from '@funrun/logger';
-import type Redis from 'ioredis';
+import type { Redis } from 'ioredis';
 
 import { ConnectionRegistry } from './connection/registry.js';
 import { ConnectionManager } from './connection/manager.js';
@@ -43,14 +43,18 @@ export interface WsContainer {
  *   → metrics (registry + subscriptions)
  *   → connManager (all of the above)
  */
+import { resolveRedisDependencyMode, type RedisDependencyMode } from './config/redis-dependency.js';
+
 export function buildContainer(deps: {
   db:       PrismaClient;
   cache:    Redis;
   pubsub:   Redis;
   logger:   Logger;
   tokenVerifier: (token: string) => Promise<{ userId: string; walletAddress?: string } | null>;
+  redisDependencyMode?: RedisDependencyMode;
 }): WsContainer {
   const { db, cache, pubsub, logger, tokenVerifier } = deps;
+  const redisMode = deps.redisDependencyMode ?? resolveRedisDependencyMode();
 
   const registry      = new ConnectionRegistry();
   const replayBuffer  = new ReplayBuffer(cache, logger);
@@ -58,12 +62,13 @@ export function buildContainer(deps: {
   const rateLimiter   = new ConnectionRateLimiter();
   const presence      = new PresenceTracker(cache, logger);  // cache: not subscriber mode
 
-  const redisSubscriber = new RedisSubscriber(pubsub, logger); // pubsub: subscriber mode only
+  const redisSubscriber = new RedisSubscriber(pubsub, logger, redisMode);
 
   const subscriptions = new SubscriptionManager(registry, redisSubscriber, replayBuffer, logger);
 
   const dispatcher = new EventDispatcher(
     cache, registry, subscriptions, replayBuffer, backpressure, logger,
+    { redisMode },
   );
 
   const heartbeat = new HeartbeatManager(registry, logger);
