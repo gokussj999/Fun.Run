@@ -2201,61 +2201,66 @@ const [connectingPhantom, setConnectingPhantom] = useState(false);
 
         // All background work — nothing blocks the trade button from here
         (async () => {
-          // Fire initial refresh immediately (non-blocking to the button)
-          void Promise.allSettled([loadProfile(pollAddr), loadBalance(pollAddr), loadCoins(0, false)]);
+          void Promise.allSettled([loadBalance(pollAddr), loadCoins(0, false)]);
 
+          const applySuccess = (snap) => {
+            setProfile(snap.profile);
+            try {
+              const h = (snap.profile?.holdings ?? []).find((hh) => String(hh.coinId) === String(pollCoinId));
+              if (h && pollAddr) {
+                setCoins((prev) =>
+                  (prev || []).map((c) =>
+                    String(c.id) === String(pollCoinId)
+                      ? { ...c, holders: { ...(c.holders || {}), [pollAddr]: h.amount } }
+                      : c
+                  )
+                );
+              }
+            } catch {}
+            setChartReloadKey((k) => k + 1);
+            showToast(isBuy ? "Buy successful" : "Sell successful");
+            void platformApi.fetchCoin(pollCoinId).then((coinSnap) => {
+              const latestCoin = normalizeCoin(coinSnap?.coin || {});
+              if (latestCoin?.id) {
+                setCoins((prev) =>
+                  (prev || []).map((c) =>
+                    String(c.id) === String(latestCoin.id)
+                      ? { ...c, ...latestCoin, holders: { ...(c.holders || {}), ...(latestCoin.holders || {}) } }
+                      : c
+                  )
+                );
+              }
+            }).catch(() => {});
+          };
+
+          const checkSnap = async () => {
+            const snap = USE_PLATFORM
+              ? await platformApi.fetchProfile(pollAddr)
+              : await api(`/profile/${pollAddr}`);
+            const snapHoldings = Array.isArray(snap?.profile?.holdings) ? snap.profile.holdings : [];
+            const snapCoin = snapHoldings.find((h) => String(h.coinId) === String(pollCoinId));
+            const snapHolding = Math.max(0, safeNum(snapCoin?.amount, 0));
+            const snapBalance = safeNum(snap?.profile?.runBalance, 0);
+            const holdingsChanged = isBuy ? snapHolding > baseHolding : snapHolding < baseHolding;
+            const balanceChanged = isBuy ? snapBalance < baseRunBalance : snapBalance > baseRunBalance;
+            return { done: holdingsChanged || balanceChanged, snap };
+          };
+
+          // Immediate check — debitRunBalance runs on server before response, so
+          // balance change is detectable right away with no delay.
+          try {
+            const { done, snap } = await checkSnap();
+            if (done) { applySuccess(snap); return; }
+          } catch {}
+
+          // Fallback: poll every 3s for up to 45s (holdings lag behind indexer)
           const POLL_MS = 3000;
-          const MAX_POLLS = 15; // 45 s total
+          const MAX_POLLS = 15;
           for (let i = 0; i < MAX_POLLS; i++) {
             await new Promise((r) => setTimeout(r, POLL_MS));
             try {
-              const snap = USE_PLATFORM
-                ? await platformApi.fetchProfile(pollAddr)
-                : await api(`/profile/${pollAddr}`);
-              const snapHoldings = Array.isArray(snap?.profile?.holdings) ? snap.profile.holdings : [];
-              const snapCoin = snapHoldings.find((h) => String(h.coinId) === String(pollCoinId));
-              const snapHolding = Math.max(0, safeNum(snapCoin?.amount, 0));
-              const snapBalance = safeNum(snap?.profile?.runBalance, 0);
-
-              const holdingsChanged = isBuy
-                ? snapHolding > baseHolding
-                : snapHolding < baseHolding;
-              const balanceChanged = isBuy
-                ? snapBalance < baseRunBalance
-                : snapBalance > baseRunBalance;
-              const done = holdingsChanged || balanceChanged;
-
-              if (done) {
-                setProfile(snap.profile);
-                // Only update coin holders display if holdings actually updated in DB
-                if (holdingsChanged && Array.isArray(snap.profile?.holdings) && pollAddr) {
-                  setCoins((prev) =>
-                    (prev || []).map((c) => {
-                      const h = snap.profile.holdings.find((hh) => String(hh.coinId) === String(c.id));
-                      if (!h) return c;
-                      return { ...c, holders: { ...(c.holders || {}), [pollAddr]: h.amount } };
-                    })
-                  );
-                }
-                try {
-                  const coinSnap = USE_PLATFORM
-                    ? await platformApi.fetchCoin(pollCoinId)
-                    : await api(`/coin/${pollCoinId}`);
-                  const latestCoin = normalizeCoin(coinSnap?.coin || {});
-                  if (latestCoin?.id) {
-                    setCoins((prev) =>
-                      (prev || []).map((c) =>
-                        String(c.id) === String(latestCoin.id)
-                          ? { ...c, ...latestCoin, holders: { ...(c.holders || {}), ...(latestCoin.holders || {}) } }
-                          : c
-                      )
-                    );
-                  }
-                } catch {}
-                setChartReloadKey((k) => k + 1);
-                showToast(isBuy ? "Buy successful" : "Sell successful");
-                return;
-              }
+              const { done, snap } = await checkSnap();
+              if (done) { applySuccess(snap); return; }
             } catch {}
           }
           // Timeout — tx confirmed on-chain but indexer slow
