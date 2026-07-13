@@ -2231,6 +2231,10 @@ const [connectingPhantom, setConnectingPhantom] = useState(false);
                 );
               }
             }).catch(() => {});
+            // Holdings may lag if success triggered via balanceChanged (indexer not yet done).
+            // Re-fetch profile after indexer window to get actual token holdings.
+            void loadProfile(pollAddr);
+            setTimeout(() => void loadProfile(pollAddr), 18_000);
           };
 
           const checkSnap = async () => {
