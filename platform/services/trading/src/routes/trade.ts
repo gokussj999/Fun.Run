@@ -89,20 +89,33 @@ export function registerTradeRoutes(
         : {}),
     };
     const ctx = { requestId, walletAddress, startedAt: start };
-    const idempotencyKey = getIdempotencyKey(request);
+    const baseKey = getIdempotencyKey(request);
 
-    try {
-      const result = await tradeRouter.sell(req, ctx, idempotencyKey);
-      const body = buildTradeSellBody(result, requestId);
-
-      if (idempotencyKey) {
-        await idempotency.set(idempotencyKey, { status: 200, body, cachedAt: new Date().toISOString() });
+    // Retry on SIMULATION_FAILED — happens when a fresh buy TX hasn't landed yet
+    // and the seller ATA doesn't exist or has 0 tokens. Retry every 5s, up to 3x.
+    const MAX_SELL_ATTEMPTS = 4;
+    for (let attempt = 0; attempt < MAX_SELL_ATTEMPTS; attempt++) {
+      const idempotencyKey = baseKey
+        ? attempt === 0 ? baseKey : `${baseKey}-r${attempt}`
+        : undefined;
+      try {
+        const result = await tradeRouter.sell(req, ctx, idempotencyKey);
+        const body = buildTradeSellBody(result, requestId);
+        if (idempotencyKey) {
+          await idempotency.set(idempotencyKey, { status: 200, body, cachedAt: new Date().toISOString() });
+        }
+        return reply.code(200).send(body);
+      } catch (err: unknown) {
+        const code = (err as { code?: string }).code;
+        if (code === 'SIMULATION_FAILED' && attempt < MAX_SELL_ATTEMPTS - 1) {
+          await new Promise((r) => setTimeout(r, 5_000));
+          continue;
+        }
+        return handleTradeError(err, reply, requestId);
       }
-
-      return reply.code(200).send(body);
-    } catch (err: unknown) {
-      return handleTradeError(err, reply, requestId);
     }
+    // Unreachable — loop always returns
+    return handleTradeError(new Error('Max sell attempts exceeded'), reply, requestId);
   });
 
   // ── GET /trade/quote ─────────────────────────────────────────────────────────

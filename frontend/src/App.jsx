@@ -2243,12 +2243,7 @@ const [connectingPhantom, setConnectingPhantom] = useState(false);
             const snapBalance = safeNum(snap?.profile?.runBalance, 0);
             const holdingsChanged = isBuy ? snapHolding > baseHolding : snapHolding < baseHolding;
             const balanceChanged = isBuy ? snapBalance < baseRunBalance : snapBalance > baseRunBalance;
-            // For buy: only trigger on holdingsChanged — confirms the buy TX is on-chain
-            // and the ATA has tokens (safe to sell). balanceChanged fires too early
-            // (debit happens before TX confirmation) and would show success before the
-            // seller token account is created, causing immediate sell to fail.
-            // For sell: either signal works — both update together after indexer.
-            const done = isBuy ? holdingsChanged : (holdingsChanged || balanceChanged);
+            const done = holdingsChanged || balanceChanged;
             return { done, snap };
           };
 
