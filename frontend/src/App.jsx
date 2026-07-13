@@ -2141,6 +2141,19 @@ const [connectingPhantom, setConnectingPhantom] = useState(false);
     try {
       setTrading(true);
 
+      // Capture pre-trade baseline BEFORE debitRunBalance runs on the server.
+      // If profile state is null/stale, fetch live now so balance comparison works.
+      let preTradeRunBalance = safeNum(profile?.runBalance, 0);
+      const preTradeHolder = currentHolder;
+      if (preTradeRunBalance === 0 && solAddr) {
+        try {
+          const snap = USE_PLATFORM
+            ? await platformApi.fetchProfile(solAddr)
+            : await api(`/profile/${solAddr}`);
+          preTradeRunBalance = safeNum(snap?.profile?.runBalance, 0);
+        } catch { /* keep 0 */ }
+      }
+
       let json;
       if (USE_PLATFORM) {
         const token = await getAccessToken();
@@ -2180,20 +2193,11 @@ const [connectingPhantom, setConnectingPhantom] = useState(false);
         const isBuy = tradeMode === "BUY";
         showToast(`${isBuy ? "Buy" : "Sell"} submitted (${sigShort}…)`);
 
-        // Snapshot baseline from current state BEFORE any async refresh.
-        // Fetch live profile if React state is stale/null so balance comparison works.
-        const baseHolding = currentHolder;
-        let baseRunBalance = safeNum(profile?.runBalance, 0);
+        // Baselines captured before the buy API call (pre-debit).
+        const baseHolding = preTradeHolder;
+        const baseRunBalance = preTradeRunBalance;
         const pollCoinId = current.id;
         const pollAddr = solAddr;
-        if (baseRunBalance === 0 && pollAddr) {
-          try {
-            const liveSnap = USE_PLATFORM
-              ? await platformApi.fetchProfile(pollAddr)
-              : await api(`/profile/${pollAddr}`);
-            baseRunBalance = safeNum(liveSnap?.profile?.runBalance, 0);
-          } catch { /* keep 0 */ }
-        }
 
         // Show "waiting" toast after submitted toast dismisses (~3.5s)
         const waitTimer = setTimeout(
