@@ -54,7 +54,7 @@ import * as platformApi from "./services/platform-api.js";
 import { usePlatformWs } from "./hooks/usePlatformWs.js";
 import { computeTradePreview } from "./lib/trade-preview.js";
 import { usePrivy } from "@privy-io/react-auth";
-import { useExportWallet, useWallets } from "@privy-io/react-auth/solana";
+import { useExportWallet, useWallets, useCreateWallet as useCreateSolanaWallet } from "@privy-io/react-auth/solana";
 
 
 const INTRO_MS = 5000;
@@ -1037,7 +1037,8 @@ function InlineAffiliateBar({ wallet, onCopy }) {
 }
 
 export default function App() {
-  const { login, authenticated, user, ready, logout, getAccessToken, createWallet } = usePrivy();
+  const { login, authenticated, user, ready, logout, getAccessToken } = usePrivy();
+  const { createWallet: createSolanaWallet } = useCreateSolanaWallet();
   const { wallets } = useWallets();
 
   const { exportWallet } = useExportWallet();
@@ -1746,8 +1747,8 @@ const [connectingPhantom, setConnectingPhantom] = useState(false);
       (a) => a?.type === "wallet" &&
         (a?.chain === "solana" || a?.chainType === "solana")
     );
-    if (!hasSolanaWallet && typeof createWallet === "function") {
-      createWallet({ type: "solana" }).catch((e) =>
+    if (!hasSolanaWallet && typeof createSolanaWallet === "function") {
+      createSolanaWallet().catch((e) =>
         console.log("[createWallet] failed:", e?.message || e)
       );
     }

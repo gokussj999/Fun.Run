@@ -12,7 +12,9 @@ const solanaConnectors = toSolanaWalletConnectors();
 const privyConfig = {
   loginMethods: ["google"],
   embeddedWallets: {
-    createOnLogin: "users-without-wallets",
+    solana: {
+      createOnLogin: "users-without-wallets",
+    },
   },
   solanaClusters: [{ name: "devnet", rpcUrl: env.solanaRpcUrl }],
   appearance: {
