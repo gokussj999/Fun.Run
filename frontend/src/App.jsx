@@ -1611,20 +1611,25 @@ const [connectingPhantom, setConnectingPhantom] = useState(false);
     }
   }
 
+  // Privy getAccessToken() kabhi kabhi pehli call pe null deta hai (wallet creation ke waqt).
+  // Retry with backoff; agar dono tries fail ho to throw karo taake caller ko pata chale.
+  async function getToken() {
+    let token = await getAccessToken().catch(() => null);
+    if (!token) {
+      await new Promise((r) => setTimeout(r, 900));
+      token = await getAccessToken().catch(() => null);
+    }
+    if (!token) throw new Error("Session expired — please reload");
+    return token;
+  }
+
   async function loadProfile(wallet = solAddr) {
     if (!wallet) return;
 
     try {
       setLoadingProfile(true);
-      let token = await getAccessToken().catch(() => null);
-      if (!token) {
-        await new Promise((r) => setTimeout(r, 800));
-        token = await getAccessToken().catch(() => null);
-      }
-      if (!token) {
-        console.warn("[loadProfile] getAccessToken null — skipping");
-        return;
-      }
+      const token = await getToken().catch(() => null);
+      if (!token) return;
       const authHdr = { Authorization: `Bearer ${token}` };
       const json = USE_PLATFORM
         ? await platformApi.fetchProfile(wallet, token)
@@ -2081,6 +2086,7 @@ const [connectingPhantom, setConnectingPhantom] = useState(false);
             method: "POST",
             body: JSON.stringify(payload),
             timeout: 120000,
+            headers: { Authorization: `Bearer ${await getToken()}` },
           });
 
       if (json?.onchain) {
@@ -2221,7 +2227,7 @@ const [connectingPhantom, setConnectingPhantom] = useState(false);
               });
         json = platformApi.normalizeTradeResponse(json, tradeMode);
       } else {
-        const tradeToken = await getAccessToken().catch(() => null);
+        const tradeToken = await getToken();
         const path = tradeMode === "BUY" ? "/coin/buy" : "/coin/sell";
         const payload = {
           wallet: solAddr,
@@ -2231,7 +2237,7 @@ const [connectingPhantom, setConnectingPhantom] = useState(false);
         json = await api(path, {
           method: "POST",
           body: JSON.stringify(payload),
-          headers: tradeToken ? { Authorization: `Bearer ${tradeToken}` } : {},
+          headers: { Authorization: `Bearer ${tradeToken}` },
         });
       }
 
@@ -2417,10 +2423,8 @@ const [connectingPhantom, setConnectingPhantom] = useState(false);
       } else {
         await api("/referral/set", {
           method: "POST",
-          body: JSON.stringify({
-            wallet: solAddr,
-            referrer: saved,
-          }),
+          body: JSON.stringify({ wallet: solAddr, referrer: saved }),
+          headers: { Authorization: `Bearer ${await getToken()}` },
         });
       }
     } catch {}
@@ -2577,6 +2581,7 @@ const walletHistory = [
         : await api("/wallet/reveal-mnemonic", {
             method: "POST",
             body: JSON.stringify({ wallet: solAddr }),
+            headers: { Authorization: `Bearer ${await getToken()}` },
           });
       if (json?.words) {
         setPhraseWords(json.words);
