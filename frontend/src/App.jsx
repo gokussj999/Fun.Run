@@ -1616,8 +1616,16 @@ const [connectingPhantom, setConnectingPhantom] = useState(false);
 
     try {
       setLoadingProfile(true);
-      const token = await getAccessToken().catch(() => null);
-      const authHdr = token ? { Authorization: `Bearer ${token}` } : {};
+      let token = await getAccessToken().catch(() => null);
+      if (!token) {
+        await new Promise((r) => setTimeout(r, 800));
+        token = await getAccessToken().catch(() => null);
+      }
+      if (!token) {
+        console.warn("[loadProfile] getAccessToken null — skipping");
+        return;
+      }
+      const authHdr = { Authorization: `Bearer ${token}` };
       const json = USE_PLATFORM
         ? await platformApi.fetchProfile(wallet, token)
         : await api(`/profile/${wallet}`, { headers: authHdr });
@@ -1755,14 +1763,15 @@ const [connectingPhantom, setConnectingPhantom] = useState(false);
   }, [ready, authenticated, user]);
 
   useEffect(() => {
-    if (!isWalletConnected || !solAddr) {
-      setProfile(null);
-      setWalletSolBalance(0);
+    if (!ready || !authenticated || !isWalletConnected || !solAddr) {
+      if (!isWalletConnected || !solAddr) {
+        setProfile(null);
+        setWalletSolBalance(0);
+      }
       return;
     }
     loadProfile(solAddr);
-    // loadBalance(solAddr); // loadProfile ab custodial wallet se balance laata hai
-  }, [isWalletConnected, solAddr]);
+  }, [ready, authenticated, isWalletConnected, solAddr]);
 
   useEffect(() => {
     if (screen !== "HOME") return;
