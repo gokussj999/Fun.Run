@@ -1231,6 +1231,7 @@ const [connectingPhantom, setConnectingPhantom] = useState(false);
 
     console.log("[debug] Privy user:", user);
     console.log("[debug] linkedAccounts:", user?.linkedAccounts);
+    console.log("[debug] linkedAccounts full:", JSON.stringify(user?.linkedAccounts));
     console.log("[debug] wallets (useWallets):", wallets);
 
     // PRIMARY: linkedAccounts — embedded Privy Solana wallet always here after auth
