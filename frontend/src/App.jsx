@@ -1037,7 +1037,7 @@ function InlineAffiliateBar({ wallet, onCopy }) {
 }
 
 export default function App() {
-  const { login, authenticated, user, ready, logout, getAccessToken } = usePrivy();
+  const { login, authenticated, user, ready, logout, getAccessToken, createWallet } = usePrivy();
   const { wallets } = useWallets();
 
   const { exportWallet } = useExportWallet();
@@ -1738,6 +1738,20 @@ const [connectingPhantom, setConnectingPhantom] = useState(false);
 
     loadCoins(0, false);
   }, []);
+
+  // Auto-create Privy embedded Solana wallet if user is authenticated but has none
+  useEffect(() => {
+    if (!ready || !authenticated || !user) return;
+    const hasSolanaWallet = user.linkedAccounts?.some(
+      (a) => a?.type === "wallet" &&
+        (a?.chain === "solana" || a?.chainType === "solana")
+    );
+    if (!hasSolanaWallet && typeof createWallet === "function") {
+      createWallet({ type: "solana" }).catch((e) =>
+        console.log("[createWallet] failed:", e?.message || e)
+      );
+    }
+  }, [ready, authenticated, user]);
 
   useEffect(() => {
     if (!isWalletConnected || !solAddr) {
