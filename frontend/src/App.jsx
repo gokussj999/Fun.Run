@@ -2231,10 +2231,12 @@ const [connectingPhantom, setConnectingPhantom] = useState(false);
                 );
               }
             }).catch(() => {});
-            // Holdings may lag if success triggered via balanceChanged (indexer not yet done).
-            // Re-fetch profile after indexer window to get actual token holdings.
+            // Holdings lag when success triggers via balanceChanged (indexer not yet done).
+            // WebSocket portfolio:update fires once indexer processes (~13-18s after submission).
+            // Belt-and-suspenders: also poll at 20s and 35s in case WS event is missed.
             void loadProfile(pollAddr);
-            setTimeout(() => void loadProfile(pollAddr), 18_000);
+            setTimeout(() => void loadProfile(pollAddr), 20_000);
+            setTimeout(() => void loadProfile(pollAddr), 35_000);
           };
 
           const checkSnap = async () => {
