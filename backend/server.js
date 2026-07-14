@@ -3677,6 +3677,39 @@ depositAddress: custodialWallet,
   }
 });
 
+// -------------------- API v1 EXPLICIT FALLBACK ROUTES --------------------
+// Middleware near the top of this file normally rewrites /api/v1/* → legacy paths.
+// These explicit handlers are a guaranteed fallback: they only fire if the URL-rewrite
+// middleware did not match (e.g. not yet deployed, or prod-specific quirk).
+// Strategy: reset req.url to the legacy path, reset req.params, then call app.handle()
+// so the existing route handler (and its limiters) process the request normally.
+// No infinite loop risk — the rewritten URL never starts with /api/v1/.
+
+function _v1Fwd(getLegacyPath) {
+  return function (req, res) {
+    const legacy = typeof getLegacyPath === "function" ? getLegacyPath(req) : getLegacyPath;
+    const qs = req.url.includes("?") ? req.url.slice(req.url.indexOf("?")) : "";
+    req.url = legacy + qs;
+    req.params = {};
+    app.handle(req, res, () => res.status(404).json({ ok: false, error: "Not found" }));
+  };
+}
+
+// candles MUST be before coins/:id so Express checks the more-specific pattern first
+app.get("/api/v1/market/coins/:id/candles",  _v1Fwd((r) => `/coin/${r.params.id}/candles`));
+app.get("/api/v1/market/coins/:id",          _v1Fwd((r) => `/coin/${r.params.id}`));
+app.get("/api/v1/market/coins",              _v1Fwd("/coin/list"));
+app.get("/api/v1/market/sol-price",          _v1Fwd("/sol-price"));
+app.get("/api/v1/profile/:wallet",           _v1Fwd((r) => `/profile/${r.params.wallet}`));
+app.get("/api/v1/wallet/:wallet/balance",    _v1Fwd((r) => `/balance/${r.params.wallet}`));
+app.post("/api/v1/trade/buy",                _v1Fwd("/coin/buy"));
+app.post("/api/v1/trade/sell",               _v1Fwd("/coin/sell"));
+app.post("/api/v1/wallet/withdraw",          _v1Fwd("/withdraw"));
+app.post("/api/v1/wallet/reveal-mnemonic",   _v1Fwd("/wallet/reveal-mnemonic"));
+app.post("/api/v1/rewards/claim",            _v1Fwd("/claim"));
+app.post("/api/v1/referral/bind",            _v1Fwd("/referral/set"));
+app.post("/api/v1/coins",                    _v1Fwd("/coin/create"));
+
 // -------------------- SECRETS VALIDATION --------------------
 function validateSecrets() {
   const errors = [];
