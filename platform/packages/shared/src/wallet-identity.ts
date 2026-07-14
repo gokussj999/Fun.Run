@@ -14,6 +14,12 @@ export interface ProfileLookupDb {
 
 /**
  * Map an on-chain wallet (usually custodial) to the Privy identity wallet stored in profiles.
+ *
+ * Check mnemonicTag first — a custodial wallet is tagged on the identity profile row.
+ * Only fall back to direct walletAddress lookup when no mnemonicTag match exists (i.e.
+ * the incoming address is itself an identity wallet, not a custodial one).  This order
+ * prevents "ghost" profile rows created at the custodial address from shadowing the real
+ * identity→custodial mapping.
  */
 export async function resolveIdentityWallet(
   db: ProfileLookupDb,
@@ -22,17 +28,19 @@ export async function resolveIdentityWallet(
   const w = chainWallet.trim();
   if (!w) return w;
 
-  const direct = await db.profile.findUnique({
-    where: { walletAddress: w },
-    select: { walletAddress: true },
-  });
-  if (direct) return direct.walletAddress;
-
+  // 1. mnemonicTag lookup — finds identity wallet when chainWallet is custodial
   const linked = await db.profile.findFirst({
     where: { mnemonicTag: w },
     select: { walletAddress: true },
   });
-  return linked?.walletAddress ?? w;
+  if (linked) return linked.walletAddress;
+
+  // 2. Direct lookup — chainWallet is already an identity wallet (no custodial involved)
+  const direct = await db.profile.findUnique({
+    where: { walletAddress: w },
+    select: { walletAddress: true },
+  });
+  return direct?.walletAddress ?? w;
 }
 
 /** Wallet addresses to query for portfolio / creations (identity + custodial). */
