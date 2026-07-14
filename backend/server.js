@@ -280,6 +280,49 @@ if (process.env.NODE_ENV !== "production") {
   app.use(morgan("tiny"));
 }
 
+// ── /api/v1/* → legacy path rewrites ─────────────────────────────────────────
+// Platform microservices deploy nahi hain — Express req.url rewrite se
+// existing handlers /api/v1/* requests serve karte hain.
+app.use((req, _res, next) => {
+  const p = req.path;
+  if (!p.startsWith("/api/v1/")) return next();
+
+  let legacy = null;
+
+  if (p === "/api/v1/market/sol-price")
+    legacy = "/sol-price";
+  else if (p === "/api/v1/market/coins")
+    legacy = "/coin/list";
+  else if (/^\/api\/v1\/market\/coins\/[^/]+\/candles$/.test(p))
+    legacy = p.replace(/^\/api\/v1\/market\/coins\//, "/coin/");      // /coin/:id/candles
+  else if (/^\/api\/v1\/market\/coins\/[^/]+$/.test(p))
+    legacy = p.replace(/^\/api\/v1\/market\/coins\//, "/coin/");      // /coin/:id
+  else if (p === "/api/v1/trade/buy")
+    legacy = "/coin/buy";
+  else if (p === "/api/v1/trade/sell")
+    legacy = "/coin/sell";
+  else if (/^\/api\/v1\/profile\/[^/]+$/.test(p))
+    legacy = p.replace(/^\/api\/v1\/profile\//, "/profile/");         // /profile/:wallet
+  else if (/^\/api\/v1\/wallet\/[^/]+\/balance$/.test(p))
+    legacy = p.replace(/^\/api\/v1\/wallet\/([^/]+)\/balance$/, "/balance/$1"); // /balance/:wallet
+  else if (p === "/api/v1/wallet/withdraw")
+    legacy = "/withdraw";
+  else if (p === "/api/v1/wallet/reveal-mnemonic")
+    legacy = "/wallet/reveal-mnemonic";
+  else if (p === "/api/v1/rewards/claim")
+    legacy = "/claim";
+  else if (p === "/api/v1/referral/bind")
+    legacy = "/referral/set";
+  else if (p === "/api/v1/coins")
+    legacy = "/coin/create";
+
+  if (legacy) {
+    const qs = req.url.includes("?") ? req.url.slice(req.url.indexOf("?")) : "";
+    req.url = legacy + qs;
+  }
+  next();
+});
+
 // ---- C2: /wallet/create — auth required, encrypted_mnemonic never returned ----
 // This handler shadows the old unauthenticated route in routes/wallet.js
 app.post("/wallet/create", async (req, res) => {
