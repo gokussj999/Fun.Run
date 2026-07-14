@@ -10,7 +10,7 @@ export const env = {
   appUrl: import.meta.env.VITE_APP_URL || "",
   solanaRpcUrl: import.meta.env.VITE_SOLANA_RPC_URL || DEFAULT_SOLANA_RPC,
   /** When false, falls back to legacy REST paths (pre-Sprint 6). */
-  usePlatform: import.meta.env.VITE_USE_PLATFORM !== "0",
+  usePlatform: import.meta.env.VITE_USE_PLATFORM === "1",
 };
 
 /** SPL token decimals (funrun_v2 RC1). */

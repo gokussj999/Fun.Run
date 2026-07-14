@@ -3204,7 +3204,7 @@ async function doTrade(req, res, side, authWallet = null) {
     if (!authWallet) return res.status(401).json({ ok: false, error: "Authentication required" });
     const wallet = authWallet; // Privy session se — req.body.wallet kabhi trust nahi hota
     const coinId = String(req.body?.coinId || "").trim();
-    const sol = Math.max(0, safeNum(req.body?.sol, 0));
+    const sol = Math.max(0, safeNum(req.body?.sol, 0) || safeNum(req.body?.solAmountLamports, 0) / 1e9);
     const tokens = Math.max(0, safeNum(req.body?.tokens, 0));
     const sideLower = String(side || "").trim().toLowerCase();
 
