@@ -2221,6 +2221,7 @@ const [connectingPhantom, setConnectingPhantom] = useState(false);
               });
         json = platformApi.normalizeTradeResponse(json, tradeMode);
       } else {
+        const tradeToken = await getAccessToken().catch(() => null);
         const path = tradeMode === "BUY" ? "/coin/buy" : "/coin/sell";
         const payload = {
           wallet: solAddr,
@@ -2230,6 +2231,7 @@ const [connectingPhantom, setConnectingPhantom] = useState(false);
         json = await api(path, {
           method: "POST",
           body: JSON.stringify(payload),
+          headers: tradeToken ? { Authorization: `Bearer ${tradeToken}` } : {},
         });
       }
 
