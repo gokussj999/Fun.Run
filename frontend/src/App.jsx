@@ -1600,9 +1600,11 @@ const [connectingPhantom, setConnectingPhantom] = useState(false);
 
     try {
       setLoadingProfile(true);
+      const token = await getAccessToken().catch(() => null);
+      const authHdr = token ? { Authorization: `Bearer ${token}` } : {};
       const json = USE_PLATFORM
-        ? await platformApi.fetchProfile(wallet)
-        : await api(`/profile/${wallet}`);
+        ? await platformApi.fetchProfile(wallet, token)
+        : await api(`/profile/${wallet}`, { headers: authHdr });
       setProfile(json?.profile || null);
 
       // Inject user's token balances into coin holders map so sell validation works
@@ -1631,9 +1633,11 @@ const [connectingPhantom, setConnectingPhantom] = useState(false);
   async function loadBalance(wallet = solAddr) {
     if (!wallet) return;
     try {
+      const token = await getAccessToken().catch(() => null);
+      const authHdr = token ? { Authorization: `Bearer ${token}` } : {};
       const json = USE_PLATFORM
-        ? await platformApi.fetchBalance(wallet)
-        : await api(`/balance/${wallet}`);
+        ? await platformApi.fetchBalance(wallet, token)
+        : await api(`/balance/${wallet}`, { headers: authHdr });
       setWalletSolBalance(Math.max(0, safeNum(json?.sol, 0)));
     } catch {
       setWalletSolBalance(0);
@@ -2150,9 +2154,10 @@ const [connectingPhantom, setConnectingPhantom] = useState(false);
       const preTradeHolder = currentHolder;
       if (preTradeRunBalance === 0 && solAddr) {
         try {
+          const snapToken = await getAccessToken().catch(() => null);
           const snap = USE_PLATFORM
-            ? await platformApi.fetchProfile(solAddr)
-            : await api(`/profile/${solAddr}`);
+            ? await platformApi.fetchProfile(solAddr, snapToken)
+            : await api(`/profile/${solAddr}`, { headers: snapToken ? { Authorization: `Bearer ${snapToken}` } : {} });
           preTradeRunBalance = safeNum(snap?.profile?.runBalance, 0);
         } catch { /* keep 0 */ }
       }
@@ -2243,9 +2248,10 @@ const [connectingPhantom, setConnectingPhantom] = useState(false);
           };
 
           const checkSnap = async () => {
+            const csToken = await getAccessToken().catch(() => null);
             const snap = USE_PLATFORM
-              ? await platformApi.fetchProfile(pollAddr)
-              : await api(`/profile/${pollAddr}`);
+              ? await platformApi.fetchProfile(pollAddr, csToken)
+              : await api(`/profile/${pollAddr}`, { headers: csToken ? { Authorization: `Bearer ${csToken}` } : {} });
             const snapHoldings = Array.isArray(snap?.profile?.holdings) ? snap.profile.holdings : [];
             const snapCoin = snapHoldings.find((h) => String(h.coinId) === String(pollCoinId));
             const snapHolding = Math.max(0, safeNum(snapCoin?.amount, 0));

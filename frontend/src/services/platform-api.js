@@ -89,12 +89,16 @@ export async function fetchTradeQuote(coinId, direction, amountIn, slippageBps =
 
 // ── Profile & wallet ──────────────────────────────────────────────────────────
 
-export async function fetchProfile(wallet) {
-  return platformFetch(`${API_PREFIX}/profile/${wallet}`);
+export async function fetchProfile(wallet, authToken) {
+  return platformFetch(`${API_PREFIX}/profile/${wallet}`, {
+    headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
+  });
 }
 
-export async function fetchBalance(wallet) {
-  return platformFetch(`${API_PREFIX}/wallet/${wallet}/balance`);
+export async function fetchBalance(wallet, authToken) {
+  return platformFetch(`${API_PREFIX}/wallet/${wallet}/balance`, {
+    headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
+  });
 }
 
 // ── Mutations (require auth token) ────────────────────────────────────────────
