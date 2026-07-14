@@ -1229,6 +1229,10 @@ const [connectingPhantom, setConnectingPhantom] = useState(false);
       return s.length > 30 && !s.startsWith("0x");
     };
 
+    console.log("[debug] Privy user:", user);
+    console.log("[debug] linkedAccounts:", user?.linkedAccounts);
+    console.log("[debug] wallets (useWallets):", wallets);
+
     // PRIMARY: linkedAccounts — embedded Privy Solana wallet always here after auth
     // Privy v3+ uses chainType (not chain) — check both for SDK compatibility
     const solLinked = user?.linkedAccounts?.find(
@@ -1236,15 +1240,25 @@ const [connectingPhantom, setConnectingPhantom] = useState(false);
         (a?.chain === "solana" || a?.chainType === "solana") &&
         isSolAddr(a?.addr || a?.address)
     );
-    if (solLinked) return String(solLinked.addr || solLinked.address).trim();
+    if (solLinked) {
+      console.log("[debug] solAddr resolved via linkedAccounts:", solLinked.addr || solLinked.address);
+      return String(solLinked.addr || solLinked.address).trim();
+    }
 
     // FALLBACK: useWallets() — embedded + external Solana wallets
     const solWallet = wallets?.find(w => isSolAddr(w?.addr || w?.address || ""));
-    if (solWallet) return String(solWallet.addr || solWallet.address).trim();
+    if (solWallet) {
+      console.log("[debug] solAddr resolved via wallets hook:", solWallet.addr || solWallet.address);
+      return String(solWallet.addr || solWallet.address).trim();
+    }
 
     // FALLBACK: phantomWallet directly connected
-    if (phantomWallet && isSolAddr(phantomWallet)) return String(phantomWallet).trim();
+    if (phantomWallet && isSolAddr(phantomWallet)) {
+      console.log("[debug] solAddr resolved via phantomWallet:", phantomWallet);
+      return String(phantomWallet).trim();
+    }
 
+    console.log("[debug] solAddr: empty — no Solana wallet found");
     return "";
   }, [user, phantomWallet, wallets]);
 
