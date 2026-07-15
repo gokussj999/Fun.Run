@@ -1319,62 +1319,441 @@
   text-align: right;
 }
 
-/* ── Trade panel ── */
+/* ── Trade panel (premium redesign) ── */
 
-.coinTradePanel {
+/* Legacy class aliases — kept for any external refs */
+.coinTradePanel { display: flex; flex-direction: column; gap: 0; }
+.coinTradeTabs  { display: none; }
+
+/* ── tp = TradePanel root ── */
+
+.tp {
   display: flex;
   flex-direction: column;
-  gap: 0;
+  gap: 8px;
 }
 
-.coinTradeTabs {
+/* Buy / Sell toggle */
+
+.tp-tabs {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 6px;
-  margin-bottom: 16px;
+  gap: 4px;
   padding: 4px;
-  border-radius: 14px;
-  background: rgba(0, 0, 0, 0.22);
+  border-radius: 16px;
+  background: rgba(0, 0, 0, 0.28);
   border: 1px solid rgba(148, 163, 184, 0.1);
+  margin-bottom: 4px;
 }
 
-.coinTradeTab {
+.tp-tab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
   border: 1px solid transparent;
   background: transparent;
   color: var(--muted2);
-  border-radius: 10px;
-  padding: 12px 10px;
+  border-radius: 12px;
+  padding: 11px 10px;
   font-size: 13px;
   font-weight: 900;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
   cursor: pointer;
   transition:
-    color 0.14s ease,
-    background 0.14s ease,
-    border-color 0.14s ease,
-    box-shadow 0.14s ease;
+    color 0.16s ease,
+    background 0.16s ease,
+    border-color 0.16s ease,
+    box-shadow 0.16s ease;
 }
 
-.coinTradeTab:hover:not(.active) {
+.tp-tab:hover:not(.active) {
   color: var(--text);
   background: rgba(255, 255, 255, 0.04);
 }
 
-.coinTradeTab.active.buy {
-  color: var(--btnText);
-  background: rgba(14, 203, 129, 0.18);
-  border-color: rgba(14, 203, 129, 0.35);
-  box-shadow: none;
+.tp-tab-icon {
+  font-size: 11px;
+  opacity: 0.7;
 }
 
-.coinTradeTab.active.sell {
-  color: #ffffff;
-  background: rgba(246, 70, 93, 0.18);
-  border-color: rgba(246, 70, 93, 0.35);
-  box-shadow: none;
+.tp-tab--buy.active {
+  color: #041510;
+  background: linear-gradient(160deg, #16dc8e, #0ecb81);
+  border-color: rgba(14, 203, 129, 0.4);
+  box-shadow:
+    0 0 18px rgba(14, 203, 129, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
 }
 
+.tp-tab--sell.active {
+  color: #fff;
+  background: linear-gradient(160deg, #f9556b, #f6465d);
+  border-color: rgba(246, 70, 93, 0.4);
+  box-shadow:
+    0 0 18px rgba(246, 70, 93, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.15);
+}
+
+/* Swap box — glass card */
+
+.tp-box {
+  border-radius: 16px;
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  background: rgba(6, 10, 20, 0.6);
+  backdrop-filter: blur(14px) saturate(140%);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  padding: 14px 16px;
+  transition:
+    border-color 0.18s ease,
+    box-shadow 0.18s ease;
+}
+
+.tp-box--buy:focus-within {
+  border-color: rgba(14, 203, 129, 0.3);
+  box-shadow: 0 0 0 3px rgba(14, 203, 129, 0.08);
+}
+
+.tp-box--sell:focus-within {
+  border-color: rgba(246, 70, 93, 0.3);
+  box-shadow: 0 0 0 3px rgba(246, 70, 93, 0.08);
+}
+
+.tp-box--receive {
+  background: rgba(4, 8, 16, 0.42);
+}
+
+.tp-box-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.tp-box-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted2);
+}
+
+.tp-box-balance {
+  font-size: 11px;
+  color: var(--muted);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.tp-box-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Number input */
+
+.tp-input {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text);
+  font-size: 22px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  padding: 0;
+  line-height: 1.3;
+}
+
+.tp-input::placeholder {
+  color: rgba(148, 163, 184, 0.3);
+}
+
+.tp-input::-webkit-outer-spin-button,
+.tp-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.tp-input[type=number] {
+  -moz-appearance: textfield;
+}
+
+/* Receive value */
+
+.tp-receive-value {
+  flex: 1;
+  min-width: 0;
+  font-size: 22px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  color: var(--muted2);
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Token badge */
+
+.tp-token {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  flex-shrink: 0;
+  padding: 7px 11px 7px 9px;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  background: rgba(255, 255, 255, 0.05);
+  font-size: 13px;
+  font-weight: 900;
+  letter-spacing: 0.02em;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.tp-token-icon--sol {
+  font-size: 15px;
+  color: #9945ff;
+}
+
+.tp-token-name {
+  color: var(--text);
+}
+
+/* Quick % pills */
+
+.tp-pcts {
+  display: flex;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.tp-pct {
+  flex: 1;
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--muted2);
+  border-radius: 8px;
+  padding: 7px 4px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition:
+    color 0.13s ease,
+    background 0.13s ease,
+    border-color 0.13s ease;
+}
+
+.tp-pct:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(148, 163, 184, 0.28);
+}
+
+.tp-pct--max {
+  color: var(--primary);
+  border-color: rgba(252, 213, 53, 0.22);
+}
+
+.tp-pct--max:hover {
+  background: rgba(252, 213, 53, 0.08);
+  border-color: rgba(252, 213, 53, 0.35);
+  color: var(--primary);
+}
+
+/* Swap arrow separator */
+
+.tp-arrow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 4px;
+}
+
+.tp-arrow-line {
+  flex: 1;
+  height: 1px;
+  background: rgba(148, 163, 184, 0.1);
+}
+
+.tp-arrow-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  background: rgba(255, 255, 255, 0.04);
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  color: var(--muted2);
+  flex-shrink: 0;
+  transition: color 0.15s, border-color 0.15s, box-shadow 0.15s;
+}
+
+.tp-arrow-icon--buy {
+  color: var(--good);
+  border-color: rgba(14, 203, 129, 0.25);
+  box-shadow: 0 0 10px rgba(14, 203, 129, 0.12);
+}
+
+.tp-arrow-icon--sell {
+  color: var(--danger);
+  border-color: rgba(246, 70, 93, 0.25);
+  box-shadow: 0 0 10px rgba(246, 70, 93, 0.12);
+}
+
+/* Trade button */
+
+.tp-btn {
+  width: 100%;
+  border: none;
+  border-radius: 14px;
+  padding: 16px 20px;
+  font-size: 14px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 4px;
+  position: relative;
+  overflow: hidden;
+  transition:
+    transform 0.14s ease,
+    box-shadow 0.18s ease,
+    filter 0.14s ease;
+}
+
+.tp-btn::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  background: rgba(255, 255, 255, 0.1);
+  transition: opacity 0.16s ease;
+}
+
+.tp-btn:hover:not(:disabled)::before {
+  opacity: 1;
+}
+
+.tp-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+}
+
+.tp-btn:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.tp-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.tp-btn--buy {
+  background: linear-gradient(160deg, #1fe89a, #0ecb81 60%, #0aad6a);
+  color: #03180f;
+  box-shadow:
+    0 0 28px rgba(14, 203, 129, 0.32),
+    0 4px 16px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.22);
+}
+
+.tp-btn--buy:hover:not(:disabled) {
+  box-shadow:
+    0 0 40px rgba(14, 203, 129, 0.45),
+    0 8px 24px rgba(0, 0, 0, 0.34),
+    inset 0 1px 0 rgba(255, 255, 255, 0.22);
+}
+
+.tp-btn--sell {
+  background: linear-gradient(160deg, #f9556b, #f6465d 60%, #e03450);
+  color: #fff;
+  box-shadow:
+    0 0 28px rgba(246, 70, 93, 0.32),
+    0 4px 16px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.18);
+}
+
+.tp-btn--sell:hover:not(:disabled) {
+  box-shadow:
+    0 0 40px rgba(246, 70, 93, 0.45),
+    0 8px 24px rgba(0, 0, 0, 0.34),
+    inset 0 1px 0 rgba(255, 255, 255, 0.18);
+}
+
+/* Spinner */
+.tp-btn-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2.5px solid rgba(255, 255, 255, 0.3);
+  border-top-color: currentColor;
+  border-radius: 50%;
+  animation: tp-spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes tp-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Meta info rows */
+
+.tp-meta {
+  padding-top: 12px;
+  border-top: 1px solid rgba(148, 163, 184, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin-top: 4px;
+}
+
+.tp-meta-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.tp-meta-row span:first-child {
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.tp-meta-row span:last-child {
+  color: var(--muted2);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.tp-meta-row--total {
+  padding-top: 7px;
+  border-top: 1px solid rgba(148, 163, 184, 0.07);
+  font-size: 13px;
+}
+
+.tp-meta-row--total span:first-child {
+  color: var(--muted2);
+  font-weight: 700;
+}
+
+.tp-meta-row--total span:last-child {
+  color: var(--text);
+  font-weight: 900;
+}
+
+/* Legacy compat — keep existing classes working */
 .coinTradePanelStats {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1402,10 +1781,7 @@
   text-align: left;
 }
 
-.coinTradeForm {
-  display: grid;
-  gap: 14px;
-}
+.coinTradeForm { display: grid; gap: 14px; }
 
 .coinTradeInput input {
   padding: 14px 15px;
@@ -1452,11 +1828,7 @@
   font-variant-numeric: tabular-nums;
 }
 
-.coinTradeHint {
-  font-size: 12px;
-  color: var(--muted2);
-  line-height: 1.5;
-}
+.coinTradeHint { font-size: 12px; color: var(--muted2); line-height: 1.5; }
 
 .coinTradeSubmit {
   padding: 15px 16px !important;

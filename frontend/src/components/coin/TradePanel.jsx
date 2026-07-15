@@ -1,6 +1,4 @@
 import React, { useMemo } from "react";
-import { Input } from "../ui/Input.jsx";
-import { PrimaryButton } from "../ui/Button.jsx";
 import { CoinLogo } from "../coins/CoinLogo.jsx";
 import { fmtNum, fmtSol } from "../../lib/coin-display.js";
 import { computeTradePreview } from "../../lib/trade-preview.js";
@@ -24,7 +22,6 @@ export function TradePanel({
   );
 
   const isBuy = tradeMode === "BUY";
-  const modeClass = isBuy ? "buy" : "sell";
   const symbol = coin?.symbol || "TOKEN";
 
   function applyQuickPct(pct) {
@@ -42,136 +39,147 @@ export function TradePanel({
   const receiveValue = isBuy
     ? tradePreview.ok
       ? `${fmtNum(tradePreview.estTokens, 0)} ${symbol}`
-      : `0 ${symbol}`
+      : `— ${symbol}`
     : tradePreview.ok
-      ? `${fmtSol(tradePreview.youReceiveSol)} SOL`
-      : "0 SOL";
+    ? `${fmtSol(tradePreview.youReceiveSol)} SOL`
+    : "— SOL";
+
+  const balanceLabel = isBuy
+    ? `${fmtSol(walletSolBalance)} SOL`
+    : `${fmtNum(currentWalletTokens, 0)} ${symbol}`;
 
   return (
-    <div className="coinTradePanel">
-      <div className="coinTradePanelHead">
-        <div>
-          <div className="coinSectionTitle">Trade</div>
-          <div className="coinSectionSub">Instant bonding curve swap</div>
-        </div>
-      </div>
+    <div className="tp">
 
-      <div className="coinTradeTabs" role="tablist" aria-label="Trade mode">
+      {/* Buy / Sell toggle */}
+      <div className="tp-tabs" role="tablist">
         <button
           type="button"
           role="tab"
           aria-selected={isBuy}
-          className={`coinTradeTab ${isBuy ? `active ${modeClass}` : ""}`}
+          className={`tp-tab tp-tab--buy${isBuy ? " active" : ""}`}
           onClick={() => onTradeModeChange?.("BUY")}
         >
+          <span className="tp-tab-icon">↑</span>
           Buy
         </button>
         <button
           type="button"
           role="tab"
           aria-selected={!isBuy}
-          className={`coinTradeTab ${!isBuy ? `active ${modeClass}` : ""}`}
+          className={`tp-tab tp-tab--sell${!isBuy ? " active" : ""}`}
           onClick={() => onTradeModeChange?.("SELL")}
         >
+          <span className="tp-tab-icon">↓</span>
           Sell
         </button>
       </div>
 
-      <div className="coinSwapFields">
-        <div className="coinSwapField">
-          <div className="coinSwapFieldLabel">You Pay</div>
-          <div className="coinSwapFieldRow">
-            <div className="coinTradeInput coinSwapInput">
-              <Input
-                value={tradeAmount}
-                onChange={(e) => onTradeAmountChange?.(e.target.value)}
-                placeholder="0.00"
-                type="number"
-              />
-            </div>
-            <div className="coinSwapToken">
-              {isBuy ? (
-                <>
-                  <span className="coinSwapTokenIcon sol">◎</span>
-                  <span>SOL</span>
-                </>
-              ) : (
-                <>
-                  <CoinLogo c={coin} size={22} radius={8} />
-                  <span>{symbol}</span>
-                </>
-              )}
-            </div>
+      {/* You Pay */}
+      <div className={`tp-box tp-box--pay${isBuy ? " tp-box--buy" : " tp-box--sell"}`}>
+        <div className="tp-box-header">
+          <span className="tp-box-label">You Pay</span>
+          <span className="tp-box-balance">Balance: {balanceLabel}</span>
+        </div>
+        <div className="tp-box-row">
+          <input
+            className="tp-input"
+            value={tradeAmount}
+            onChange={(e) => onTradeAmountChange?.(e.target.value)}
+            placeholder="0.00"
+            type="number"
+            min="0"
+            inputMode="decimal"
+          />
+          <div className="tp-token">
+            {isBuy ? (
+              <>
+                <span className="tp-token-icon tp-token-icon--sol">◎</span>
+                <span className="tp-token-name">SOL</span>
+              </>
+            ) : (
+              <>
+                <CoinLogo c={coin} size={20} radius={6} />
+                <span className="tp-token-name">{symbol}</span>
+              </>
+            )}
           </div>
         </div>
 
-        <div className="coinSwapArrow" aria-hidden="true">
+        {/* Quick % pills */}
+        <div className="tp-pcts">
+          {QUICK_PCTS.map((pct) => (
+            <button
+              key={pct}
+              type="button"
+              className={`tp-pct${pct === 100 ? " tp-pct--max" : ""}`}
+              onClick={() => applyQuickPct(pct)}
+            >
+              {pct === 100 ? "MAX" : `${pct}%`}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Swap arrow */}
+      <div className="tp-arrow" aria-hidden="true">
+        <div className="tp-arrow-line" />
+        <div className={`tp-arrow-icon${isBuy ? " tp-arrow-icon--buy" : " tp-arrow-icon--sell"}`}>
           ↓
         </div>
+        <div className="tp-arrow-line" />
+      </div>
 
-        <div className="coinSwapField">
-          <div className="coinSwapFieldLabel">You Receive</div>
-          <div className="coinSwapFieldRow">
-            <div className="coinSwapReceive">{receiveValue}</div>
-            <div className="coinSwapToken">
-              {!isBuy ? (
-                <>
-                  <span className="coinSwapTokenIcon sol">◎</span>
-                  <span>SOL</span>
-                </>
-              ) : (
-                <>
-                  <CoinLogo c={coin} size={22} radius={8} />
-                  <span>{symbol}</span>
-                </>
-              )}
-            </div>
+      {/* You Receive */}
+      <div className="tp-box tp-box--receive">
+        <div className="tp-box-header">
+          <span className="tp-box-label">You Receive</span>
+        </div>
+        <div className="tp-box-row">
+          <div className="tp-receive-value">{receiveValue}</div>
+          <div className="tp-token">
+            {!isBuy ? (
+              <>
+                <span className="tp-token-icon tp-token-icon--sol">◎</span>
+                <span className="tp-token-name">SOL</span>
+              </>
+            ) : (
+              <>
+                <CoinLogo c={coin} size={20} radius={6} />
+                <span className="tp-token-name">{symbol}</span>
+              </>
+            )}
           </div>
         </div>
       </div>
 
-      <div className="coinQuickAmounts">
-        {QUICK_PCTS.map((pct) => (
-          <button
-            key={pct}
-            type="button"
-            className="coinQuickAmountBtn"
-            onClick={() => applyQuickPct(pct)}
-          >
-            {pct}%
-          </button>
-        ))}
-      </div>
-
-      <PrimaryButton
-        className={`coinTradeSubmit ${modeClass}`}
+      {/* Trade button */}
+      <button
+        type="button"
+        className={`tp-btn tp-btn--${isBuy ? "buy" : "sell"}`}
         disabled={trading}
         onClick={onTrade}
       >
+        {trading ? (
+          <span className="tp-btn-spinner" />
+        ) : null}
         {trading
-          ? isBuy
-            ? "Buying..."
-            : "Selling..."
+          ? isBuy ? "Buying…" : "Selling…"
           : `${isBuy ? "Buy" : "Sell"} ${symbol}`}
-      </PrimaryButton>
+      </button>
 
-      <div className="coinTradeMeta">
-        <div className="coinTradeMetaRow">
+      {/* Trade info */}
+      <div className="tp-meta">
+        <div className="tp-meta-row">
           <span>Rate</span>
-          <span>
-            1 {symbol} ≈ {fmtSol(tradePreview.priceSol || coin?.priceSol || 0)} SOL
-          </span>
+          <span>1 {symbol} ≈ {fmtSol(tradePreview.priceSol || coin?.priceSol || 0)} SOL</span>
         </div>
-        <div className="coinTradeMetaRow">
-          <span>Slippage</span>
-          <span>1%</span>
+        <div className="tp-meta-row">
+          <span>Fee</span>
+          <span>{fmtSol(tradePreview.feeSol || 0)} SOL (1%)</span>
         </div>
-        <div className="coinTradeMetaRow">
-          <span>Network Fee</span>
-          <span>{fmtSol(tradePreview.feeSol || 0)} SOL</span>
-        </div>
-        <div className="coinTradeMetaRow coinTradeMetaRow--strong">
-          <span>You Will Pay</span>
+        <div className="tp-meta-row tp-meta-row--total">
+          <span>Total</span>
           <span>
             {isBuy
               ? `${fmtSol(tradeAmount || 0)} SOL`
