@@ -3205,7 +3205,7 @@ async function doTrade(req, res, side, authWallet = null) {
     const wallet = authWallet; // Privy session se — req.body.wallet kabhi trust nahi hota
     const coinId = String(req.body?.coinId || "").trim();
     const sol = Math.max(0, safeNum(req.body?.sol, 0) || safeNum(req.body?.solAmountLamports, 0) / 1e9);
-    const tokens = Math.max(0, safeNum(req.body?.tokens, 0));
+    const tokens = Math.max(0, safeNum(req.body?.tokens, 0) || safeNum(req.body?.tokenAmountRaw, 0) / 1e6);
     const sideLower = String(side || "").trim().toLowerCase();
 
     if (!coinId) {
@@ -3288,20 +3288,25 @@ async function doTrade(req, res, side, authWallet = null) {
         coin.vSol          = solReservePost + VIRTUAL_SOL;
         coin.vTokens       = calcVirtualTokens(totalSupply, curveSupply, coin.vTokens);
 
+        coin.holders = asObj(coin.holders, {});
         if (sideLower === "buy") {
           const tokensOut = Math.max(0, tokenSoldPost - tokenSoldPre);
+          coin.holders[wallet] = Math.max(0, safeNum(coin.holders[wallet], 0)) + tokensOut;
           const { fee }   = applyFee(sol);
           tradeResult = { ok: true, tokensOut, feeSol: fee, netSol: sol - fee };
         } else {
           const solOutGross = Math.max(0, solReservePre - solReservePost);
           const { fee }     = applyFee(solOutGross);
           const solOutNet   = Math.max(0, solOutGross - fee);
+          const tokensIn    = Math.abs(tokenSoldPre - tokenSoldPost);
+          coin.holders[wallet] = Math.max(0, safeNum(coin.holders[wallet], 0) - tokensIn);
+          if ((coin.holders[wallet] || 0) <= 0.0000001) delete coin.holders[wallet];
           tradeResult = {
             ok: true,
             solOutNet,
             solOutGross,
             feeSol: fee,
-            tokensIn: Math.abs(tokenSoldPre - tokenSoldPost),
+            tokensIn,
           };
           await increaseRun(wallet, solOutNet, _tx);
         }
