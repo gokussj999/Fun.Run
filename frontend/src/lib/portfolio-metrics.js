@@ -1,4 +1,4 @@
-import { fmtNum, getCoin24hMovePct, safeNum } from "./coin-display.js";
+import { fmtNum, fmtUsd, getCoin24hMovePct, safeNum } from "./coin-display.js";
 
 export function getCoinPriceUsd(c) {
   const direct = safeNum(c?.priceUsd, 0);
