@@ -2736,6 +2736,16 @@ const walletHistory = [
 
               <div style={{ height: 10 }} />
 
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                <span style={{ fontSize: 12, color: "var(--muted)" }}>Amount</span>
+                <span style={{ fontSize: 12, color: "var(--muted)" }}>
+                  Available:{" "}
+                  <span style={{ color: "var(--accent)", fontWeight: 600 }}>
+                    {safeNum(profile?.runBalance, 0).toFixed(4)} SOL
+                  </span>
+                </span>
+              </div>
+
               <Input
                 value={withdrawAmt}
                 onChange={(e) => setWithdrawAmt(e.target.value)}
