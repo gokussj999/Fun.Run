@@ -2720,7 +2720,17 @@ const walletHistory = [
       {withdrawOpen && (
         <Modal>
           <ModalHead
-            title="Withdraw SOL"
+            title={
+              <span>
+                Withdraw SOL
+                <span style={{ fontSize: 12, fontWeight: 400, color: "var(--muted)", marginLeft: 10 }}>
+                  Available:{" "}
+                  <span style={{ color: "var(--accent)", fontWeight: 600 }}>
+                    {safeNum(profile?.runBalance, 0).toFixed(4)} SOL
+                  </span>
+                </span>
+              </span>
+            }
             right={
               <MiniBtn onClick={() => { withdrawKeyRef.current = null; setWithdrawOpen(false); }}>
                 Close
@@ -2735,16 +2745,6 @@ const walletHistory = [
               />
 
               <div style={{ height: 10 }} />
-
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                <span style={{ fontSize: 12, color: "var(--muted)" }}>Amount</span>
-                <span style={{ fontSize: 12, color: "var(--muted)" }}>
-                  Available:{" "}
-                  <span style={{ color: "var(--accent)", fontWeight: 600 }}>
-                    {safeNum(profile?.runBalance, 0).toFixed(4)} SOL
-                  </span>
-                </span>
-              </div>
 
               <Input
                 value={withdrawAmt}
