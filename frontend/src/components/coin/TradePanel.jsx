@@ -174,10 +174,6 @@ export function TradePanel({
           <span>Rate</span>
           <span>1 {symbol} ≈ {fmtSol(tradePreview.priceSol || coin?.priceSol || 0)} SOL</span>
         </div>
-        <div className="tp-meta-row">
-          <span>Fee</span>
-          <span>{fmtSol(tradePreview.feeSol || 0)} SOL (1%)</span>
-        </div>
         <div className="tp-meta-row tp-meta-row--total">
           <span>Total</span>
           <span>

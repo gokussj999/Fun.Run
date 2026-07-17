@@ -365,10 +365,10 @@ export function ProfilePage({
 
                 <div className="profileClaimStack">
                   <MiniBtn className="profileMetricClaim" tone="success" onClick={onClaimCreator}>
-                    Claim Creator
+                    Claim Creator Rewards
                   </MiniBtn>
                   <MiniBtn className="profileMetricClaim" tone="success" onClick={onClaimReferral}>
-                    Claim Affiliate
+                    Claim Affiliate Rewards
                   </MiniBtn>
                 </div>
               </div>

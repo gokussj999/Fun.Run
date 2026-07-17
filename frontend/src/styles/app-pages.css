@@ -229,10 +229,9 @@
 
 .profileTopBar {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
+  flex-direction: column;
+  align-items: stretch;
   gap: 10px;
-  flex-wrap: nowrap;
   margin-bottom: 14px;
   min-width: 0;
 }
@@ -240,25 +239,19 @@
 .profileTopBar .fr-backBtn,
 .profileTopBar > button {
   flex: 0 0 auto;
+  align-self: flex-start;
 }
 
 .profileTopActions {
   display: flex;
   align-items: center;
   gap: 8px;
-  flex-wrap: nowrap;
-  justify-content: flex-end;
-  flex: 1;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  width: 100%;
   min-width: 0;
-  overflow-x: auto;
-  overflow-y: hidden;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: none;
-  padding-bottom: 2px;
-}
-
-.profileTopActions::-webkit-scrollbar {
-  display: none;
+  padding: 0;
+  overflow: visible;
 }
 
 .profileTopActions > * {
@@ -760,10 +753,10 @@
 }
 
 .profileEarningsBlock {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(112px, 132px);
+  display: flex;
+  flex-direction: column;
   gap: 10px;
-  align-items: stretch;
+  min-width: 0;
 }
 
 .profileMetricGrid {
@@ -774,37 +767,21 @@
 }
 
 .profileClaimStack {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: 1fr;
   gap: 8px;
   min-width: 0;
 }
 
 .profileClaimStack .profileMetricClaim {
-  flex: 1;
   width: 100%;
-  min-height: 48px;
+  min-height: 44px;
   display: flex !important;
   align-items: center;
   justify-content: center;
   text-align: center;
   line-height: 1.25;
   white-space: normal;
-}
-
-@media (min-width: 720px) {
-  .profileEarningsBlock {
-    grid-template-columns: minmax(0, 1fr) 148px;
-    gap: 12px;
-  }
-
-  .profileMetricGrid {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
-
-  .profileClaimStack .profileMetricClaim {
-    min-height: 0;
-  }
 }
 
 .profileMetricCard {
@@ -1345,15 +1322,11 @@
   .profilePageRoot .profileTopBar {
     margin-bottom: 10px;
     gap: 8px;
-    align-items: flex-start;
-    flex-wrap: wrap;
   }
 
   .profilePageRoot .profileTopActions {
     gap: 6px;
-    flex: 1 1 100%;
-    justify-content: flex-start;
-    overflow-x: visible;
+    overflow: visible;
     flex-wrap: wrap;
     mask-image: none;
     -webkit-mask-image: none;
@@ -1488,9 +1461,10 @@
     font-size: 11px;
   }
 
-  /* Earnings: 2×2 cards + claim buttons stacked on the right */
+  /* Earnings: mobile-first 2×2 cards, claims stacked below */
   .profileEarningsBlock {
-    grid-template-columns: minmax(0, 1fr) minmax(104px, 120px);
+    display: flex;
+    flex-direction: column;
     gap: 8px;
   }
 
@@ -1504,7 +1478,7 @@
   .profileMetricCard {
     width: auto;
     flex: none;
-    padding: 10px;
+    padding: 12px;
     gap: 8px;
     border-radius: 12px;
   }
@@ -1539,9 +1513,9 @@
   }
 
   .profileClaimStack .profileMetricClaim {
-    min-height: 0;
-    padding: 10px 8px !important;
-    font-size: 10px !important;
+    min-height: 42px;
+    padding: 10px 12px !important;
+    font-size: 11px !important;
     border-radius: 10px !important;
   }
 

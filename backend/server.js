@@ -109,11 +109,14 @@ const CORS_ORIGINS = (process.env.CORS_ORIGINS || "http://localhost:5173")
 
 // Strict localhost / loopback pattern — http://localhost:PORT or http://127.0.0.1:PORT
 const _localhostRe = /^http:\/\/(localhost|127\.0\.0\.1):\d{1,5}$/;
+// Fun.Run Vercel production + preview URLs (e.g. fun-run-lovat.vercel.app, fun-xxx-funrun.vercel.app)
+const _vercelFunRunRe = /^https:\/\/[a-z0-9-]*(fun-?run)[a-z0-9-]*\.vercel\.app$/i;
 
 function isAllowedOrigin(origin) {
   if (!origin) return true; // non-browser requests (curl, server-to-server)
   if (CORS_ORIGINS.includes(origin)) return true;
-  // In dev, allow any localhost/loopback port; in production ONLY CORS_ORIGINS is authoritative
+  if (_vercelFunRunRe.test(origin)) return true;
+  // In dev, allow any localhost/loopback port; in production ONLY list + Fun.Run Vercel
   if (process.env.NODE_ENV !== "production" && _localhostRe.test(origin)) return true;
   return false;
 }

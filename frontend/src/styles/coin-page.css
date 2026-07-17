@@ -1711,19 +1711,21 @@
 /* Meta info rows */
 
 .tp-meta {
-  padding-top: 12px;
+  padding: 12px 4px 2px;
   border-top: 1px solid rgba(148, 163, 184, 0.08);
   display: flex;
   flex-direction: column;
-  gap: 7px;
+  gap: 8px;
   margin-top: 4px;
 }
 
 .tp-meta-row {
   display: flex;
   justify-content: space-between;
-  gap: 8px;
+  align-items: center;
+  gap: 12px;
   font-size: 12px;
+  padding: 0 2px;
 }
 
 .tp-meta-row span:first-child {
