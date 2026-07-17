@@ -318,53 +318,58 @@ export function ProfilePage({
                 </div>
               </div>
 
-              <div className="profileMetricGrid">
-                <div className="profileMetricCard">
-                  <div className="profileMetricCardTop">
-                    <div className="profileMetricIcon profileMetricIcon--good">📈</div>
-                    <div className="profileMetricBody">
-                      <div className="profileMetricLabel">Total Earned</div>
-                      <div className="profileMetricValue">{totalEarnedUsd}</div>
+              <div className="profileEarningsBlock">
+                <div className="profileMetricGrid">
+                  <div className="profileMetricCard">
+                    <div className="profileMetricCardTop">
+                      <div className="profileMetricIcon profileMetricIcon--good">📈</div>
+                      <div className="profileMetricBody">
+                        <div className="profileMetricLabel">Total Earned</div>
+                        <div className="profileMetricValue">{totalEarnedUsd}</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="profileMetricCard">
+                    <div className="profileMetricCardTop">
+                      <div className="profileMetricIcon profileMetricIcon--accent">👤</div>
+                      <div className="profileMetricBody">
+                        <div className="profileMetricLabel">Creator Earnings</div>
+                        <div className="profileMetricValue">{creatorEarnUsd}</div>
+                        <div className="profileMetricSub profileMetricSub--good">{fmtSol(creatorRewardsSol)} SOL</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="profileMetricCard">
+                    <div className="profileMetricCardTop">
+                      <div className="profileMetricIcon profileMetricIcon--good">👥</div>
+                      <div className="profileMetricBody">
+                        <div className="profileMetricLabel">Affiliate Earnings</div>
+                        <div className="profileMetricValue">{affiliateEarnUsd}</div>
+                        <div className="profileMetricSub profileMetricSub--good">{fmtSol(referralRewardsSol)} SOL</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="profileMetricCard">
+                    <div className="profileMetricCardTop">
+                      <div className="profileMetricIcon profileMetricIcon--accent">🔗</div>
+                      <div className="profileMetricBody">
+                        <div className="profileMetricLabel">Total Referrals</div>
+                        <div className="profileMetricValue">{referralCount}</div>
+                      </div>
                     </div>
                   </div>
                 </div>
 
-                <div className="profileMetricCard profileMetricCard--claimable">
-                  <div className="profileMetricCardTop">
-                    <div className="profileMetricIcon profileMetricIcon--accent">👤</div>
-                    <div className="profileMetricBody">
-                      <div className="profileMetricLabel">Creator Earnings</div>
-                      <div className="profileMetricValue">{creatorEarnUsd}</div>
-                      <div className="profileMetricSub profileMetricSub--good">{fmtSol(creatorRewardsSol)} SOL</div>
-                    </div>
-                  </div>
-                  <MiniBtn className="profileMetricClaim" onClick={onClaimCreator}>
-                    Claim Creator Rewards
+                <div className="profileClaimStack">
+                  <MiniBtn className="profileMetricClaim" tone="success" onClick={onClaimCreator}>
+                    Claim Creator
                   </MiniBtn>
-                </div>
-
-                <div className="profileMetricCard profileMetricCard--claimable">
-                  <div className="profileMetricCardTop">
-                    <div className="profileMetricIcon profileMetricIcon--good">👥</div>
-                    <div className="profileMetricBody">
-                      <div className="profileMetricLabel">Affiliate Earnings</div>
-                      <div className="profileMetricValue">{affiliateEarnUsd}</div>
-                      <div className="profileMetricSub profileMetricSub--good">{fmtSol(referralRewardsSol)} SOL</div>
-                    </div>
-                  </div>
-                  <MiniBtn className="profileMetricClaim" onClick={onClaimReferral}>
-                    Claim Affiliate Rewards
+                  <MiniBtn className="profileMetricClaim" tone="success" onClick={onClaimReferral}>
+                    Claim Affiliate
                   </MiniBtn>
-                </div>
-
-                <div className="profileMetricCard">
-                  <div className="profileMetricCardTop">
-                    <div className="profileMetricIcon profileMetricIcon--accent">🔗</div>
-                    <div className="profileMetricBody">
-                      <div className="profileMetricLabel">Total Referrals</div>
-                      <div className="profileMetricValue">{referralCount}</div>
-                    </div>
-                  </div>
                 </div>
               </div>
 

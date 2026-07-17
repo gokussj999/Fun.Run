@@ -759,15 +759,51 @@
   font-variant-numeric: tabular-nums;
 }
 
+.profileEarningsBlock {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(112px, 132px);
+  gap: 10px;
+  align-items: stretch;
+}
+
 .profileMetricGrid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
+  min-width: 0;
+}
+
+.profileClaimStack {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.profileClaimStack .profileMetricClaim {
+  flex: 1;
+  width: 100%;
+  min-height: 48px;
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  line-height: 1.25;
+  white-space: normal;
 }
 
 @media (min-width: 720px) {
+  .profileEarningsBlock {
+    grid-template-columns: minmax(0, 1fr) 148px;
+    gap: 12px;
+  }
+
   .profileMetricGrid {
     grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .profileClaimStack .profileMetricClaim {
+    min-height: 0;
   }
 }
 
@@ -780,10 +816,7 @@
   border-radius: 14px;
   background: var(--bg2);
   border: 1px solid var(--border);
-}
-
-.profileMetricCard--claimable {
-  justify-content: flex-start;
+  min-width: 0;
 }
 
 .profileMetricCardTop {
@@ -791,14 +824,6 @@
   align-items: center;
   gap: 12px;
   min-width: 0;
-}
-
-.profileMetricCard--claimable .profileMetricCardTop {
-  align-items: flex-start;
-}
-
-.profileMetricCard--claimable .profileMetricBody {
-  padding-right: 0;
 }
 
 .profileMetricIcon {
@@ -862,10 +887,10 @@
   padding: 9px 12px !important;
   font-size: 11px !important;
   border-radius: 10px !important;
-  background: var(--primary) !important;
-  color: var(--btnText) !important;
-  border: 1px solid var(--primary) !important;
-  box-shadow: none !important;
+  background: var(--fr-buy, var(--good)) !important;
+  color: var(--fr-buy-text, #03180f) !important;
+  border: 1px solid var(--fr-buy, var(--good)) !important;
+  box-shadow: 0 6px 16px rgba(14, 203, 129, 0.18) !important;
 }
 
 .profileActivitySection {
@@ -1296,10 +1321,6 @@
   .profileWalletBtn {
     width: 100% !important;
   }
-
-  .profileMetricCard--claimable {
-    gap: 10px;
-  }
 }
 
 /* ── Profile — compact exchange-style mobile layout ── */
@@ -1324,13 +1345,18 @@
   .profilePageRoot .profileTopBar {
     margin-bottom: 10px;
     gap: 8px;
-    align-items: center;
+    align-items: flex-start;
+    flex-wrap: wrap;
   }
 
   .profilePageRoot .profileTopActions {
     gap: 6px;
-    mask-image: linear-gradient(90deg, #000 78%, transparent);
-    -webkit-mask-image: linear-gradient(90deg, #000 78%, transparent);
+    flex: 1 1 100%;
+    justify-content: flex-start;
+    overflow-x: visible;
+    flex-wrap: wrap;
+    mask-image: none;
+    -webkit-mask-image: none;
   }
 
   .profilePageRoot .profileAffiliatePill {
@@ -1462,38 +1488,36 @@
     font-size: 11px;
   }
 
-  /* Earnings metric strip — one beautiful row, swipe on mobile */
-  .profileMetricGrid {
-    display: flex;
-    flex-wrap: nowrap;
+  /* Earnings: 2×2 cards + claim buttons stacked on the right */
+  .profileEarningsBlock {
+    grid-template-columns: minmax(0, 1fr) minmax(104px, 120px);
     gap: 8px;
-    overflow-x: auto;
-    overflow-y: hidden;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
-    padding-bottom: 2px;
-    scroll-snap-type: x proximity;
   }
 
-  .profileMetricGrid::-webkit-scrollbar {
-    display: none;
+  .profileMetricGrid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    overflow: visible;
   }
 
   .profileMetricCard {
-    flex: 0 0 min(72vw, 210px);
-    width: min(72vw, 210px);
-    min-height: 0;
-    padding: 12px;
-    gap: 10px;
+    width: auto;
+    flex: none;
+    padding: 10px;
+    gap: 8px;
     border-radius: 12px;
-    scroll-snap-align: start;
+  }
+
+  .profileMetricCardTop {
+    gap: 8px;
   }
 
   .profileMetricIcon {
-    width: 30px;
-    height: 30px;
-    font-size: 14px;
-    border-radius: 9px;
+    width: 28px;
+    height: 28px;
+    font-size: 13px;
+    border-radius: 8px;
   }
 
   .profileMetricLabel {
@@ -1501,8 +1525,8 @@
   }
 
   .profileMetricValue {
-    margin-top: 4px;
-    font-size: 15px;
+    margin-top: 3px;
+    font-size: 14px;
   }
 
   .profileMetricSub {
@@ -1510,10 +1534,15 @@
     font-size: 10px;
   }
 
-  .profileMetricClaim {
-    padding: 8px 10px !important;
+  .profileClaimStack {
+    gap: 6px;
+  }
+
+  .profileClaimStack .profileMetricClaim {
+    min-height: 0;
+    padding: 10px 8px !important;
     font-size: 10px !important;
-    white-space: nowrap;
+    border-radius: 10px !important;
   }
 
   /* Recent activity list */
