@@ -232,17 +232,37 @@
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   margin-bottom: 14px;
+  min-width: 0;
+}
+
+.profileTopBar .fr-backBtn,
+.profileTopBar > button {
+  flex: 0 0 auto;
 }
 
 .profileTopActions {
   display: flex;
   align-items: center;
   gap: 8px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   justify-content: flex-end;
   flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  padding-bottom: 2px;
+}
+
+.profileTopActions::-webkit-scrollbar {
+  display: none;
+}
+
+.profileTopActions > * {
+  flex: 0 0 auto;
 }
 
 .profileAffiliatePill {
@@ -743,6 +763,12 @@
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
+}
+
+@media (min-width: 720px) {
+  .profileMetricGrid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
 }
 
 .profileMetricCard {
@@ -1252,10 +1278,6 @@
   .profileWalletArt {
     display: flex;
   }
-
-  .profileMetricGrid {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
 }
 
 @media (max-width: 640px) {
@@ -1302,10 +1324,13 @@
   .profilePageRoot .profileTopBar {
     margin-bottom: 10px;
     gap: 8px;
+    align-items: center;
   }
 
   .profilePageRoot .profileTopActions {
     gap: 6px;
+    mask-image: linear-gradient(90deg, #000 78%, transparent);
+    -webkit-mask-image: linear-gradient(90deg, #000 78%, transparent);
   }
 
   .profilePageRoot .profileAffiliatePill {
@@ -1437,16 +1462,31 @@
     font-size: 11px;
   }
 
-  /* Earnings metric grid */
+  /* Earnings metric strip — one beautiful row, swipe on mobile */
   .profileMetricGrid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    display: flex;
+    flex-wrap: nowrap;
     gap: 8px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding-bottom: 2px;
+    scroll-snap-type: x proximity;
+  }
+
+  .profileMetricGrid::-webkit-scrollbar {
+    display: none;
   }
 
   .profileMetricCard {
-    padding: 10px;
-    gap: 8px;
+    flex: 0 0 min(72vw, 210px);
+    width: min(72vw, 210px);
+    min-height: 0;
+    padding: 12px;
+    gap: 10px;
     border-radius: 12px;
+    scroll-snap-align: start;
   }
 
   .profileMetricIcon {
@@ -1473,6 +1513,7 @@
   .profileMetricClaim {
     padding: 8px 10px !important;
     font-size: 10px !important;
+    white-space: nowrap;
   }
 
   /* Recent activity list */

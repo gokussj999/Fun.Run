@@ -107,13 +107,13 @@ const CORS_ORIGINS = (process.env.CORS_ORIGINS || "http://localhost:5173")
   .filter(Boolean);
   console.log("CORS_ORIGINS:", CORS_ORIGINS);
 
-// Strict localhost pattern — only http://localhost:PORT (no subdomain tricks)
-const _localhostRe = /^http:\/\/localhost:\d{1,5}$/;
+// Strict localhost / loopback pattern — http://localhost:PORT or http://127.0.0.1:PORT
+const _localhostRe = /^http:\/\/(localhost|127\.0\.0\.1):\d{1,5}$/;
 
 function isAllowedOrigin(origin) {
   if (!origin) return true; // non-browser requests (curl, server-to-server)
   if (CORS_ORIGINS.includes(origin)) return true;
-  // In dev, allow any localhost port; in production ONLY CORS_ORIGINS is authoritative
+  // In dev, allow any localhost/loopback port; in production ONLY CORS_ORIGINS is authoritative
   if (process.env.NODE_ENV !== "production" && _localhostRe.test(origin)) return true;
   return false;
 }

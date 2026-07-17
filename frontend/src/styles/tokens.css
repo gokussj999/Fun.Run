@@ -1,62 +1,79 @@
 /**
- * FUN.RUN exchange-style design tokens
+ * FUN.RUN — Binance Pro dark trading tokens
+ * Green = buy / up / profit
+ * Red   = sell / down / loss
+ * Gold  = brand accent / CTAs
  */
 
 @theme {
   --color-fr-bg: #0b0e11;
-  --color-fr-bg-secondary: #14151a;
-  --color-fr-card: #1b1f24;
+  --color-fr-bg-secondary: #12161c;
+  --color-fr-card: #1e2329;
   --color-fr-border: #2b3139;
   --color-fr-primary: #fcd535;
-  --color-fr-primary-hover: #e5c030;
+  --color-fr-primary-hover: #f0b90b;
   --color-fr-secondary: #f0b90b;
   --color-fr-accent: #fcd535;
   --color-fr-success: #0ecb81;
   --color-fr-danger: #f6465d;
   --color-fr-warning: #f0b90b;
-  --color-fr-info: #3b82f6;
-  --color-fr-text: #ffffff;
+  --color-fr-info: #1e90ff;
+  --color-fr-text: #eaecef;
   --color-fr-text-secondary: #b7bdc6;
   --color-fr-text-muted: #848e9c;
 
-  --font-sans: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
-    Arial, sans-serif;
+  --font-sans: "IBM Plex Sans", Inter, ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", Roboto, Arial, sans-serif;
 }
 
 :root {
-  --fr-bg: #070a0f;
-  --fr-bg-secondary: rgba(17, 23, 34, 0.82);
-  --fr-card: rgba(20, 25, 36, 0.78);
-  --fr-card-solid: #121722;
-  --fr-surface: rgba(255, 255, 255, 0.045);
-  --fr-surface-strong: rgba(255, 255, 255, 0.075);
-  --fr-border: rgba(148, 163, 184, 0.16);
+  /* Solid exchange surfaces — denser than glass */
+  --fr-bg: #0b0e11;
+  --fr-bg-secondary: #12161c;
+  --fr-card: #1e2329;
+  --fr-card-solid: #1e2329;
+  --fr-surface: #181a20;
+  --fr-surface-strong: #2b3139;
+  --fr-border: #2b3139;
+  --fr-border-soft: #1e2329;
+
   --fr-primary: #fcd535;
-  --fr-primary-hover: #e5c030;
+  --fr-primary-hover: #f0b90b;
   --fr-secondary: #f0b90b;
   --fr-accent: #fcd535;
   --fr-success: #0ecb81;
   --fr-danger: #f6465d;
   --fr-warning: #f0b90b;
-  --fr-info: #3b82f6;
-  --fr-text: #ffffff;
+  --fr-info: #1e90ff;
+  --fr-text: #eaecef;
   --fr-text-secondary: #b7bdc6;
   --fr-text-muted: #848e9c;
 
-  --fr-glow: rgba(252, 213, 53, 0.16);
-  --fr-accent-muted: rgba(252, 213, 53, 0.12);
+  /* Semantic trading fills */
+  --fr-buy: #0ecb81;
+  --fr-buy-hover: #0bb875;
+  --fr-buy-soft: rgba(14, 203, 129, 0.12);
+  --fr-buy-border: rgba(14, 203, 129, 0.32);
+  --fr-buy-text: #03180f;
+  --fr-sell: #f6465d;
+  --fr-sell-hover: #e03a50;
+  --fr-sell-soft: rgba(246, 70, 93, 0.12);
+  --fr-sell-border: rgba(246, 70, 93, 0.32);
+  --fr-sell-text: #ffffff;
+
+  --fr-glow: rgba(252, 213, 53, 0.14);
+  --fr-accent-muted: rgba(252, 213, 53, 0.1);
   --fr-accent-border: rgba(252, 213, 53, 0.28);
   --fr-surface-hover: rgba(255, 255, 255, 0.04);
-  --fr-focus-ring: rgba(252, 213, 53, 0.22);
-  --fr-radius-sm: 12px;
-  --fr-radius-md: 16px;
-  --fr-radius-lg: 20px;
-  --fr-radius-xl: 24px;
-  --fr-shadow-card: 0 18px 54px rgba(0, 0, 0, 0.34);
-  --fr-shadow-card-hover: 0 24px 72px rgba(0, 0, 0, 0.44);
-  --fr-shadow-glow: 0 0 0 1px rgba(255, 255, 255, 0.035) inset,
-    0 0 60px rgba(252, 213, 53, 0.045);
-  --fr-glass-blur: blur(18px) saturate(150%);
+  --fr-focus-ring: rgba(252, 213, 53, 0.28);
+  --fr-radius-sm: 8px;
+  --fr-radius-md: 12px;
+  --fr-radius-lg: 16px;
+  --fr-radius-xl: 20px;
+  --fr-shadow-card: 0 4px 24px rgba(0, 0, 0, 0.36);
+  --fr-shadow-card-hover: 0 8px 32px rgba(0, 0, 0, 0.45);
+  --fr-shadow-glow: 0 0 0 1px rgba(255, 255, 255, 0.03) inset;
+  --fr-glass-blur: blur(16px) saturate(140%);
 
   /* App aliases */
   --bg: var(--fr-bg);
@@ -76,13 +93,13 @@
   --muted: var(--fr-text-muted);
   --muted2: var(--fr-text-secondary);
   --border: var(--fr-border);
-  --borderSoft: rgba(148, 163, 184, 0.11);
+  --borderSoft: #1a1d24;
   --btnText: #0b0e11;
-  --inputBorder: rgba(148, 163, 184, 0.18);
-  --inputBg: rgba(3, 7, 18, 0.38);
-  --topbarBg: rgba(9, 13, 21, 0.74);
-  --navBg: rgba(9, 13, 21, 0.78);
+  --inputBorder: #2b3139;
+  --inputBg: #0f1218;
+  --topbarBg: rgba(11, 14, 17, 0.92);
+  --navBg: rgba(11, 14, 17, 0.94);
   --shadow1: var(--fr-shadow-card);
   --shadow2: var(--fr-shadow-card-hover);
-  --shine: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  --shine: inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }

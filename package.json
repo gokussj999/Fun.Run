@@ -4,7 +4,7 @@
   "type": "module",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node --env-file=backend/.env backend/server.js"
   },
   "dependencies": {
     "@solana/web3.js": "^1.98.4",

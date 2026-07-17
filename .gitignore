@@ -25,3 +25,5 @@ backend/new-treasury.json
 platform/scripts/.e2e-browser-profile/
 platform/scripts/.e2e-cookies.json
 platform/scripts/scripts/.e2e-browser-profile/
+.vercel
+.env*

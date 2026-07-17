@@ -114,7 +114,7 @@ const PROFILE_PRESET_LOGOS = [
   "https://api.dicebear.com/7.x/glass/svg?seed=run",
 ];
 
-function ThemeStyles() {
+const ThemeStyles = React.memo(function ThemeStyles() {
   return (
     <style>{`
     :root{
@@ -762,7 +762,7 @@ body {
       }
     `}</style>
   );
-}
+});
 
 function SectionHeader({ title, sub, right }) {
   return (
@@ -1160,12 +1160,14 @@ const [solPriceUsd, setSolPriceUsd] = useState(80);
 const [unlockNow, setUnlockNow] = useState(Date.now());
 
 useEffect(() => {
+  // Only tick countdown on screens that show unlock timer — avoids full-app blink.
+  if (screen !== "PROFILE" && screen !== "CREATOR") return undefined;
   const timer = setInterval(() => {
     setUnlockNow(Date.now());
   }, 1000);
 
   return () => clearInterval(timer);
-}, []);
+}, [screen]);
 
 useEffect(() => {
   let cancelled = false;
@@ -1266,14 +1268,21 @@ const [connectingPhantom, setConnectingPhantom] = useState(false);
       let ws;
       let reconnectTimer;
 
+      let attempt = 0;
+      let stopped = false;
+
       function connect() {
+        if (stopped) return;
         const wsBase = API_BASE
           ? API_BASE.replace("https://", "wss://").replace("http://", "ws://")
           : `${window.location.protocol === "https:" ? "wss" : "ws"}://${window.location.host}`;
         ws = new WebSocket(wsBase);
         wsRef.current = ws;
 
-        ws.onopen = () => setWsConnected(true);
+        ws.onopen = () => {
+          attempt = 0;
+          setWsConnected(true);
+        };
 
         ws.onmessage = (event) => {
           try {
@@ -1329,17 +1338,20 @@ const [connectingPhantom, setConnectingPhantom] = useState(false);
 
         ws.onclose = () => {
           setWsConnected(false);
-          reconnectTimer = setTimeout(connect, 3000);
+          if (stopped) return;
+          attempt += 1;
+          const delay = Math.min(15000, 2000 * attempt);
+          reconnectTimer = setTimeout(connect, delay);
         };
 
         ws.onerror = () => {
           setWsConnected(false);
-          ws.close();
         };
       }
 
       connect();
       return () => {
+        stopped = true;
         clearTimeout(reconnectTimer);
         if (ws) ws.close();
       };
@@ -1484,7 +1496,10 @@ const [connectingPhantom, setConnectingPhantom] = useState(false);
 
   async function loadCoins(page = 0, append = false) {
     try {
-      setLoadingCoins(true);
+      // Keep existing list visible — only skeleton when we have nothing yet.
+      if (!append && (!coins || coins.length === 0)) {
+        setLoadingCoins(true);
+      }
 
       const cacheKey = `coins_page_${page}`;
       const cacheTTL = 2500;
@@ -1619,12 +1634,35 @@ const [connectingPhantom, setConnectingPhantom] = useState(false);
 
     try {
       setLoadingProfile(true);
-      const token = await getToken().catch(() => null);
-      if (!token) return;
-      const authHdr = { Authorization: `Bearer ${token}` };
-      const json = USE_PLATFORM
-        ? await platformApi.fetchProfile(wallet, token)
-        : await api(`/profile/${wallet}`, { headers: authHdr });
+      let token = await getToken().catch(() => null);
+      if (!token) {
+        showToast("Session expired — please reload");
+        return;
+      }
+
+      const fetchOnce = async (authToken) =>
+        USE_PLATFORM
+          ? platformApi.fetchProfile(wallet, authToken)
+          : api(`/profile/${wallet}`, {
+              headers: { Authorization: `Bearer ${authToken}` },
+            });
+
+      let json;
+      try {
+        json = await fetchOnce(token);
+      } catch (firstErr) {
+        const msg = String(firstErr?.message || "");
+        // Local Privy session sometimes needs a fresh access token after hard refresh.
+        if (/invalid token|unauthorized|401|Authentication failed/i.test(msg)) {
+          await new Promise((r) => setTimeout(r, 700));
+          token = await getToken().catch(() => null);
+          if (!token) throw firstErr;
+          json = await fetchOnce(token);
+        } else {
+          throw firstErr;
+        }
+      }
+
       setProfile(json?.profile || null);
 
       // Inject user's token balances into coin holders map so sell validation works

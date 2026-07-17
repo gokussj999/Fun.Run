@@ -8,15 +8,16 @@ const MINI_TONES = {
     boxShadow: "inset 0 1px 0 rgba(255,255,255,.08)",
   },
   success: {
-    background: "linear-gradient(180deg, color-mix(in srgb, var(--good) 94%, #fff 6%), var(--good))",
-    border: "1px solid var(--good)",
-    color: "var(--btnText)",
-    boxShadow: "0 10px 24px rgba(14,203,129,.16)",
+    background: "var(--fr-buy, #0ecb81)",
+    border: "1px solid var(--fr-buy, #0ecb81)",
+    color: "var(--fr-buy-text, #03180f)",
+    boxShadow: "0 8px 20px rgba(14,203,129,.2)",
   },
   danger: {
-    background: "rgba(246, 70, 93, 0.12)",
-    border: "1px solid rgba(246, 70, 93, 0.28)",
-    color: "#F6465D",
+    background: "var(--fr-sell, #f6465d)",
+    border: "1px solid var(--fr-sell, #f6465d)",
+    color: "#fff",
+    boxShadow: "0 8px 20px rgba(246,70,93,.2)",
   },
   default: {
     background: "var(--surface2)",

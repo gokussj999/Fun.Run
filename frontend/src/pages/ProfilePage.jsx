@@ -215,11 +215,13 @@ export function ProfilePage({
 
                   <div className="profileWalletAddrField">
                     <span className="profileWalletAddrText">
-                      {!profile
+                      {loadingProfile && !depositAddress
                         ? "Loading..."
                         : depositAddress
                           ? shortWallet?.(depositAddress) || depositAddress
-                          : "Generating wallet..."}
+                          : profile
+                            ? "Generating wallet..."
+                            : shortWallet?.(solAddr) || solAddr || "Wallet unavailable"}
                     </span>
                   </div>
 
