@@ -287,9 +287,10 @@ export function PortfolioPage({
                   <ProfileCoinRow
                     key={row.key}
                     coin={row.coin}
-                    secondary={`${fmtNum(row.amount, 0)} tokens • ${row.allocationPct.toFixed(1)}% of holdings`}
+                    secondary={`${fmtNum(row.amount, 0)} tokens • ${row.allocationPct.toFixed(1)}%`}
                     rightMain={fmtUsd(row.valueUsd)}
-                    rightSub={row.hasPnlBasis ? `P&L ${formatSignedUsd(row.pnlUsd)}` : "P&L —"}
+                    rightSub={row.hasPnlBasis ? `P&L ${formatSignedUsd(row.pnlUsd)}` : null}
+                    rightSubTone={row.hasPnlBasis ? (row.pnlUsd >= 0 ? "up" : "down") : ""}
                     onClick={() => onOpenCoin?.(row.coin)}
                   />
               ))}
