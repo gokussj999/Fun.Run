@@ -124,7 +124,14 @@
 }
 
 .coinMobilePanel--overview {
-  padding-bottom: calc(72px + env(safe-area-inset-bottom));
+  /* nav (~88px from bottom) + trade bar (~64px tall) + 8px gap */
+  padding-bottom: calc(160px + env(safe-area-inset-bottom));
+}
+
+.coinMobilePanel--trade,
+.coinMobilePanel--market {
+  /* clear the fixed bottom nav bar */
+  padding-bottom: calc(96px + env(safe-area-inset-bottom));
 }
 
 /* Sticky bottom quick-trade bar (mobile) */
@@ -133,7 +140,7 @@
   position: fixed;
   left: 50%;
   transform: translateX(-50%);
-  bottom: calc(76px + env(safe-area-inset-bottom));
+  bottom: calc(88px + env(safe-area-inset-bottom));
   z-index: 85;
   width: calc(100% - 24px);
   max-width: 520px;
@@ -2202,6 +2209,29 @@
   .coinMobileTabs,
   .coinMobileTradeBar {
     display: none;
+  }
+}
+
+@media (max-width: 380px) {
+  .tp-input,
+  .tp-receive-value {
+    font-size: 18px;
+  }
+
+  .tp-token {
+    padding: 6px 8px 6px 7px;
+    font-size: 12px;
+    gap: 5px;
+  }
+
+  .coinHeaderName,
+  .coinHeader--mobile .coinHeaderName {
+    font-size: 17px;
+  }
+
+  .coinMobileTradeBarBtn {
+    font-size: 13px;
+    padding: 12px 8px;
   }
 }
 
