@@ -49,8 +49,9 @@
   padding: 14px;
   border-radius: 12px;
   border: 1px solid var(--border);
-  background: var(--fr-surface, #181a20);
+  background: var(--surface2, var(--bg2));
   min-width: 0;
+  color: var(--text);
 }
 
 .creatorBalanceTileLabel {
@@ -336,4 +337,46 @@
   .creatorBalanceGrid {
     grid-template-columns: 1fr;
   }
+}
+
+.creatorPublicHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.creatorPublicHead > div {
+  margin-bottom: 0;
+}
+
+.creatorPublicWallet {
+  margin-top: 6px;
+  font-size: 12px;
+}
+
+.creatorFollowBtn {
+  flex-shrink: 0;
+  border: none;
+  border-radius: 999px;
+  padding: 10px 16px;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  background: var(--fr-buy, var(--good, #0a9b68));
+  color: #fff;
+  box-shadow: 0 6px 14px rgba(10, 155, 104, 0.22);
+}
+
+.creatorFollowBtn--on {
+  background: var(--surface2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  box-shadow: none;
+}
+
+.creatorFollowBtn:disabled {
+  opacity: 0.7;
+  cursor: wait;
 }

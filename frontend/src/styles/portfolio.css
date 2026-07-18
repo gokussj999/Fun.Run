@@ -54,15 +54,15 @@
   padding: 16px;
   border-radius: 12px;
   border: 1px solid var(--border);
-  background: var(--fr-surface, #181a20);
+  background: var(--surface2, var(--bg2));
   box-shadow: none;
   transition: border-color 0.16s ease, background 0.16s ease;
 }
 
 .portfolioBalanceTile:hover {
   transform: none;
-  border-color: #3a4149;
-  background: #1a1d24;
+  border-color: var(--border);
+  background: var(--inputBg, var(--bg2));
   box-shadow: none;
 }
 
@@ -80,6 +80,7 @@
   font-weight: 1000;
   font-variant-numeric: tabular-nums;
   line-height: 1.2;
+  color: var(--text);
 }
 
 .portfolioBalanceTileSub {
@@ -99,8 +100,9 @@
   padding: 16px;
   border-radius: 12px;
   border: 1px solid var(--border);
-  background: var(--fr-surface, #181a20);
+  background: var(--surface2, var(--bg2));
   box-shadow: none;
+  color: var(--text);
 }
 
 .portfolioPnlCard--up {
@@ -127,6 +129,7 @@
   font-weight: 1000;
   font-variant-numeric: tabular-nums;
   line-height: 1.2;
+  color: var(--text);
 }
 
 .portfolioPnlCardSub {
@@ -152,8 +155,8 @@
   height: 14px;
   border-radius: 999px;
   overflow: hidden;
-  border: 1px solid rgba(148, 163, 184, 0.12);
-  background: rgba(3, 7, 18, 0.38);
+  border: 1px solid var(--border);
+  background: var(--inputBg, var(--bg2));
 }
 
 .portfolioAllocationSegment {
@@ -194,8 +197,8 @@
   min-height: 52px;
   padding: 12px 14px;
   border-radius: 15px;
-  border: 1px solid rgba(148, 163, 184, 0.1);
-  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid var(--border);
+  background: var(--surface2, var(--bg2));
   transition: background 0.14s ease, border-color 0.14s ease;
 }
 

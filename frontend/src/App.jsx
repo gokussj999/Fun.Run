@@ -521,6 +521,11 @@ body {
         padding:16px;
       }
 
+      [data-mode="light"] .modalBack{
+        background:rgba(30, 35, 41, 0.32);
+        backdrop-filter: blur(8px);
+      }
+
       .modalCard{
         width:min(100%, 520px);
         max-height:min(86vh, 900px);
@@ -1141,6 +1146,9 @@ export default function App() {
   const closeOverlayRef = useRef(() => false);
   const [selectedCoinId, setSelectedCoinId] = useState(null);
   const [creatorProfileId, setCreatorProfileId] = useState("");
+  const [creatorFollowing, setCreatorFollowing] = useState(false);
+  const [creatorFollowSelf, setCreatorFollowSelf] = useState(false);
+  const [creatorFollowLoading, setCreatorFollowLoading] = useState(false);
   const [favoriteCoinIds, setFavoriteCoinIds] = useState(() => {
   try {
     return JSON.parse(localStorage.getItem("favorite_coins_v1") || "[]");
@@ -1353,7 +1361,8 @@ const [connectingPhantom, setConnectingPhantom] = useState(false);
             }
             if (msg.event === "notification:new") {
               const targetWallet = String(msg.payload?.wallet || "").trim();
-              if (targetWallet && targetWallet !== solAddr) return;
+              const isGlobal = msg.payload?.global === true || !targetWallet;
+              if (!isGlobal && targetWallet !== solAddr) return;
               const label = String(msg.payload?.title || msg.payload?.type || "Update");
               showToast(label);
             }
@@ -1774,7 +1783,8 @@ const [connectingPhantom, setConnectingPhantom] = useState(false);
       }
       if (msg.event === "notification:new") {
         const targetWallet = String(msg.payload?.wallet || "").trim();
-        if (targetWallet && targetWallet !== solAddr) return;
+        const isGlobal = msg.payload?.global === true || !targetWallet;
+        if (!isGlobal && targetWallet !== solAddr) return;
         const label = String(msg.payload?.title || msg.payload?.type || "Update");
         showToast(label);
       }
@@ -1888,8 +1898,8 @@ const [connectingPhantom, setConnectingPhantom] = useState(false);
       border: "rgba(30, 35, 41, 0.10)",
       borderSoft: "rgba(30, 35, 41, 0.07)",
       text: "#1E2329",
-      muted: "#707A8A",
-      muted2: "#848E9C",
+      muted: "#4A5563",
+      muted2: "#5B6572",
       inputBg: "rgba(30, 35, 41, 0.05)",
       inputBorder: "rgba(30, 35, 41, 0.12)",
       navBg: "rgba(234, 236, 239, 0.97)",
@@ -1898,7 +1908,7 @@ const [connectingPhantom, setConnectingPhantom] = useState(false);
       modalHeadBg: "#E9EBEE",
       btnText: "#1E2329",
       good: "#0A9B68",
-      warn: "#F0B90B",
+      warn: "#D97706",
       ...o,
     });
 
@@ -1969,7 +1979,7 @@ const [connectingPhantom, setConnectingPhantom] = useState(false);
         secondary: tokens.secondary,
         accent: tokens.accent,
         danger: tokens.danger,
-        glow: "rgba(240,185,11,.12)",
+        glow: "rgba(252,213,53,.14)",
         btnText: tokens.btnText,
       }),
       paper: light({
@@ -2007,6 +2017,16 @@ const [connectingPhantom, setConnectingPhantom] = useState(false);
       set("--heroGlow", t.glow);
       set("--shadow1", "0 1px 3px rgba(30, 35, 41, 0.06)");
       set("--shadow2", "0 4px 14px rgba(30, 35, 41, 0.08)");
+      // Keep --fr-* in sync so tiles never stay charcoal in light mode
+      set("--fr-bg", t.bg);
+      set("--fr-bg-secondary", t.bg2);
+      set("--fr-card", t.card);
+      set("--fr-card-solid", t.card);
+      set("--fr-surface", t.surface);
+      set("--fr-surface-strong", t.surface2);
+      set("--fr-surface-hover", "rgba(30, 35, 41, 0.06)");
+      set("--fr-border", t.border);
+      set("--fr-border-soft", t.borderSoft);
     } else {
       set("--card2", tokens.bgSecondary);
       set("--card3", "rgba(255,255,255,.03)");
@@ -2014,6 +2034,15 @@ const [connectingPhantom, setConnectingPhantom] = useState(false);
       set("--heroGlow", t.glow);
       set("--shadow1", "0 18px 54px rgba(0,0,0,.34)");
       set("--shadow2", "0 24px 72px rgba(0,0,0,.44)");
+      set("--fr-bg", tokens.bg);
+      set("--fr-bg-secondary", tokens.bgSecondary);
+      set("--fr-card", tokens.card);
+      set("--fr-card-solid", tokens.card);
+      set("--fr-surface", "#181a20");
+      set("--fr-surface-strong", "#2b3139");
+      set("--fr-surface-hover", "rgba(255, 255, 255, 0.04)");
+      set("--fr-border", tokens.border);
+      set("--fr-border-soft", "#1e2329");
     }
     set("--border", t.border);
     set("--borderSoft", t.borderSoft);
@@ -2178,7 +2207,64 @@ const [connectingPhantom, setConnectingPhantom] = useState(false);
     const wallet = String(coin?.creatorWallet || "").trim();
     if (!wallet) return;
     setCreatorProfileId(wallet);
+    setCreatorFollowing(false);
+    setCreatorFollowSelf(false);
     goScreen("CREATOR");
+  }
+
+  useEffect(() => {
+    if (screen !== "CREATOR") return;
+    const creator = String(creatorProfileId || "").trim();
+    if (!creator || !authenticated) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const token = await getAccessToken().catch(() => null);
+        const json = await api(`/creator/follow-status?creator=${encodeURIComponent(creator)}`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        if (cancelled) return;
+        setCreatorFollowing(Boolean(json?.following));
+        setCreatorFollowSelf(Boolean(json?.self));
+      } catch {
+        if (!cancelled) {
+          setCreatorFollowing(false);
+          setCreatorFollowSelf(false);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [screen, creatorProfileId, authenticated, getAccessToken]);
+
+  async function toggleCreatorFollow() {
+    const creator = String(creatorProfileId || "").trim();
+    if (!creator || creatorFollowSelf) return;
+    if (!authenticated) {
+      login?.();
+      return;
+    }
+    setCreatorFollowLoading(true);
+    try {
+      const token = await getAccessToken();
+      const path = creatorFollowing ? "/creator/unfollow" : "/creator/follow";
+      const json = await api(path, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ creatorWallet: creator }),
+      });
+      if (json?.ok) {
+        setCreatorFollowing(Boolean(json.following));
+        showToast(json.following ? "Following creator" : "Unfollowed");
+      } else {
+        showToast(json?.error || "Follow failed");
+      }
+    } catch (e) {
+      showToast(e?.message || "Follow failed");
+    } finally {
+      setCreatorFollowLoading(false);
+    }
   }
 
   function renderBackButton() {
@@ -3273,6 +3359,10 @@ const walletHistory = [
             creatorRewards={creatorRewards}
             creatorHoldings={creatorHoldings}
             onOpenCoin={openCoin}
+            following={creatorFollowing}
+            followLoading={creatorFollowLoading}
+            followSelf={creatorFollowSelf}
+            onToggleFollow={toggleCreatorFollow}
           />
         )}
 

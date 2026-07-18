@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useRef } from "react";
 import { ScreenShell, BackButton } from "../components/layout";
 import { PageHeader } from "../components/layout/PageHeader.jsx";
 import { Card } from "../components/ui/Card.jsx";
@@ -22,6 +22,8 @@ export function CreateCoinPage({
   creating = false,
   onCreate,
 }) {
+  const logoInputRef = useRef(null);
+
   return (
     <ScreenShell>
       <BackButton onClick={onBack} />
@@ -66,16 +68,29 @@ export function CreateCoinPage({
           <div className="createCoinLogoPanel">
             <div className="createCoinLogoLabel">Logo</div>
             <input
-              className="createCoinLogoInput"
+              ref={logoInputRef}
+              className="createCoinLogoInputNative"
               type="file"
               accept="image/*"
-              onChange={(e) => onLogoPick?.(e.target.files?.[0])}
+              onChange={(e) => {
+                onLogoPick?.(e.target.files?.[0]);
+                e.target.value = "";
+              }}
             />
+            <button
+              type="button"
+              className="createCoinLogoBtn"
+              onClick={() => logoInputRef.current?.click()}
+            >
+              {logoPreview ? "Change Logo" : "Upload Logo"}
+            </button>
             {logoPreview ? (
               <div className="createCoinLogoPreview">
                 <CoinLogo c={{ logo: logoPreview, symbol }} size={80} radius={18} />
               </div>
-            ) : null}
+            ) : (
+              <div className="createCoinLogoHint">PNG / JPG · max 5MB</div>
+            )}
           </div>
 
           <PrimaryButton className="createCoinSubmit" disabled={creating} onClick={onCreate}>

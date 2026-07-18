@@ -98,7 +98,8 @@ const TRUST_PROXY = String(process.env.TRUST_PROXY || "") === "1";
 
 const DATABASE_URL = String(process.env.DATABASE_URL || "").trim();
 
-const SOLANA_RPC = process.env.SOLANA_RPC || "https://rpc.ankr.com/solana";
+const SOLANA_RPC = process.env.SOLANA_RPC || "https://api.mainnet-beta.solana.com";
+const SOLANA_NETWORK = String(process.env.SOLANA_NETWORK || "mainnet").trim().toLowerCase();
 const JSON_LIMIT = process.env.JSON_LIMIT || "15mb";
 
 const CORS_ORIGINS = (process.env.CORS_ORIGINS || "http://localhost:5173")
@@ -416,6 +417,40 @@ function broadcast(event, payload) {
         ws.send(msg);
       }
     });
+  }
+}
+
+function notifyWallet(wallet, title, extra = {}) {
+  broadcast("notification:new", {
+    wallet: String(wallet || "").trim(),
+    title,
+    ...extra,
+  });
+}
+
+function notifyGlobal(title, extra = {}) {
+  broadcast("notification:new", {
+    wallet: "",
+    global: true,
+    title,
+    ...extra,
+  });
+}
+
+async function notifyCreatorFollowers(creatorWallet, title, extra = {}) {
+  const creator = String(creatorWallet || "").trim();
+  if (!creator) return;
+  try {
+    const rows = await sql`
+      select follower_wallet from creator_follows where creator_wallet = ${creator}
+    `;
+    for (const row of rows || []) {
+      const follower = String(row.follower_wallet || "").trim();
+      if (!follower || follower === creator) continue;
+      notifyWallet(follower, title, { type: "followed_creator_coin", ...extra });
+    }
+  } catch (e) {
+    console.log("notifyCreatorFollowers error:", e?.message || e);
   }
 }
 
@@ -1225,6 +1260,25 @@ encrypted_mnemonic text
 
   await sql`alter table profiles add column if not exists run_tokens numeric not null default 0`;
   await sql`alter table profiles alter column run_balance set default 0`;
+
+  // One-time align old 300k signup airdrop → 200k
+  await sql`
+    update profiles
+    set run_tokens = 200000, updated_at = now()
+    where run_tokens = 300000
+  `;
+
+  await sql`
+    create table if not exists creator_follows (
+      follower_wallet text not null,
+      creator_wallet text not null,
+      created_at timestamptz default now(),
+      primary key (follower_wallet, creator_wallet)
+    )
+  `;
+  await sql`create index if not exists creator_follows_creator_idx on creator_follows (creator_wallet)`;
+
+  await sql`alter table coins add column if not exists notified_mc_100k boolean not null default false`;
 }
 
 // -------------------- AUDIT LOG --------------------
@@ -1331,7 +1385,7 @@ async function getProfile(wallet, createIfMissing = true) {
     console.log("Custodial wallet creation failed during new profile:", err?.message || err);
   }
 
-  const SIGNUP_AIRDROP_RUN = 300000;
+  const SIGNUP_AIRDROP_RUN = 200000;
 
   const payload = profileToDbRow(
     ensureProfileShape(
@@ -3084,6 +3138,16 @@ app.post("/coin/create", createLimiter, async (req, res) => {
       meta: { name: coin?.name, symbol: coin?.symbol, initialSol },
     });
 
+    const creatorLabel = String(coin?.symbol || coin?.name || "coin").trim();
+    const creatorShort = creatorWallet.length > 8
+      ? `${creatorWallet.slice(0, 4)}…${creatorWallet.slice(-4)}`
+      : creatorWallet;
+    notifyCreatorFollowers(
+      creatorWallet,
+      `${creatorShort} launched $${creatorLabel}`,
+      { coinId: coin?.id || "", creatorWallet, type: "followed_creator_coin" }
+    ).catch(() => {});
+
     console.log(`[coin/create] +${Date.now()-_t0}ms — sending response`);
     // On-chain mint: background — response block nahi karta, lekin mint ASAP DB me save hota hai
     const _coinId = coin.id;
@@ -3185,6 +3249,66 @@ app.post("/coin/create", createLimiter, async (req, res) => {
   }
 });
 
+// -------------------- CREATOR FOLLOW --------------------
+app.get("/creator/follow-status", async (req, res) => {
+  const auth = await requireAuthWallet(req, res);
+  if (!auth) return;
+  try {
+    await requireDb();
+    const creatorWallet = String(req.query?.creator || req.query?.creatorWallet || "").trim();
+    if (!creatorWallet) return res.json({ ok: false, error: "creator required" });
+    if (creatorWallet === auth.wallet) {
+      return res.json({ ok: true, following: false, self: true });
+    }
+    const rows = await sql`
+      select 1 from creator_follows
+      where follower_wallet = ${auth.wallet} and creator_wallet = ${creatorWallet}
+      limit 1
+    `;
+    return res.json({ ok: true, following: Boolean(rows?.[0]), self: false });
+  } catch (e) {
+    return serverErr(e, res, "creator/follow-status");
+  }
+});
+
+app.post("/creator/follow", async (req, res) => {
+  const auth = await requireAuthWallet(req, res);
+  if (!auth) return;
+  try {
+    await requireDb();
+    const creatorWallet = String(req.body?.creatorWallet || req.body?.creator || "").trim();
+    if (!creatorWallet) return res.json({ ok: false, error: "creator required" });
+    if (creatorWallet === auth.wallet) {
+      return res.json({ ok: false, error: "Cannot follow yourself" });
+    }
+    await sql`
+      insert into creator_follows (follower_wallet, creator_wallet)
+      values (${auth.wallet}, ${creatorWallet})
+      on conflict do nothing
+    `;
+    return res.json({ ok: true, following: true });
+  } catch (e) {
+    return serverErr(e, res, "creator/follow");
+  }
+});
+
+app.post("/creator/unfollow", async (req, res) => {
+  const auth = await requireAuthWallet(req, res);
+  if (!auth) return;
+  try {
+    await requireDb();
+    const creatorWallet = String(req.body?.creatorWallet || req.body?.creator || "").trim();
+    if (!creatorWallet) return res.json({ ok: false, error: "creator required" });
+    await sql`
+      delete from creator_follows
+      where follower_wallet = ${auth.wallet} and creator_wallet = ${creatorWallet}
+    `;
+    return res.json({ ok: true, following: false });
+  } catch (e) {
+    return serverErr(e, res, "creator/unfollow");
+  }
+});
+
 app.post("/referral/set", async (req, res) => {
   const auth = await requireAuthWallet(req, res);
   if (!auth) return;
@@ -3207,9 +3331,9 @@ app.post("/referral/set", async (req, res) => {
     // Referrer profile exist karta hai verify karo (read-only, tx se pehle)
     await getProfile(referrer, true);
 
-    const REFERRAL_RUN_BONUS = 300000;
+    const REFERRAL_RUN_BONUS = 50000;
 
-    // Atomic: referrer set karo + bonus credit karo — dono ek hi tx mein
+    // Atomic: referrer set karo + RUN token bonus credit — dono ek hi tx mein
     // WHERE referrer IS NULL guarantee karta hai ke concurrent requests mein
     // sirf ek hi credit hoga, chahe kitni bhi parallel requests aayein
     const credited = await sql.begin(async (tx) => {
@@ -3222,7 +3346,9 @@ app.post("/referral/set", async (req, res) => {
 
       await tx`
         update profiles
-        set run_balance = run_balance + ${REFERRAL_RUN_BONUS}, updated_at = now()
+        set
+          run_tokens = coalesce(run_tokens, 0) + ${REFERRAL_RUN_BONUS},
+          updated_at = now()
         where wallet = ${referrer}
       `;
       return true;
@@ -3234,11 +3360,17 @@ app.post("/referral/set", async (req, res) => {
 
     // Cache invalidate karo taake agle read pe fresh data mile
     profileCache.del(wallet);
+    profileCache.del(referrer);
 
     // Referral count sync (non-financial, tx ke baad safe hai)
     await syncReferralCount(referrer);
 
-    return res.json({ ok: true, referrer });
+    notifyWallet(referrer, `Referral bonus: +${REFERRAL_RUN_BONUS.toLocaleString()} RUN`, {
+      type: "referral_run_bonus",
+      amount: REFERRAL_RUN_BONUS,
+    });
+
+    return res.json({ ok: true, referrer, runBonus: REFERRAL_RUN_BONUS });
   } catch (e) {
     return serverErr(e, res, "referral/set");
   }
@@ -3275,6 +3407,8 @@ async function doTrade(req, res, side, authWallet = null) {
       if (!row) return { ok: false, error: "token not found" };
 
       let coin = mapDbCoinToApi(row);
+      const prevMc = Math.max(0, safeNum(coin.mc, 0));
+      const alreadyNotified100k = Boolean(row.notified_mc_100k);
       let tradeResult = null;
 
       // trader ka profile (run_balance isi primary wallet ke under hai)
@@ -3403,7 +3537,15 @@ async function doTrade(req, res, side, authWallet = null) {
       }
 
       coin = recalcCoin(coin, { appendChart: true, sideHint: sideLower });
+      const newMc = Math.max(0, safeNum(coin.mc, 0));
+      const crossed100k = !alreadyNotified100k && prevMc < 100000 && newMc >= 100000;
       coin = await saveCoin(coin, _tx); // _tx ke andar — atomic with advisory lock
+      if (crossed100k) {
+        await _tx`
+          update coins set notified_mc_100k = true where id = ${coin.id}
+        `;
+        coinCache.del(coin.id);
+      }
 
       const txPayload = {
         id: uid(),
@@ -3447,6 +3589,7 @@ async function doTrade(req, res, side, authWallet = null) {
       return {
         ok: true,
         coin,
+        crossed100k,
         tokens: sideLower === "buy"
           ? Math.max(0, safeNum(tradeResult.tokensOut, 0))
           : Math.max(0, safeNum(tradeResult.tokensIn, 0)),
@@ -3459,6 +3602,15 @@ async function doTrade(req, res, side, authWallet = null) {
           : Math.max(0, safeNum(tradeResult.solOutGross, 0)),
       };
     });
+
+    if (result?.ok && result?.crossed100k) {
+      const sym = String(result.coin?.symbol || result.coin?.name || "Coin").trim();
+      notifyGlobal(`$${sym} crossed $100K market cap`, {
+        type: "mc_milestone",
+        coinId: result.coin?.id || "",
+        mc: result.coin?.mc || 0,
+      });
+    }
 
     return res.json(result);
   } catch (e) {
@@ -3800,6 +3952,7 @@ function validateSecrets() {
   }
 
   console.log(`Secrets OK — treasury: ${treasury.publicKey.toBase58().slice(0, 8)}...`);
+  console.log(`Solana network: ${SOLANA_NETWORK} | RPC: ${SOLANA_RPC}`);
 }
 
 // -------------------- STARTUP RECONCILIATION --------------------

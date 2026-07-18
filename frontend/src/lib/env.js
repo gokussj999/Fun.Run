@@ -1,6 +1,6 @@
 const DEFAULT_API_BASE = "";
 const DEFAULT_PRIVY_APP_ID = "cmld3um1x01w8i50ct60xaywb";
-const DEFAULT_SOLANA_RPC = "https://api.devnet.solana.com";
+const DEFAULT_SOLANA_RPC = "https://api.mainnet-beta.solana.com";
 const DEFAULT_WS_URL = "ws://localhost:3001/ws";
 
 export const env = {

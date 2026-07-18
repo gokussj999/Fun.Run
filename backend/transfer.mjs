@@ -1,7 +1,10 @@
 import treasury from './solana/treasury.js';
 import { Connection, PublicKey, SystemProgram, Transaction, sendAndConfirmTransaction } from '@solana/web3.js';
 
-const connection = new Connection('https://api.mainnet-beta.solana.com', 'confirmed');
+const connection = new Connection(
+  process.env.SOLANA_RPC || 'https://api.mainnet-beta.solana.com',
+  'confirmed'
+);
 
 const tx = new Transaction().add(
   SystemProgram.transfer({

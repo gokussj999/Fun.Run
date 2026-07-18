@@ -134,6 +134,10 @@ export function ProfilePage({
   const isLight = theme === "light" || theme === "paper";
   const [depositOpen, setDepositOpen] = useState(false);
 
+  const AIRDROP_RUN = 200000;
+  const airdropRun = Math.min(Math.max(0, Number(runTokens) || 0), AIRDROP_RUN);
+  const referralRunBonus = Math.max(0, (Number(runTokens) || 0) - AIRDROP_RUN);
+
   const totalEarnedSol = (referralRewardsSol || 0) + (creatorRewardsSol || 0);
   const totalEarnedUsd = toUsdFromSol?.(totalEarnedSol) || fmtUsd(0);
   const creatorEarnUsd = toUsdFromSol?.(creatorRewardsSol || 0) || fmtUsd(0);
@@ -265,7 +269,7 @@ export function ProfilePage({
                   <div className="profileRunContent">
                     <div className="profileRunHeader">
                       <div className="statLabel">RUN REWARDS</div>
-                      <div className="profileRunBadge">First 5,000 Users Only</div>
+                      <div className="profileRunBadge">First 25,000 Users Only</div>
                     </div>
 
                     <div className="profileRunValue">{fmtUsd(runValueUsd)}</div>
@@ -274,11 +278,15 @@ export function ProfilePage({
                     <div className="profileRunBreakdown">
                       <div className="profileRunRow profileRunRow--airdrop">
                         <span className="profileRunRowLabel">Airdrop</span>
-                        <span className="profileRunRowValue profileRunRowValue--good">{runTokens.toLocaleString()} RUN</span>
+                        <span className="profileRunRowValue profileRunRowValue--good">
+                          {airdropRun.toLocaleString()} RUN
+                        </span>
                       </div>
                       <div className="profileRunRow profileRunRow--referral">
                         <span className="profileRunRowLabel">Referral Bonus</span>
-                        <span className="profileRunRowValue profileRunRowValue--muted">Coming in Phase 2</span>
+                        <span className="profileRunRowValue profileRunRowValue--good">
+                          {referralRunBonus.toLocaleString()} RUN
+                        </span>
                       </div>
                       <div className="profileRunRow profileRunRow--total">
                         <span className="profileRunRowLabel">Total Referrals</span>
@@ -290,7 +298,10 @@ export function ProfilePage({
                   </div>
 
                   <div className="profileRunAside">
-                    <div className="profileRunCoin">RUN</div>
+                    <div className="profileRunCoin" aria-hidden="true">
+                      <span className="profileRunCoinShine" />
+                      <span className="profileRunCoinLabel">RUN</span>
+                    </div>
                     <div className="profileCountdown">
                       <div className="profileCountdownLabel">Unlock Countdown</div>
                       <div className="profileCountdownValue">

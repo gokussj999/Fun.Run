@@ -20,14 +20,10 @@ export function HoldersList({ coin, limit = 50 }) {
   return (
     <>
       {holders.map(([wallet, amount]) => {
-        const pct =
-          coin.totalSupply > 0 ? (Number(amount || 0) / Number(coin.totalSupply || 1)) * 100 : 0;
-
         return (
           <div key={wallet} className="coinHolderRow">
             <div style={{ minWidth: 0 }}>
               <div className="coinRowPrimary">{shortWallet(wallet)}</div>
-              <div className="miniMuted">{pct.toFixed(4)}% supply</div>
             </div>
 
             <div className="coinRowSecondary">

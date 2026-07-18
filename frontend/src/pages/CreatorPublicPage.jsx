@@ -35,6 +35,10 @@ export function CreatorPublicPage({
   creatorRewards = 0,
   creatorHoldings = [],
   onOpenCoin,
+  following = false,
+  followLoading = false,
+  followSelf = false,
+  onToggleFollow,
 }) {
   const showCoinReward =
     creatorCoin &&
@@ -48,9 +52,26 @@ export function CreatorPublicPage({
       {adSlot}
 
       <Card>
-        <Title>Creator Profile</Title>
+        <div className="creatorPublicHead">
+          <Title>Creator Profile</Title>
+          {!followSelf ? (
+            <button
+              type="button"
+              className={`creatorFollowBtn ${following ? "creatorFollowBtn--on" : ""}`}
+              disabled={followLoading}
+              onClick={onToggleFollow}
+            >
+              {followLoading ? "..." : following ? "Following" : "Follow"}
+            </button>
+          ) : null}
+        </div>
 
-        <div className="statsGrid" style={{ marginTop: 0 }}>
+        <div className="miniMuted creatorPublicWallet">
+          {String(creatorProfileId || creatorCoin?.creatorWallet || "").slice(0, 6)}…
+          {String(creatorProfileId || creatorCoin?.creatorWallet || "").slice(-4)}
+        </div>
+
+        <div className="statsGrid" style={{ marginTop: 12 }}>
           <div className="stat">
             <div className="statLabel">This Coin Reward</div>
             <div className="statValue">
@@ -135,7 +156,7 @@ export function CreatorPublicPage({
               compact
             />
           ) : (
-            creatorHoldings.map(({ coin, amt, pct }) => (
+            creatorHoldings.map(({ coin, amt }) => (
               <button
                 key={coin.id}
                 type="button"
@@ -157,10 +178,6 @@ export function CreatorPublicPage({
                     <div style={{ color: "var(--muted2)", fontSize: 12 }}>
                       {fmtNum(amt, 0)} tokens
                     </div>
-                  </div>
-                  <div style={{ textAlign: "right" }}>
-                    <div style={{ fontWeight: 1000 }}>{pct.toFixed(4)}%</div>
-                    <div style={{ color: "var(--muted2)", fontSize: 12 }}>Supply</div>
                   </div>
                 </div>
               </button>
