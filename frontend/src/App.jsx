@@ -1664,14 +1664,14 @@ const [connectingPhantom, setConnectingPhantom] = useState(false);
     return token;
   }
 
-  async function loadProfile(wallet = solAddr) {
+  async function loadProfile(wallet = solAddr, opts = {}) {
     if (!wallet) return;
 
     try {
       setLoadingProfile(true);
       let token = await getToken().catch(() => null);
       if (!token) {
-        showToast("Session expired — please reload");
+        if (!opts.quiet) showToast("Session expired — please reload");
         return;
       }
 
@@ -1717,7 +1717,8 @@ const [connectingPhantom, setConnectingPhantom] = useState(false);
       }
 
     } catch (e) {
-      showToast(e?.message || "Failed to load profile");
+      // Post-trade refresh failures should not look like the trade itself failed.
+      if (!opts.quiet) showToast(e?.message || "Failed to load profile");
     } finally {
       setLoadingProfile(false);
     }
@@ -2633,7 +2634,12 @@ const [connectingPhantom, setConnectingPhantom] = useState(false);
       } catch {}
 
       setChartReloadKey((x) => x + 1);
-      await Promise.allSettled([loadProfile(solAddr), loadBalance(solAddr), loadCoins(0, false)]);
+      // Quiet refresh — profile/candles 500s must not overwrite "Sell successful" with ISE toast
+      await Promise.allSettled([
+        loadProfile(solAddr, { quiet: true }),
+        loadBalance(solAddr),
+        loadCoins(0, false),
+      ]);
     } catch (e) {
       setCoins((prev) =>
         (prev || []).map((c) =>

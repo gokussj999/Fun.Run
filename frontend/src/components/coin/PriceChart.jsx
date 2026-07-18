@@ -167,7 +167,28 @@ export function PriceChart({ coin, height = 280, chartRange, setChartRange, relo
 
     candleSeries.priceScale().applyOptions({
       autoScale: true,
-      scaleMargins: { top: 0.08, bottom: 0.26 },
+      scaleMargins: { top: 0.12, bottom: 0.28 },
+    });
+
+    // Tiny price moves (e.g. 0.04% on a bonding curve) must not fill the whole pane —
+    // enforce at least ±1.5% visible range around mid so candles don't look like crashes.
+    candleSeries.applyOptions({
+      autoscaleInfoProvider: (original) => {
+        const base = original();
+        if (!base?.priceRange) return base;
+        const { minValue, maxValue } = base.priceRange;
+        const mid = (minValue + maxValue) / 2;
+        if (!(mid > 0)) return base;
+        const pad = mid * 0.015;
+        const half = Math.max((maxValue - minValue) / 2, pad);
+        return {
+          ...base,
+          priceRange: {
+            minValue: mid - half,
+            maxValue: mid + half,
+          },
+        };
+      },
     });
 
     const volumeSeries = chart.addHistogramSeries({

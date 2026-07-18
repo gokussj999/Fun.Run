@@ -1723,7 +1723,8 @@ function buildChartTrail(prevChart, nextPoint, sideHint = "") {
   }
 
   if (!history.length) {
-    return [point * 0.78, point * 0.92, point * 1.06, point * 1.22, point * 1.12, point];
+    // Flat seed — do not fabricate a fake pump/dump trail for brand-new coins.
+    return [point, point, point, point, point];
   }
 
   // Append the actual AMM-derived price — no random noise or direction correction.
@@ -1805,61 +1806,63 @@ async function upsertCandlesForTrade(coinId, price, volumeSol) {
     ["1m", 2_592_000_000],
   ];
 
-  for (const [tf, ms] of timeframes) {
-    const bucket = Math.floor(now / ms) * ms;
+  await Promise.all(
+    timeframes.map(async ([tf, ms]) => {
+      const bucket = Math.floor(now / ms) * ms;
 
-    const existing = await sql`
-      select open, high, low, close
-      from candles
-      where coin_id = ${id} and timeframe = ${tf} and bucket_time = ${bucket}
-      limit 1
-    `;
-
-    if (existing.length === 0) {
-      const prev = await sql`
-        select close from candles
-        where coin_id = ${id} and timeframe = ${tf} and bucket_time < ${bucket}
-        order by bucket_time desc limit 1
-      `;
-
-      const openPrice = Math.max(0.00000001, safeNum(prev?.[0]?.close, p));
-      const highPrice = Math.max(openPrice, p);
-      const lowPrice = Math.min(openPrice, p);
-
-      await sql`
-        insert into candles (
-          coin_id, timeframe, bucket_time,
-          open, high, low, close,
-          volume_sol, trades_count, updated_at
-        )
-        values (
-          ${id}, ${tf}, ${bucket},
-          ${openPrice}, ${highPrice}, ${lowPrice}, ${p},
-          ${vol}, 1, now()
-        )
-        on conflict (coin_id, timeframe, bucket_time)
-        do update set
-          high = greatest(candles.high, excluded.high),
-          low = least(candles.low, excluded.low),
-          close = excluded.close,
-          volume_sol = candles.volume_sol + excluded.volume_sol,
-          trades_count = candles.trades_count + 1,
-          updated_at = now()
-      `;
-    } else {
-      await sql`
-        update candles
-        set
-          high = greatest(high, ${p}),
-          low = least(low, ${p}),
-          close = ${p},
-          volume_sol = volume_sol + ${vol},
-          trades_count = trades_count + 1,
-          updated_at = now()
+      const existing = await sql`
+        select open, high, low, close
+        from candles
         where coin_id = ${id} and timeframe = ${tf} and bucket_time = ${bucket}
+        limit 1
       `;
-    }
-  }
+
+      if (existing.length === 0) {
+        const prev = await sql`
+          select close from candles
+          where coin_id = ${id} and timeframe = ${tf} and bucket_time < ${bucket}
+          order by bucket_time desc limit 1
+        `;
+
+        const openPrice = Math.max(0.00000001, safeNum(prev?.[0]?.close, p));
+        const highPrice = Math.max(openPrice, p);
+        const lowPrice = Math.min(openPrice, p);
+
+        await sql`
+          insert into candles (
+            coin_id, timeframe, bucket_time,
+            open, high, low, close,
+            volume_sol, trades_count, updated_at
+          )
+          values (
+            ${id}, ${tf}, ${bucket},
+            ${openPrice}, ${highPrice}, ${lowPrice}, ${p},
+            ${vol}, 1, now()
+          )
+          on conflict (coin_id, timeframe, bucket_time)
+          do update set
+            high = greatest(candles.high, excluded.high),
+            low = least(candles.low, excluded.low),
+            close = excluded.close,
+            volume_sol = candles.volume_sol + excluded.volume_sol,
+            trades_count = candles.trades_count + 1,
+            updated_at = now()
+        `;
+      } else {
+        await sql`
+          update candles
+          set
+            high = greatest(high, ${p}),
+            low = least(low, ${p}),
+            close = ${p},
+            volume_sol = volume_sol + ${vol},
+            trades_count = trades_count + 1,
+            updated_at = now()
+          where coin_id = ${id} and timeframe = ${tf} and bucket_time = ${bucket}
+        `;
+      }
+    })
+  );
 }
 
 function applyFee(solAmount) {
@@ -2899,8 +2902,12 @@ app.get("/coin/:id/candles", async (req, res) => {
 
         const sol = Math.max(0, safeNum(tx.sol, 0));
         const tokens = Math.max(0, safeNum(tx.tokens, 0));
-        const price = tokens > 0 ? (sol / tokens) * currentSolUsd : 0;
-        const px = Math.max(0.00000001, price || fallbackPrice);
+        const execPx = tokens > 0 ? (sol / tokens) * currentSolUsd : 0;
+        let px = Math.max(0.00000001, execPx || fallbackPrice);
+        // Clamp execution-avg outliers so sparse charts don't look like 50% crashes.
+        if (fallbackPrice > 0) {
+          px = Math.min(fallbackPrice * 1.08, Math.max(fallbackPrice * 0.92, px));
+        }
 
         const bucket = Math.floor(ts / bucketMs) * bucketMs;
         const prev = map.get(bucket);
@@ -2914,7 +2921,6 @@ app.get("/coin/:id/candles", async (req, res) => {
           prev.high = Math.max(prev.high, px);
           prev.low = Math.min(prev.low, px);
           prev.close = px;
-          prev.color = px >= prev.open ? "green" : "red";
           prev.volumeSol += sol;
           prev.tradesCount += 1;
         }
@@ -3580,24 +3586,7 @@ async function doTrade(req, res, side, authWallet = null) {
       // _tx ke andar: holdings atomic update (advisory lock ke saath)
       await upsertHolding(wallet, coin.id, "set", Math.max(0, safeNum(coin?.holders?.[wallet], 0)), _tx);
 
-      // Side effects: separate connections, _tx se independent — failure swallow hoti hai
-      const sideCoin = { ...coin };
-      const sideEffects = await Promise.allSettled([
-        upsertCandlesForTrade(
-          coin.id,
-          Math.max(0.00000001, safeNum(coin?.priceUsd || coin?.price || 0, 0.00000001)),
-          candleVolumeSol
-        ),
-        distributeFeeDirect(sideCoin, wallet, tradeFeeSol),
-        insertTransaction(txPayload),
-        writeAudit(sideLower === "buy" ? "BUY" : "SELL", wallet,
-          sideLower === "buy" ? sol : safeNum(tradeResult.solOutNet, 0),
-          { coinId: coin.id, meta: { fee: tradeFeeSol, tokens: txPayload.tokens } }
-        ),
-      ]);
-      const failed = sideEffects.find((x) => x.status === "rejected");
-      if (failed) console.log("trade side-effect error:", failed.reason?.message || failed.reason);
-
+      // Side effects AFTER lock — candles/fees must not block the buy/sell response.
       return {
         ok: true,
         coin,
@@ -3612,8 +3601,40 @@ async function doTrade(req, res, side, authWallet = null) {
         grossSol: sideLower === "buy"
           ? Math.max(0, sol)
           : Math.max(0, safeNum(tradeResult.solOutGross, 0)),
+        _postTrade: {
+          sideLower,
+          wallet,
+          sol,
+          tradeFeeSol,
+          candleVolumeSol,
+          txPayload,
+          tradeResult,
+        },
       };
     });
+
+    if (result?.ok && result?._postTrade) {
+      const pt = result._postTrade;
+      const sideCoin = { ...result.coin };
+      // Fire-and-forget after response path is ready — do not await before res.json
+      Promise.allSettled([
+        upsertCandlesForTrade(
+          result.coin.id,
+          Math.max(0.00000001, safeNum(result.coin?.priceUsd || result.coin?.price || 0, 0.00000001)),
+          pt.candleVolumeSol
+        ),
+        distributeFeeDirect(sideCoin, pt.wallet, pt.tradeFeeSol),
+        insertTransaction(pt.txPayload),
+        writeAudit(pt.sideLower === "buy" ? "BUY" : "SELL", pt.wallet,
+          pt.sideLower === "buy" ? pt.sol : safeNum(pt.tradeResult.solOutNet, 0),
+          { coinId: result.coin.id, meta: { fee: pt.tradeFeeSol, tokens: pt.txPayload.tokens } }
+        ),
+      ]).then((sideEffects) => {
+        const failed = sideEffects.find((x) => x.status === "rejected");
+        if (failed) console.log("trade side-effect error:", failed.reason?.message || failed.reason);
+      }).catch(() => {});
+      delete result._postTrade;
+    }
 
     if (result?.ok && result?.crossed100k) {
       const sym = String(result.coin?.symbol || result.coin?.name || "Coin").trim();
