@@ -9,7 +9,7 @@ import { EmptyState } from "../components/ui/EmptyState.jsx";
 import { CoinListSkeleton, ProfileHeaderSkeleton } from "../components/ui/Skeleton.jsx";
 import { CoinLogo, CoinMiniCard } from "../components/coins";
 import { ProfileCoinRow } from "../components/profile/ProfileCoinRow.jsx";
-import { fmtNum, fmtSol, fmtUsd, safeNum, timeAgo } from "../lib/coin-display.js";
+import { fmtNum, fmtSol, fmtUsd, safeNum } from "../lib/coin-display.js";
 
 function SectionHeader({ title, right }) {
   return (
@@ -44,6 +44,17 @@ const EXPANSION_ITEMS = [
     bgLk: "rgba(109,40,217,.10)",
     bdDk: "rgba(59,130,246,.22)",
     bdLk: "rgba(109,40,217,.25)",
+  },
+  {
+    icon: "↔",
+    label: "P2P Trading",
+    badge: "COMING SOON",
+    dk: "#0A9B68",
+    lk: "#047857",
+    bgDk: "rgba(10,155,104,.1)",
+    bgLk: "rgba(4,120,87,.10)",
+    bdDk: "rgba(10,155,104,.22)",
+    bdLk: "rgba(4,120,87,.25)",
   },
   {
     icon: "🚀",
@@ -127,33 +138,6 @@ export function ProfilePage({
   const totalEarnedUsd = toUsdFromSol?.(totalEarnedSol) || fmtUsd(0);
   const creatorEarnUsd = toUsdFromSol?.(creatorRewardsSol || 0) || fmtUsd(0);
   const affiliateEarnUsd = toUsdFromSol?.(referralRewardsSol || 0) || fmtUsd(0);
-
-  const recentActivity = React.useMemo(() => {
-    const walletItems = (walletHistory || []).map((item, idx) => ({
-      id: `wallet-${idx}-${item.createdAt || idx}`,
-      kind: "WALLET",
-      side: item.type,
-      sol: item.amount,
-      ts: item.createdAt,
-      txHash: item.txHash,
-    }));
-    const tradeItems = (profileTxs || []).map((tx, idx) => ({
-      id: `trade-${tx.id || idx}`,
-      kind: "TRADE",
-      side: String(tx.type || tx.side || "TRADE").toUpperCase(),
-      sol: tx.sol,
-      tokens: tx.tokens,
-      ts: tx.createdAt || tx.ts,
-      coinId: tx.coinId || tx.id,
-      coinName: tx.coinName || tx.name,
-      symbol: tx.symbol,
-      logo: tx.logo,
-    }));
-    return [...walletItems, ...tradeItems]
-      .filter((item) => item.ts)
-      .sort((a, b) => new Date(b.ts) - new Date(a.ts))
-      .slice(0, 6);
-  }, [walletHistory, profileTxs]);
 
   return (
     <ScreenShell className="profilePageRoot">
@@ -373,74 +357,6 @@ export function ProfilePage({
                 </div>
               </div>
 
-              <div className="profileActivitySection">
-                <div className="profileActivityHead">
-                  <div className="sectionTitle">Recent Activity</div>
-                  {onOpenPortfolio ? (
-                    <button type="button" className="profileActivityViewAll" onClick={onOpenPortfolio}>
-                      View All →
-                    </button>
-                  ) : null}
-                </div>
-
-                {recentActivity.length === 0 ? (
-                  <EmptyState
-                    icon="🧾"
-                    title="No recent activity"
-                    description="Deposits, withdrawals, and trades will appear here."
-                    compact
-                  />
-                ) : (
-                  <div className="profileActivityList">
-                    {recentActivity.map((item) => {
-                      if (item.kind === "WALLET") {
-                        const isDeposit = item.side === "DEPOSIT";
-                        return (
-                          <div key={item.id} className="profileActivityRow">
-                            <div className="profileActivityMain">
-                              <span className={`profileActivityIcon ${isDeposit ? "deposit" : "withdraw"}`}>
-                                {isDeposit ? "↓" : "↑"}
-                              </span>
-                              <div>
-                                <div className="profileActivityTitle">{isDeposit ? "Deposit" : "Withdrawal"}</div>
-                                <div className="miniMuted">{timeAgo(item.ts)}</div>
-                              </div>
-                            </div>
-                            <div className="profileActivityRight">
-                              <div className={isDeposit ? "profileActivityAmount--good" : "profileActivityAmount--danger"}>
-                                {isDeposit ? "+" : "-"}
-                                {fmtSol(item.sol)} SOL
-                              </div>
-                              <span className="profileActivityChevron">›</span>
-                            </div>
-                          </div>
-                        );
-                      }
-
-                      const isBuy = item.side === "BUY";
-                      return (
-                        <div key={item.id} className="profileActivityRow">
-                          <div className="profileActivityMain">
-                            <span className={`profileActivityIcon ${isBuy ? "deposit" : "withdraw"}`}>{isBuy ? "↓" : "↑"}</span>
-                            <div>
-                              <div className="profileActivityTitle">
-                                {item.side} {item.symbol || item.coinName || "Token"}
-                              </div>
-                              <div className="miniMuted">{timeAgo(item.ts)}</div>
-                            </div>
-                          </div>
-                          <div className="profileActivityRight">
-                            <div className={isBuy ? "profileActivityAmount--good" : "profileActivityAmount--danger"}>
-                              {fmtSol(item.sol)} SOL
-                            </div>
-                            <span className="profileActivityChevron">›</span>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
             </div>
           </Card>
 
@@ -480,13 +396,13 @@ export function ProfilePage({
               <div
                 className="profileExpansionFoot"
                 style={{
-                  background: isLight ? "rgba(6,95,70,.10)" : "rgba(252,213,53,.1)",
-                  border: isLight ? "1px solid rgba(6,95,70,.28)" : "1px solid rgba(252,213,53,.22)",
-                  color: isLight ? "#065F46" : "var(--primary)",
+                  background: isLight ? "rgba(4,120,87,.10)" : "rgba(10,155,104,.1)",
+                  border: isLight ? "1px solid rgba(4,120,87,.28)" : "1px solid rgba(10,155,104,.22)",
+                  color: isLight ? "#047857" : "#0A9B68",
                   boxShadow: "none",
                 }}
               >
-                ✦ EXPANDING ECOSYSTEM
+                P2P Coming Soon
               </div>
             </div>
           </Card>

@@ -176,13 +176,13 @@
 .coinMobileTradeBarBtn--buy {
   background: var(--fr-buy, var(--good));
   color: var(--fr-buy-text, #03180f);
-  box-shadow: 0 6px 18px rgba(14, 203, 129, 0.22);
+  box-shadow: 0 6px 18px rgba(10, 155, 104, 0.22);
 }
 
 .coinMobileTradeBarBtn--sell {
   background: var(--fr-sell, var(--danger));
   color: var(--fr-sell-text, #fff);
-  box-shadow: 0 6px 18px rgba(246, 70, 93, 0.22);
+  box-shadow: 0 6px 18px rgba(214, 61, 82, 0.22);
 }
 
 /* ── Mobile key stats (2×2) ── */
@@ -711,15 +711,17 @@
 }
 
 .coinOverviewStatCard {
-  padding: 14px;
-  border-radius: 14px;
-  border: 1px solid rgba(148, 163, 184, 0.1);
-  background: rgba(255, 255, 255, 0.025);
-  transition: background 0.14s ease;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--fr-surface, #181a20);
+  transition: background 0.14s ease, border-color 0.14s ease;
+  min-width: 0;
 }
 
 .coinOverviewStatCard:hover {
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--fr-surface-strong, #2b3139);
+  border-color: #3a4149;
 }
 
 .coinOverviewStatCard--action {
@@ -964,7 +966,7 @@
 }
 
 .chartPanel--light {
-  background: #ffffff;
+  background: #f0f1f3;
 }
 
 .chartPanel--hero .chartPanelPrice {
@@ -1389,14 +1391,14 @@
 
 .tp-tab--buy.active {
   color: var(--fr-buy-text, #03180f);
-  background: var(--fr-buy, #0ecb81);
+  background: var(--fr-buy, #0a9b68);
   border-color: transparent;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18);
 }
 
 .tp-tab--sell.active {
   color: var(--fr-sell-text, #fff);
-  background: var(--fr-sell, #f6465d);
+  background: var(--fr-sell, #d63d52);
   border-color: transparent;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
 }
@@ -1414,13 +1416,13 @@
 }
 
 .tp-box--buy:focus-within {
-  border-color: var(--fr-buy-border, rgba(14, 203, 129, 0.32));
-  box-shadow: 0 0 0 2px var(--fr-buy-soft, rgba(14, 203, 129, 0.12));
+  border-color: var(--fr-buy-border, rgba(10, 155, 104, 0.36));
+  box-shadow: 0 0 0 2px var(--fr-buy-soft, rgba(10, 155, 104, 0.14));
 }
 
 .tp-box--sell:focus-within {
-  border-color: var(--fr-sell-border, rgba(246, 70, 93, 0.32));
-  box-shadow: 0 0 0 2px var(--fr-sell-soft, rgba(246, 70, 93, 0.12));
+  border-color: var(--fr-sell-border, rgba(214, 61, 82, 0.36));
+  box-shadow: 0 0 0 2px var(--fr-sell-soft, rgba(214, 61, 82, 0.14));
 }
 
 .tp-box--receive {
@@ -1602,14 +1604,14 @@
 
 .tp-arrow-icon--buy {
   color: var(--good);
-  border-color: rgba(14, 203, 129, 0.25);
-  box-shadow: 0 0 10px rgba(14, 203, 129, 0.12);
+  border-color: rgba(10, 155, 104, 0.25);
+  box-shadow: 0 0 10px rgba(10, 155, 104, 0.12);
 }
 
 .tp-arrow-icon--sell {
   color: var(--danger);
-  border-color: rgba(246, 70, 93, 0.25);
-  box-shadow: 0 0 10px rgba(246, 70, 93, 0.12);
+  border-color: rgba(214, 61, 82, 0.25);
+  box-shadow: 0 0 10px rgba(214, 61, 82, 0.12);
 }
 
 /* Trade button */
@@ -1664,32 +1666,32 @@
 }
 
 .tp-btn--buy {
-  background: var(--fr-buy, #0ecb81);
+  background: var(--fr-buy, #0a9b68);
   color: var(--fr-buy-text, #03180f);
   box-shadow:
-    0 8px 22px rgba(14, 203, 129, 0.28),
+    0 8px 22px rgba(10, 155, 104, 0.28),
     inset 0 1px 0 rgba(255, 255, 255, 0.18);
 }
 
 .tp-btn--buy:hover:not(:disabled) {
-  background: var(--fr-buy-hover, #0bb875);
+  background: var(--fr-buy-hover, #088a5b);
   box-shadow:
-    0 10px 28px rgba(14, 203, 129, 0.36),
+    0 10px 28px rgba(10, 155, 104, 0.36),
     inset 0 1px 0 rgba(255, 255, 255, 0.18);
 }
 
 .tp-btn--sell {
-  background: var(--fr-sell, #f6465d);
+  background: var(--fr-sell, #d63d52);
   color: var(--fr-sell-text, #fff);
   box-shadow:
-    0 8px 22px rgba(246, 70, 93, 0.28),
+    0 8px 22px rgba(214, 61, 82, 0.28),
     inset 0 1px 0 rgba(255, 255, 255, 0.12);
 }
 
 .tp-btn--sell:hover:not(:disabled) {
-  background: var(--fr-sell-hover, #e03a50);
+  background: var(--fr-sell-hover, #c23448);
   box-shadow:
-    0 10px 28px rgba(246, 70, 93, 0.36),
+    0 10px 28px rgba(214, 61, 82, 0.36),
     inset 0 1px 0 rgba(255, 255, 255, 0.12);
 }
 
@@ -2350,7 +2352,9 @@
   }
 
   .coinOverviewGrid {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    /* App shell is narrow even on wide viewports — keep 2 cols readable */
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
   }
 }
 

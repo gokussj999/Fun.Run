@@ -8,16 +8,16 @@ const MINI_TONES = {
     boxShadow: "inset 0 1px 0 rgba(255,255,255,.08)",
   },
   success: {
-    background: "var(--fr-buy, #0ecb81)",
-    border: "1px solid var(--fr-buy, #0ecb81)",
+    background: "var(--fr-buy, #0a9b68)",
+    border: "1px solid var(--fr-buy, #0a9b68)",
     color: "var(--fr-buy-text, #03180f)",
-    boxShadow: "0 8px 20px rgba(14,203,129,.2)",
+    boxShadow: "0 8px 20px rgba(10,155,104,.2)",
   },
   danger: {
-    background: "var(--fr-sell, #f6465d)",
-    border: "1px solid var(--fr-sell, #f6465d)",
+    background: "var(--fr-sell, #d63d52)",
+    border: "1px solid var(--fr-sell, #d63d52)",
     color: "#fff",
-    boxShadow: "0 8px 20px rgba(246,70,93,.2)",
+    boxShadow: "0 8px 20px rgba(214,61,82,.2)",
   },
   default: {
     background: "var(--surface2)",

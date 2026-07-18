@@ -1,8 +1,10 @@
 import { Connection, clusterApiUrl } from "@solana/web3.js";
 
-const connection = new Connection(
-  clusterApiUrl("mainnet-beta"),
-  "confirmed"
-);
+const rpc =
+  process.env.SOLANA_RPC ||
+  process.env.SOLANA_PROGRAM_RPC ||
+  clusterApiUrl("devnet");
+
+const connection = new Connection(rpc, "confirmed");
 
 export default connection;

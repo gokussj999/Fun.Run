@@ -211,6 +211,29 @@ const ThemeStyles = React.memo(function ThemeStyles() {
         box-shadow:var(--shadow2), 0 0 0 1px rgba(255,255,255,.025) inset;
       }
 
+      [data-mode="light"] .card{
+        backdrop-filter:none;
+        -webkit-backdrop-filter:none;
+        box-shadow:var(--shadow1);
+      }
+
+      [data-mode="light"] .card::before{
+        opacity:.18;
+        background:linear-gradient(180deg, rgba(255,255,255,.35), transparent 42%);
+      }
+
+      [data-mode="light"] .card:hover{
+        border-color:rgba(30,35,41,.14);
+        box-shadow:var(--shadow2);
+        transform:none;
+      }
+
+      [data-mode="light"] body,
+      html[data-mode="light"] body{
+        background:
+          linear-gradient(180deg, #EAECEF 0%, #E6E8EC 100%) !important;
+      }
+
       .cardBody{
         position:relative;
         z-index:1;
@@ -502,10 +525,10 @@ body {
         width:min(100%, 520px);
         max-height:min(86vh, 900px);
         overflow:auto;
-        border-radius:22px;
+        border-radius:16px;
         border:1px solid var(--border);
         background:var(--modalBg);
-        box-shadow:0 30px 80px rgba(0,0,0,.45);
+        box-shadow:0 24px 64px rgba(0,0,0,.5);
       }
 
       .modalHead{
@@ -757,7 +780,7 @@ body {
 
         .modalCard{
           width:100%;
-          border-radius:22px;
+          border-radius:16px;
         }
       }
     `}</style>
@@ -1087,9 +1110,9 @@ export default function App() {
   const withdrawKeyRef = useRef(null);
   const [theme, setTheme] = useState(() => {
     try {
-      return localStorage.getItem(LS_THEME) || "calm";
+      return localStorage.getItem(LS_THEME) || "light";
     } catch {
-      return "calm";
+      return "light";
     }
   });
 
@@ -1854,24 +1877,25 @@ const [connectingPhantom, setConnectingPhantom] = useState(false);
 
     const light = (o) => ({
       mode: "light",
-      bg2: "rgba(15,23,42,.07)",
-      card: "rgba(255,255,255,.97)",
-      surface: "rgba(255,255,255,.97)",
-      surface2: "rgba(15,23,42,.07)",
-      border: "rgba(15,23,42,.14)",
-      borderSoft: "rgba(15,23,42,.09)",
-      text: "#0B1524",
-      muted: "rgba(20,30,48,.72)",
-      muted2: "rgba(30,41,59,.54)",
-      inputBg: "rgba(15,23,42,.055)",
-      inputBorder: "rgba(15,23,42,.15)",
-      navBg: "rgba(255,255,255,.96)",
-      topbarBg: "rgba(255,255,255,.98)",
-      modalBg: "#FFFFFF",
-      modalHeadBg: "rgba(250,252,255,.98)",
-      btnText: "#04130E",
-      good: "#0E9F6E",
-      warn: "#B45309",
+      // Soft exchange gray (Binance / MEXC style) — avoid pure white glare
+      bg2: "#E4E6EB",
+      card: "#F0F1F3",
+      surface: "#F0F1F3",
+      surface2: "#E6E8ED",
+      border: "rgba(30, 35, 41, 0.10)",
+      borderSoft: "rgba(30, 35, 41, 0.07)",
+      text: "#1E2329",
+      muted: "#707A8A",
+      muted2: "#848E9C",
+      inputBg: "rgba(30, 35, 41, 0.05)",
+      inputBorder: "rgba(30, 35, 41, 0.12)",
+      navBg: "rgba(234, 236, 239, 0.97)",
+      topbarBg: "rgba(234, 236, 239, 0.98)",
+      modalBg: "#F0F1F3",
+      modalHeadBg: "#E9EBEE",
+      btnText: "#1E2329",
+      good: "#0A9B68",
+      warn: "#F0B90B",
       ...o,
     });
 
@@ -1936,11 +1960,33 @@ const [connectingPhantom, setConnectingPhantom] = useState(false);
         glow: "rgba(246,70,93,.12)",
         btnText: "#FFFFFF",
       }),
-      light: light({ bg: "#E8EAED", primary: tokens.primary, secondary: tokens.secondary, accent: tokens.accent, danger: tokens.danger, glow: tokens.glow, btnText: tokens.btnText }),
-      paper: light({ bg: "#E2DAC8", primary: "#C2410C", secondary: "#0D9488", accent: "#B45309", danger: "#DC2626", glow: "rgba(194,65,12,.14)" }),
+      light: light({
+        bg: "#EAECEF",
+        primary: tokens.primary,
+        secondary: tokens.secondary,
+        accent: tokens.accent,
+        danger: tokens.danger,
+        glow: "rgba(240,185,11,.12)",
+        btnText: tokens.btnText,
+      }),
+      paper: light({
+        bg: "#E8E2D4",
+        card: "#F1EDE3",
+        surface: "#F1EDE3",
+        surface2: "#E2DAC8",
+        navBg: "rgba(232,226,212,.97)",
+        topbarBg: "rgba(232,226,212,.98)",
+        modalBg: "#F1EDE3",
+        modalHeadBg: "#E8E2D4",
+        primary: "#C2410C",
+        secondary: "#0D9488",
+        accent: "#B45309",
+        danger: "#DC2626",
+        glow: "rgba(194,65,12,.12)",
+      }),
     };
 
-    const t = themes[theme] || themes.calm;
+    const t = themes[theme] || themes.light;
     const root = document.documentElement;
     const set = (k, v) => root.style.setProperty(k, v);
 
@@ -1952,15 +1998,19 @@ const [connectingPhantom, setConnectingPhantom] = useState(false);
     set("--surface", t.surface);
     set("--surface2", t.surface2);
     if (t.mode === "light") {
-      set("--card2", "rgba(15,23,42,.06)");
-      set("--card3", "rgba(15,23,42,.04)");
-      set("--bgSoft", "rgba(255,255,255,.82)");
+      set("--card2", "#E6E8ED");
+      set("--card3", "rgba(30, 35, 41, 0.04)");
+      set("--bgSoft", "rgba(234, 236, 239, 0.92)");
       set("--heroGlow", t.glow);
+      set("--shadow1", "0 1px 3px rgba(30, 35, 41, 0.06)");
+      set("--shadow2", "0 4px 14px rgba(30, 35, 41, 0.08)");
     } else {
       set("--card2", tokens.bgSecondary);
       set("--card3", "rgba(255,255,255,.03)");
       set("--bgSoft", "rgba(20,21,26,.92)");
       set("--heroGlow", t.glow);
+      set("--shadow1", "0 18px 54px rgba(0,0,0,.34)");
+      set("--shadow2", "0 24px 72px rgba(0,0,0,.44)");
     }
     set("--border", t.border);
     set("--borderSoft", t.borderSoft);
@@ -2155,6 +2205,25 @@ const [connectingPhantom, setConnectingPhantom] = useState(false);
       loadCoins(0, false);
       loadProfile(solAddr);
       loadBalance(solAddr);
+
+      // Mint saves in background — poll a few times so Mint Address appears without refresh
+      const createdId = created.id;
+      void (async () => {
+        for (const waitMs of [2500, 5000, 8000, 12000]) {
+          await new Promise((r) => setTimeout(r, waitMs));
+          try {
+            const latest = USE_PLATFORM
+              ? await platformApi.fetchCoin(createdId)
+              : await api(`/coin/${createdId}`);
+            const next = normalizeCoin(latest?.coin || latest || {});
+            if (!next?.id) continue;
+            setCoins((prev) =>
+              (prev || []).map((c) => (String(c.id) === String(createdId) ? { ...c, ...next } : c))
+            );
+            if (next.mintAddress) break;
+          } catch {}
+        }
+      })();
     } catch (e) {
       showToast(e?.message || "Create failed");
     } finally {
@@ -2718,17 +2787,13 @@ const walletHistory = [
             }
           />
           <ModalBody>
-              <div style={{ color: "var(--warn, #f59e0b)", fontSize: 12, marginBottom: 12, lineHeight: 1.5, background: "var(--card2)", borderRadius: 8, padding: "8px 10px" }}>
-                ⚠️ Ye 12 words kisi ko mat dikhana. Agar kho gayi to wallet recover nahi hoga.
+              <div className="modalWarnBanner">
+                Ye 12 words kisi ko mat dikhana. Agar kho gayi to wallet recover nahi hoga.
               </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+              <div className="phraseGrid">
                 {phraseWords.map((w, i) => (
-                  <div key={i} style={{
-                    background: "var(--card2)", borderRadius: 8, padding: "6px 8px",
-                    fontSize: 13, fontWeight: 600, color: "var(--text)",
-                    display: "flex", gap: 6, alignItems: "center",
-                  }}>
-                    <span style={{ color: "var(--muted2)", fontSize: 10, minWidth: 16 }}>{i + 1}.</span>
+                  <div key={i} className="phraseWord">
+                    <span className="phraseWordIdx">{i + 1}.</span>
                     {w}
                   </div>
                 ))}
@@ -2752,9 +2817,9 @@ const walletHistory = [
             title={
               <span>
                 Withdraw SOL
-                <span style={{ fontSize: 12, fontWeight: 400, color: "var(--muted)", marginLeft: 10 }}>
+                <span className="withdrawAvail">
                   Available:{" "}
-                  <span style={{ color: "var(--accent)", fontWeight: 600 }}>
+                  <span className="withdrawAvailVal">
                     {safeNum(profile?.runBalance, 0).toFixed(4)} SOL
                   </span>
                 </span>
@@ -2767,13 +2832,12 @@ const walletHistory = [
             }
           />
           <ModalBody>
+              <div className="withdrawFields">
               <Input
                 value={withdrawAddr}
                 onChange={(e) => setWithdrawAddr(e.target.value)}
                 placeholder="Enter SOL address"
               />
-
-              <div style={{ height: 10 }} />
 
               <Input
                 value={withdrawAmt}
@@ -2781,8 +2845,6 @@ const walletHistory = [
                 placeholder="Enter amount in SOL"
                 type="number"
               />
-
-              <div style={{ height: 14 }} />
 
               <PrimaryButton
                 onClick={async () => {
@@ -2841,6 +2903,7 @@ const walletHistory = [
               >
                 Confirm Withdraw
               </PrimaryButton>
+              </div>
           </ModalBody>
         </Modal>
       )}
@@ -2852,21 +2915,14 @@ const walletHistory = [
             right={<MiniBtn onClick={() => setDexModalOpen(false)}>Close</MiniBtn>}
           />
           <ModalBody>
-              <div style={{ display: "grid", gap: 12 }}>
-                <div
-                  style={{
-                    padding: 14,
-                    borderRadius: 18,
-                    border: "1px solid rgba(255,255,255,.10)",
-                    background: "var(--card)",
-                  }}
-                >
-                  <div style={{ fontSize: 18, fontWeight: 1000 }}>{selectedCoin.name} → DEX Migration</div>
-                  <div className="miniMuted" style={{ marginTop: 6 }}>
+              <div className="dexModalStack">
+                <div className="dexStatusCard">
+                  <div className="dexStatusTitle">{selectedCoin.name} → DEX Migration</div>
+                  <div className="dexStatusMeta">
                     Required MC: {fmtUsd(DEX_LAUNCH_MC_USD)} • Current MC: {fmtUsd(selectedCoin.mc || 0)}
                   </div>
-                  <div style={{ marginTop: 10 }}>
-                    <Pill style={{ color: dexLaunchReady ? "var(--good)" : "var(--warn)" }}>
+                  <div className="dexStatusPill">
+                    <Pill className={dexLaunchReady ? "dexStatusPill--ready" : "dexStatusPill--locked"}>
                       {dexLaunchReady ? "Ready for Phase 2 launch" : "Locked until $5M MC"}
                     </Pill>
                   </div>
@@ -2876,31 +2932,21 @@ const walletHistory = [
                   <button
                     key={dex.id}
                     type="button"
-                    onClick={() => showToast(dexLaunchReady ? `${dex.name} launch Phase 4 me aayega (devnet test ke baad)` : "DEX launch unlocks at $5M MC")}
-                    style={{
-                      width: "100%",
-                      textAlign: "left",
-                      border: "1px solid rgba(255,255,255,.10)",
-                      borderRadius: 18,
-                      padding: 14,
-                      cursor: "pointer",
-                      color: "var(--text)",
-                      background: "linear-gradient(180deg, rgba(255,255,255,.07), rgba(255,255,255,.025))",
-                      boxShadow: "inset 0 1px 0 rgba(255,255,255,.08)",
-                    }}
+                    className="dexOptionBtn"
+                    onClick={() => showToast(dexLaunchReady ? `${dex.name} launch Phase 4 me aayega` : "DEX launch unlocks at $5M MC")}
                   >
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+                    <div className="dexOptionRow">
                       <div>
-                        <div style={{ fontSize: 15, fontWeight: 1000 }}>{dex.name}</div>
-                        <div className="miniMuted" style={{ marginTop: 5 }}>{dex.sub}</div>
+                        <div className="dexOptionName">{dex.name}</div>
+                        <div className="dexOptionSub">{dex.sub}</div>
                       </div>
                       <Pill>{dexLaunchReady ? "Select" : "Phase 2"}</Pill>
                     </div>
                   </button>
                 ))}
 
-                <div className="miniMuted" style={{ lineHeight: 1.55 }}>
-                  This is a safe placeholder for launch. Real liquidity pool creation is intentionally disabled until mainnet DEX integration is audited.
+                <div className="dexModalNote">
+                  Real liquidity pool creation is disabled until mainnet DEX integration is audited.
                 </div>
               </div>
           </ModalBody>

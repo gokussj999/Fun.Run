@@ -14,8 +14,8 @@
   --color-fr-primary-hover: #f0b90b;
   --color-fr-secondary: #f0b90b;
   --color-fr-accent: #fcd535;
-  --color-fr-success: #0ecb81;
-  --color-fr-danger: #f6465d;
+  --color-fr-success: #0a9b68;
+  --color-fr-danger: #d63d52;
   --color-fr-warning: #f0b90b;
   --color-fr-info: #1e90ff;
   --color-fr-text: #eaecef;
@@ -41,24 +41,24 @@
   --fr-primary-hover: #f0b90b;
   --fr-secondary: #f0b90b;
   --fr-accent: #fcd535;
-  --fr-success: #0ecb81;
-  --fr-danger: #f6465d;
+  --fr-success: #0a9b68;
+  --fr-danger: #d63d52;
   --fr-warning: #f0b90b;
   --fr-info: #1e90ff;
   --fr-text: #eaecef;
   --fr-text-secondary: #b7bdc6;
   --fr-text-muted: #848e9c;
 
-  /* Semantic trading fills */
-  --fr-buy: #0ecb81;
-  --fr-buy-hover: #0bb875;
-  --fr-buy-soft: rgba(14, 203, 129, 0.12);
-  --fr-buy-border: rgba(14, 203, 129, 0.32);
+  /* Semantic trading fills — deeper buy/sell (yellow untouched) */
+  --fr-buy: #0a9b68;
+  --fr-buy-hover: #088a5b;
+  --fr-buy-soft: rgba(10, 155, 104, 0.14);
+  --fr-buy-border: rgba(10, 155, 104, 0.36);
   --fr-buy-text: #03180f;
-  --fr-sell: #f6465d;
-  --fr-sell-hover: #e03a50;
-  --fr-sell-soft: rgba(246, 70, 93, 0.12);
-  --fr-sell-border: rgba(246, 70, 93, 0.32);
+  --fr-sell: #d63d52;
+  --fr-sell-hover: #c23448;
+  --fr-sell-soft: rgba(214, 61, 82, 0.14);
+  --fr-sell-border: rgba(214, 61, 82, 0.36);
   --fr-sell-text: #ffffff;
 
   --fr-glow: rgba(252, 213, 53, 0.14);

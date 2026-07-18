@@ -3085,7 +3085,7 @@ app.post("/coin/create", createLimiter, async (req, res) => {
     });
 
     console.log(`[coin/create] +${Date.now()-_t0}ms — sending response`);
-    // On-chain: background mein — response ko block nahi karta
+    // On-chain mint: background — response block nahi karta, lekin mint ASAP DB me save hota hai
     const _coinId = coin.id;
     const _encMnemonic = profile?.encrypted_mnemonic;
     const _symbol = coin.symbol;
@@ -3095,32 +3095,79 @@ app.post("/coin/create", createLimiter, async (req, res) => {
       try {
         const { createSPLToken } = await import("./solana/create-token.js");
         const { create_coin, Wallet } = await import("./solana/program.js");
+
+        // Prefer custodial payer; fall back to treasury so mint never silently skips
+        let payerKeypair = null;
         if (_encMnemonic) {
-          const keypair = await getCustodialKeypairFromMnemonic(_encMnemonic);
+          try {
+            payerKeypair = await getCustodialKeypairFromMnemonic(_encMnemonic);
+          } catch (e) {
+            console.error("[onchain] custodial keypair failed:", e?.message || e);
+          }
+        } else {
+          console.warn(`[onchain] no encrypted_mnemonic for coin ${_coinId} — using treasury payer`);
+        }
+
+        if (!payerKeypair) {
+          payerKeypair = treasury;
+        }
+
+        // Fund custodial payer when needed (treasury already funded)
+        if (payerKeypair !== treasury) {
           try {
             const { SystemProgram, Transaction, sendAndConfirmTransaction, LAMPORTS_PER_SOL } = await import("@solana/web3.js");
             const fundTx = new Transaction().add(
-              SystemProgram.transfer({ fromPubkey: treasury.publicKey, toPubkey: keypair.publicKey, lamports: 0.01 * LAMPORTS_PER_SOL })
+              SystemProgram.transfer({
+                fromPubkey: treasury.publicKey,
+                toPubkey: payerKeypair.publicKey,
+                lamports: Math.floor(0.02 * LAMPORTS_PER_SOL),
+              })
             );
             await sendAndConfirmTransaction(connection, fundTx, [treasury]);
           } catch (e) {
-            console.log("[onchain] Treasury fund failed:", e.message);
-          }
-          const { mintAddress: onchainMint } = await createSPLToken(keypair);
-          const onchainSig = await create_coin(new Wallet(keypair), _symbol);
-          const latestRow = await getCoinRowById(_coinId);
-          if (latestRow) {
-            const c = mapDbCoinToApi(latestRow);
-            c.mintAddress = onchainMint;
-            c.mintSignature = onchainSig;
-            c.reserveWalletAddress = _reserveWalletAddress;
-            c.reserveWalletEncrypted = _reserveWalletEncrypted;
-            await saveCoin(c);
-            console.log(`[onchain] mint saved for ${_coinId}: ${onchainMint} reserveWallet: ${_reserveWalletAddress}`);
+            console.log("[onchain] Treasury fund failed (will try mint anyway):", e.message);
           }
         }
+
+        const { mintAddress: onchainMint } = await createSPLToken(payerKeypair);
+        if (!onchainMint) {
+          throw new Error("createSPLToken returned empty mint");
+        }
+
+        // CRITICAL: save mint immediately — create_coin failure must not drop mintAddress
+        const latestRow = await getCoinRowById(_coinId);
+        if (!latestRow) {
+          throw new Error(`coin ${_coinId} missing after mint`);
+        }
+        const c = mapDbCoinToApi(latestRow);
+        c.mintAddress = onchainMint;
+        c.reserveWalletAddress = _reserveWalletAddress;
+        c.reserveWalletEncrypted = _reserveWalletEncrypted;
+        await saveCoin(c);
+        console.log(`[onchain] mint saved for ${_coinId}: ${onchainMint}`);
+
+        try {
+          broadcast("coin:update", { id: _coinId, mintAddress: onchainMint });
+        } catch {}
+
+        try {
+          const onchainSig = await create_coin(new Wallet(payerKeypair), _symbol);
+          const row2 = await getCoinRowById(_coinId);
+          if (row2) {
+            const c2 = mapDbCoinToApi(row2);
+            c2.mintAddress = onchainMint;
+            c2.mintSignature = onchainSig || c2.mintSignature || "";
+            c2.reserveWalletAddress = _reserveWalletAddress;
+            c2.reserveWalletEncrypted = _reserveWalletEncrypted;
+            await saveCoin(c2);
+            console.log(`[onchain] program create_coin ok for ${_coinId}: ${onchainSig}`);
+          }
+        } catch (progErr) {
+          // Mint already saved — program step is best-effort for bonding-curve PDA
+          console.error("[onchain] create_coin failed (mint kept):", progErr?.message || progErr);
+        }
       } catch (e) {
-        console.error("[onchain] coin creation failed:", e?.message || e);
+        console.error("[onchain] coin mint failed:", e?.message || e);
       }
     });
 

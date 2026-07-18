@@ -1,9 +1,9 @@
 import React from "react";
 import { fmtSol, fmtUsd, getCoinAgeLabel } from "../../lib/coin-display.js";
 
-function shortAddr(addr) {
+function shortAddr(addr, emptyLabel = "—") {
   const s = String(addr || "");
-  if (!s) return "—";
+  if (!s) return emptyLabel;
   if (s.length <= 12) return s;
   return `${s.slice(0, 6)}...${s.slice(-4)}`;
 }
@@ -44,7 +44,7 @@ export function CoinOverviewPanel({
   const mobileRows = [
     { label: "Liquidity", value: `${fmtSol(liquiditySol)} SOL` },
     { label: "Creator Rewards", value: `${fmtSol(coin.creatorRewardsSol || 0)} SOL` },
-    { label: "Mint Address", value: shortAddr(coin.mintAddress), action: coin?.mintAddress ? onCopyMint : null, actionLabel: "Copy" },
+    { label: "Mint Address", value: shortAddr(coin.mintAddress, "Pending…"), action: coin?.mintAddress ? onCopyMint : null, actionLabel: "Copy" },
     { label: "Creator", value: shortAddr(coin.creatorWallet), action: onOpenCreator, actionLabel: "View" },
   ];
 
@@ -116,7 +116,7 @@ export function CoinOverviewPanel({
             {STAT_ICONS.mint}
           </div>
           <div className="coinOverviewStatLabel">Mint Address</div>
-          <div className="coinOverviewStatValue">{shortAddr(coin.mintAddress)}</div>
+          <div className="coinOverviewStatValue">{shortAddr(coin.mintAddress, "Pending…")}</div>
           {coin?.mintAddress ? (
             <button type="button" className="coinSecurityCopy" onClick={onCopyMint}>
               Copy
