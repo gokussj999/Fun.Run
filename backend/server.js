@@ -3152,7 +3152,6 @@ app.post("/coin/create", createLimiter, async (req, res) => {
     // On-chain mint: background — response block nahi karta, lekin mint ASAP DB me save hota hai
     const _coinId = coin.id;
     const _encMnemonic = profile?.encrypted_mnemonic;
-    const _symbol = coin.symbol;
     const _reserveWalletAddress = coin.reserveWalletAddress;
     const _reserveWalletEncrypted = reserveWalletEncrypted;
     setImmediate(async () => {
@@ -3215,7 +3214,8 @@ app.post("/coin/create", createLimiter, async (req, res) => {
         } catch {}
 
         try {
-          const onchainSig = await create_coin(new Wallet(payerKeypair), _symbol);
+          // PDA seed must match trade path (coin.id). Symbol can collide / exceed seed rules.
+          const onchainSig = await create_coin(new Wallet(payerKeypair), _coinId);
           const row2 = await getCoinRowById(_coinId);
           if (row2) {
             const c2 = mapDbCoinToApi(row2);
@@ -3414,27 +3414,39 @@ async function doTrade(req, res, side, authWallet = null) {
       // trader ka profile (run_balance isi primary wallet ke under hai)
       const traderProfile = await getProfile(wallet, true);
 
-      if (process.env.ONCHAIN_TRADING === "1") {
-        // ── ON-CHAIN PATH ───────────────────────────────────────────────────
-        // Backend signs with the custodial keypair — same UX, same API contract.
-        // Response shape is identical to the off-chain path.
+      // On-chain trading only when flag is on AND the Anchor CoinState PDA exists.
+      // If PDA is missing (mint still pending / create_coin failed), fall back to DB AMM
+      // so deposit → create → buy keeps working on mainnet.
+      let useOnchain = process.env.ONCHAIN_TRADING === "1";
+      let preState = null;
+      let _onchainBuy = null;
+      let _onchainSell = null;
+      let AnchorWallet = null;
+      let LAMPS = 1_000_000_000;
+      let getCoinState = null;
+
+      if (useOnchain) {
         const mnemonic = traderProfile?.encrypted_mnemonic;
         if (!mnemonic) return { ok: false, error: "No custodial wallet — deposit SOL first" };
 
-        const {
+        ({
           buy: _onchainBuy, sell: _onchainSell,
           getCoinState, Wallet: AnchorWallet,
-        } = await import("./solana/program.js");
-        const { LAMPORTS_PER_SOL: LAMPS } = await import("@solana/web3.js");
+        } = await import("./solana/program.js"));
+        ({ LAMPORTS_PER_SOL: LAMPS } = await import("@solana/web3.js"));
 
-        // Pre-trade on-chain state
-        let preState;
         try {
           preState = await getCoinState(coinId);
         } catch {
-          return { ok: false, error: "Coin not found on-chain — it may still be minting" };
+          console.warn(`[trade] on-chain CoinState missing for ${coinId} — using off-chain AMM`);
+          useOnchain = false;
         }
+      }
 
+      if (useOnchain) {
+        // ── ON-CHAIN PATH ───────────────────────────────────────────────────
+        // Backend signs with the custodial keypair — same UX, same API contract.
+        const mnemonic = traderProfile?.encrypted_mnemonic;
         const custodialKeypair = await getCustodialKeypairFromMnemonic(mnemonic);
         const anchorWallet     = new AnchorWallet(custodialKeypair);
 
