@@ -1134,8 +1134,11 @@ export default function App() {
     return "landing";
   });
 
-  const [screen, setScreen] = useState("HOME");
-  const [screenHistory, setScreenHistory] = useState(["HOME"]);
+  const [screen, setScreen] = useState("PROFILE");
+  const [screenHistory, setScreenHistory] = useState(["PROFILE"]);
+  const screenRef = useRef("PROFILE");
+  const screenHistoryRef = useRef(["PROFILE"]);
+  const closeOverlayRef = useRef(() => false);
   const [selectedCoinId, setSelectedCoinId] = useState(null);
   const [creatorProfileId, setCreatorProfileId] = useState("");
   const [favoriteCoinIds, setFavoriteCoinIds] = useState(() => {
@@ -2057,6 +2060,36 @@ const [connectingPhantom, setConnectingPhantom] = useState(false);
     } catch {}
   }, [profileAvatar]);
 
+  // Mobile / browser back button → previous app screen
+  useEffect(() => {
+    if (viewMode !== "app") return;
+
+    try {
+      if (!window.history.state?.funrunNav) {
+        window.history.replaceState(
+          { funrunNav: true, screen: screenRef.current || "PROFILE" },
+          ""
+        );
+      }
+    } catch {}
+
+    const onPopState = () => {
+      if (closeOverlayRef.current?.()) {
+        try {
+          window.history.pushState(
+            { funrunNav: true, screen: screenRef.current || "PROFILE" },
+            ""
+          );
+        } catch {}
+        return;
+      }
+      applyHistoryBack();
+    };
+
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, [viewMode]);
+
   async function handleLogoPick(file) {
     if (!file) return;
 
@@ -2074,15 +2107,18 @@ const [connectingPhantom, setConnectingPhantom] = useState(false);
     }
   }
 
-  function enterApp(targetScreen = "HOME") {
+  function enterApp(targetScreen = "PROFILE") {
     try {
       sessionStorage.setItem("enteredApp", "1");
       const url = new URL(window.location.href);
       url.searchParams.set("app", "1");
-      window.history.replaceState({}, "", url.toString());
+      window.history.replaceState({ funrunNav: true, screen: targetScreen }, "", url.toString());
     } catch {}
     setViewMode("app");
-    if (targetScreen) goScreen(targetScreen);
+    setScreen(targetScreen);
+    setScreenHistory([targetScreen]);
+    screenRef.current = targetScreen;
+    screenHistoryRef.current = [targetScreen];
   }
 
   function openCoinFromLanding(coin) {
@@ -2092,25 +2128,44 @@ const [connectingPhantom, setConnectingPhantom] = useState(false);
   }
 
   function goScreen(next) {
-    setScreenHistory((prev) => {
-      const last = prev[prev.length - 1];
-      if (last === next) return prev;
-      return [...prev, next];
-    });
+    if (!next) return;
+    const prev = screenHistoryRef.current;
+    const last = prev[prev.length - 1];
+    if (last === next) {
+      setScreen(next);
+      screenRef.current = next;
+      return;
+    }
+    const nextHistory = [...prev, next];
+    screenHistoryRef.current = nextHistory;
+    screenRef.current = next;
+    setScreenHistory(nextHistory);
     setScreen(next);
+    try {
+      window.history.pushState({ funrunNav: true, screen: next }, "");
+    } catch {}
+  }
+
+  function applyHistoryBack() {
+    const prev = screenHistoryRef.current;
+    if (prev.length <= 1) {
+      const root = prev[0] || "PROFILE";
+      screenRef.current = root;
+      setScreen(root);
+      return;
+    }
+    const nextHistory = prev.slice(0, -1);
+    const prevScreen = nextHistory[nextHistory.length - 1] || "PROFILE";
+    screenHistoryRef.current = nextHistory;
+    screenRef.current = prevScreen;
+    setScreenHistory(nextHistory);
+    setScreen(prevScreen);
   }
 
   function goBack() {
-    setScreenHistory((prev) => {
-      if (prev.length <= 1) {
-        setScreen("HOME");
-        return ["HOME"];
-      }
-      const nextHistory = prev.slice(0, -1);
-      const prevScreen = nextHistory[nextHistory.length - 1] || "HOME";
-      setScreen(prevScreen);
-      return nextHistory;
-    });
+    if (closeOverlayRef.current?.()) return;
+    if (screenHistoryRef.current.length <= 1) return;
+    window.history.back();
   }
 
   function openCoin(coin) {
@@ -2667,6 +2722,28 @@ const walletHistory = [
   const [phraseOpen, setPhraseOpen] = useState(false);
   const [phraseWords, setPhraseWords] = useState([]);
   const [phraseLoading, setPhraseLoading] = useState(false);
+
+  closeOverlayRef.current = () => {
+    if (withdrawOpen) {
+      withdrawKeyRef.current = null;
+      setWithdrawOpen(false);
+      return true;
+    }
+    if (dexModalOpen) {
+      setDexModalOpen(false);
+      return true;
+    }
+    if (phraseOpen) {
+      setPhraseOpen(false);
+      setPhraseWords([]);
+      return true;
+    }
+    if (settingsOpen) {
+      setSettingsOpen(false);
+      return true;
+    }
+    return false;
+  };
 
   async function handleRevealPhrase() {
     setPhraseLoading(true);
