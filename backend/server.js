@@ -580,6 +580,7 @@ async function scanWalletDeposits(wallet) {
 
     const pub = new PublicKey(w);
     const lastSignature = await getLastDepositSignature(w);
+    const treasuryAddr = treasury.publicKey.toBase58();
 
     // Paginate until we reach lastSignature or run out of results.
     // Using `until` param: RPC stops AT lastSignature (exclusive), so we get only NEW sigs.
@@ -625,6 +626,23 @@ async function scanWalletDeposits(wallet) {
 
       if (diff <= 0) continue; // wallet sent SOL (not a deposit) or no change
 
+      // Internal platform funding (treasury → custodial for mint/rent) is NOT a user deposit.
+      // Previously this wrongly inflated run_balance by ~0.02 SOL on every coin create.
+      const treasuryIndex = accountKeys.findIndex(
+        (k) => String(k?.pubkey?.toString?.() || "") === treasuryAddr
+      );
+      let fromTreasury = false;
+      if (treasuryIndex >= 0) {
+        const tPre  = safeNum(tx?.meta?.preBalances?.[treasuryIndex],  0);
+        const tPost = safeNum(tx?.meta?.postBalances?.[treasuryIndex], 0);
+        fromTreasury = tPost < tPre;
+      }
+
+      if (fromTreasury) {
+        await reverseInternalDepositIfCredited({ wallet: w, txHash: signature, amount: diff });
+        continue;
+      }
+
       const ok = await creditDeposit({
         wallet: w,
         txHash: signature,
@@ -643,6 +661,119 @@ async function scanWalletDeposits(wallet) {
     }
   } catch (e) {
     console.log("scanWalletDeposits error:", e?.message || e);
+  }
+}
+
+/** Undo a deposit that was credited from an internal treasury→custodial transfer. */
+async function reverseInternalDepositIfCredited({ wallet, txHash, amount }) {
+  const w = String(wallet || "").trim();
+  const hash = String(txHash || "").trim();
+  const amt = Math.max(0, safeNum(amount, 0));
+  if (!w || !hash || amt <= 0) return false;
+
+  try {
+    const reversed = await sql.begin(async (tx) => {
+      const rows = await tx`
+        select id, wallet, amount, status
+        from deposits
+        where tx_hash = ${hash}
+        limit 1
+        for update
+      `;
+      if (!rows.length) return false;
+      if (String(rows[0].status || "") === "reversed_internal") return false;
+
+      const depWallet = String(rows[0].wallet || w).trim();
+      const depAmt = Math.max(0, safeNum(rows[0].amount, amt));
+
+      const ownerRows = await tx`
+        select wallet from profiles
+        where wallet = ${depWallet} or wallet_address = ${depWallet}
+        limit 1
+      `;
+      const primary = String(ownerRows?.[0]?.wallet || depWallet).trim();
+
+      await tx`
+        update deposits
+        set status = 'reversed_internal'
+        where id = ${rows[0].id}
+      `;
+
+      await tx`
+        update profiles
+        set run_balance = greatest(0, run_balance - ${depAmt}),
+            updated_at = now()
+        where wallet = ${primary}
+      `;
+
+      return { primary, depAmt };
+    });
+
+    if (reversed) {
+      console.log(
+        `[deposit] reversed internal treasury credit ${reversed.depAmt} SOL for ${reversed.primary} tx=${hash.slice(0, 8)}…`
+      );
+      writeAudit("DEPOSIT_REVERSED_INTERNAL", reversed.primary, reversed.depAmt, {
+        meta: { txHash: hash, reason: "treasury_funding" },
+      }).catch(() => {});
+      broadcast("portfolio:update", {
+        wallet: reversed.primary,
+        type: "DEPOSIT_REVERSED",
+        amount: reversed.depAmt,
+        txHash: hash,
+      });
+      return true;
+    }
+  } catch (e) {
+    console.log("reverseInternalDepositIfCredited error:", e?.message || e);
+  }
+  return false;
+}
+
+/** One-shot: reverse any already-credited deposits that were treasury→custodial funding. */
+async function reconcileInternalDeposits(limit = 80) {
+  try {
+    await requireDb();
+    const treasuryAddr = treasury.publicKey.toBase58();
+    const rows = await sql`
+      select wallet, tx_hash, amount
+      from deposits
+      where status = 'confirmed'
+      order by created_at desc
+      limit ${limit}
+    `;
+    let fixed = 0;
+    for (const row of rows || []) {
+      const hash = String(row.tx_hash || "").trim();
+      const custodial = String(row.wallet || "").trim();
+      if (!hash || !custodial) continue;
+      try {
+        const tx = await connection.getParsedTransaction(hash, {
+          maxSupportedTransactionVersion: 0,
+        });
+        if (!tx?.meta) continue;
+        const accountKeys = tx.transaction?.message?.accountKeys || [];
+        const treasuryIndex = accountKeys.findIndex(
+          (k) => String(k?.pubkey?.toString?.() || "") === treasuryAddr
+        );
+        if (treasuryIndex < 0) continue;
+        const tPre  = safeNum(tx.meta.preBalances?.[treasuryIndex],  0);
+        const tPost = safeNum(tx.meta.postBalances?.[treasuryIndex], 0);
+        if (!(tPost < tPre)) continue;
+
+        const ok = await reverseInternalDepositIfCredited({
+          wallet: custodial,
+          txHash: hash,
+          amount: row.amount,
+        });
+        if (ok) fixed += 1;
+      } catch (e) {
+        console.log(`[deposit] reconcile skip ${hash.slice(0, 8)}:`, e?.message || e);
+      }
+    }
+    if (fixed > 0) console.log(`[deposit] reconciled ${fixed} internal treasury credits`);
+  } catch (e) {
+    console.log("reconcileInternalDeposits error:", e?.message || e);
   }
 }
 
@@ -3138,7 +3269,6 @@ app.post("/coin/create", createLimiter, async (req, res) => {
     console.log(`[coin/create] +${Date.now()-_t0}ms — sending response`);
     // On-chain mint: background — response block nahi karta, lekin mint ASAP DB me save hota hai
     const _coinId = coin.id;
-    const _encMnemonic = profile?.encrypted_mnemonic;
     const _reserveWalletAddress = coin.reserveWalletAddress;
     const _reserveWalletEncrypted = reserveWalletEncrypted;
     setImmediate(async () => {
@@ -3146,38 +3276,10 @@ app.post("/coin/create", createLimiter, async (req, res) => {
         const { createSPLToken } = await import("./solana/create-token.js");
         const { create_coin, Wallet } = await import("./solana/program.js");
 
-        // Prefer custodial payer; fall back to treasury so mint never silently skips
-        let payerKeypair = null;
-        if (_encMnemonic) {
-          try {
-            payerKeypair = await getCustodialKeypairFromMnemonic(_encMnemonic);
-          } catch (e) {
-            console.error("[onchain] custodial keypair failed:", e?.message || e);
-          }
-        } else {
-          console.warn(`[onchain] no encrypted_mnemonic for coin ${_coinId} — using treasury payer`);
-        }
-
-        if (!payerKeypair) {
-          payerKeypair = treasury;
-        }
-
-        // Fund custodial payer when needed (treasury already funded)
-        if (payerKeypair !== treasury) {
-          try {
-            const { SystemProgram, Transaction, sendAndConfirmTransaction, LAMPORTS_PER_SOL } = await import("@solana/web3.js");
-            const fundTx = new Transaction().add(
-              SystemProgram.transfer({
-                fromPubkey: treasury.publicKey,
-                toPubkey: payerKeypair.publicKey,
-                lamports: Math.floor(0.02 * LAMPORTS_PER_SOL),
-              })
-            );
-            await sendAndConfirmTransaction(connection, fundTx, [treasury]);
-          } catch (e) {
-            console.log("[onchain] Treasury fund failed (will try mint anyway):", e.message);
-          }
-        }
+        // Always mint from treasury — never fund custodial with SOL for mint fees.
+        // Funding custodial was being picked up by deposit scanner as a user deposit
+        // and wrongly inflated run_balance (~0.02 SOL per coin create).
+        const payerKeypair = treasury;
 
         const { mintAddress: onchainMint } = await createSPLToken(payerKeypair);
         if (!onchainMint) {
@@ -4123,6 +4225,9 @@ const server = app.listen(PORT, () => {
     .catch(err => console.error("Schema error:", err));
   reconcilePendingWithdrawals().catch(err =>
     console.error("Reconcile error:", err)
+  );
+  reconcileInternalDeposits().catch(err =>
+    console.error("Internal deposit reconcile error:", err)
   );
   setInterval(async () => {
     try {
