@@ -170,8 +170,8 @@ export function PriceChart({ coin, height = 280, chartRange, setChartRange, relo
       scaleMargins: { top: 0.12, bottom: 0.28 },
     });
 
-    // Tiny price moves (e.g. 0.04% on a bonding curve) must not fill the whole pane —
-    // enforce at least ±1.5% visible range around mid so candles don't look like crashes.
+    // Pad around the real high/low so wicks stay readable, without forcing a
+    // fake ±1.5% window that hides small green recoveries inside a red bar.
     candleSeries.applyOptions({
       autoscaleInfoProvider: (original) => {
         const base = original();
@@ -179,13 +179,13 @@ export function PriceChart({ coin, height = 280, chartRange, setChartRange, relo
         const { minValue, maxValue } = base.priceRange;
         const mid = (minValue + maxValue) / 2;
         if (!(mid > 0)) return base;
-        const pad = mid * 0.015;
-        const half = Math.max((maxValue - minValue) / 2, pad);
+        const span = Math.max(0, maxValue - minValue);
+        const pad = Math.max(span * 0.35, mid * 0.0015);
         return {
           ...base,
           priceRange: {
-            minValue: mid - half,
-            maxValue: mid + half,
+            minValue: minValue - pad,
+            maxValue: maxValue + pad,
           },
         };
       },

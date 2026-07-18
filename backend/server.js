@@ -1806,61 +1806,42 @@ async function upsertCandlesForTrade(coinId, price, volumeSol) {
     ["1m", 2_592_000_000],
   ];
 
+  // One atomic UPSERT per TF — avoids read/modify/write races when buy+sell
+  // hit the same bucket in parallel (high/low were getting lost).
   await Promise.all(
     timeframes.map(async ([tf, ms]) => {
       const bucket = Math.floor(now / ms) * ms;
 
-      const existing = await sql`
-        select open, high, low, close
-        from candles
-        where coin_id = ${id} and timeframe = ${tf} and bucket_time = ${bucket}
-        limit 1
-      `;
-
-      if (existing.length === 0) {
+      let openPrice = p;
+      try {
         const prev = await sql`
           select close from candles
           where coin_id = ${id} and timeframe = ${tf} and bucket_time < ${bucket}
           order by bucket_time desc limit 1
         `;
+        openPrice = Math.max(0.00000001, safeNum(prev?.[0]?.close, p));
+      } catch {}
 
-        const openPrice = Math.max(0.00000001, safeNum(prev?.[0]?.close, p));
-        const highPrice = Math.max(openPrice, p);
-        const lowPrice = Math.min(openPrice, p);
-
-        await sql`
-          insert into candles (
-            coin_id, timeframe, bucket_time,
-            open, high, low, close,
-            volume_sol, trades_count, updated_at
-          )
-          values (
-            ${id}, ${tf}, ${bucket},
-            ${openPrice}, ${highPrice}, ${lowPrice}, ${p},
-            ${vol}, 1, now()
-          )
-          on conflict (coin_id, timeframe, bucket_time)
-          do update set
-            high = greatest(candles.high, excluded.high),
-            low = least(candles.low, excluded.low),
-            close = excluded.close,
-            volume_sol = candles.volume_sol + excluded.volume_sol,
-            trades_count = candles.trades_count + 1,
-            updated_at = now()
-        `;
-      } else {
-        await sql`
-          update candles
-          set
-            high = greatest(high, ${p}),
-            low = least(low, ${p}),
-            close = ${p},
-            volume_sol = volume_sol + ${vol},
-            trades_count = trades_count + 1,
-            updated_at = now()
-          where coin_id = ${id} and timeframe = ${tf} and bucket_time = ${bucket}
-        `;
-      }
+      await sql`
+        insert into candles (
+          coin_id, timeframe, bucket_time,
+          open, high, low, close,
+          volume_sol, trades_count, updated_at
+        )
+        values (
+          ${id}, ${tf}, ${bucket},
+          ${openPrice}, ${p}, ${p}, ${p},
+          ${vol}, 1, now()
+        )
+        on conflict (coin_id, timeframe, bucket_time)
+        do update set
+          high = greatest(candles.high, excluded.close),
+          low = least(candles.low, excluded.close),
+          close = excluded.close,
+          volume_sol = candles.volume_sol + excluded.volume_sol,
+          trades_count = candles.trades_count + 1,
+          updated_at = now()
+      `;
     })
   );
 }
