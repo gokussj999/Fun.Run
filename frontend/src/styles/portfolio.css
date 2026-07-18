@@ -395,7 +395,73 @@
   }
 }
 
+/* Light theme tiles — never charcoal + dark text (mobile readability critical) */
+html[data-mode="light"] .portfolioBalanceTile,
+html[data-mode="light"] .portfolioPnlCard,
+html[data-mode="light"] .portfolioAllocationRow {
+  background: #e8eaee !important;
+  border-color: rgba(30, 35, 41, 0.12) !important;
+  color: #1e2329 !important;
+  box-shadow: none !important;
+}
+
+html[data-mode="light"] .portfolioBalanceTile:hover,
+html[data-mode="light"] .portfolioAllocationRow:hover {
+  background: #dde1e8 !important;
+}
+
+html[data-mode="light"] .portfolioBalanceTileLabel,
+html[data-mode="light"] .portfolioBalanceTileSub,
+html[data-mode="light"] .portfolioPnlCardLabel,
+html[data-mode="light"] .portfolioPnlCardSub,
+html[data-mode="light"] .portfolioAllocationUsd,
+html[data-mode="light"] .portfolioHeroLabel,
+html[data-mode="light"] .portfolioHeroMeta {
+  color: #5b6572 !important;
+}
+
+html[data-mode="light"] .portfolioBalanceTileValue,
+html[data-mode="light"] .portfolioPnlCardValue,
+html[data-mode="light"] .portfolioHeroValue,
+html[data-mode="light"] .portfolioAllocationLabel,
+html[data-mode="light"] .portfolioAllocationPct {
+  color: #1e2329 !important;
+}
+
+html[data-mode="light"] .portfolioPnlCard--up {
+  background: rgba(10, 155, 104, 0.12) !important;
+  border-color: rgba(10, 155, 104, 0.28) !important;
+}
+
+html[data-mode="light"] .portfolioPnlCard--down {
+  background: rgba(214, 61, 82, 0.1) !important;
+  border-color: rgba(214, 61, 82, 0.28) !important;
+}
+
+html[data-mode="light"] .portfolioHoldingsList .profileCoinRow,
+html[data-mode="light"] .portfolioActivityRow--clickable:hover {
+  background: rgba(30, 35, 41, 0.04) !important;
+  border-color: rgba(30, 35, 41, 0.1) !important;
+}
+
+html[data-mode="light"] .portfolioAllocationBar {
+  background: #e4e6eb !important;
+  border-color: rgba(30, 35, 41, 0.1) !important;
+}
+
 @media (max-width: 640px) {
+  html[data-mode="light"] .portfolioBalanceTile,
+  html[data-mode="light"] .portfolioPnlCard {
+    background: #eceef2 !important;
+    min-height: 96px;
+  }
+
+  html[data-mode="light"] .portfolioBalanceTileValue,
+  html[data-mode="light"] .portfolioPnlCardValue {
+    color: #111827 !important;
+    font-weight: 900;
+  }
+
   .portfolioScreenShell {
     gap: 14px;
     padding-bottom: 20px;

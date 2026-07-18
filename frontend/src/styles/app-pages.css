@@ -1762,17 +1762,10 @@ html[data-mode="light"] .profileRunCoin {
   gap: 8px;
 }
 
-.phraseWord {
-  background: var(--fr-surface, #181a20);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 8px 10px;
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--text);
-  display: flex;
-  gap: 6px;
-  align-items: center;
+html[data-mode="light"] .phraseWord {
+  background: #e8eaee !important;
+  color: #1e2329 !important;
+  border-color: rgba(30, 35, 41, 0.12) !important;
 }
 
 .phraseWordIdx {

@@ -274,4 +274,28 @@
   .referralBalanceGrid {
     grid-template-columns: 1fr;
   }
+
+  html[data-mode="light"] .referralBalanceTile {
+    background: #eceef2 !important;
+  }
+}
+
+/* Light theme — mobile-readable tiles */
+html[data-mode="light"] .referralBalanceTile,
+html[data-mode="light"] .referralMetricCard {
+  background: #e8eaee !important;
+  border-color: rgba(30, 35, 41, 0.12) !important;
+  color: #1e2329 !important;
+}
+
+html[data-mode="light"] .referralBalanceTileLabel,
+html[data-mode="light"] .referralBalanceTileSub,
+html[data-mode="light"] .referralHeroLabel,
+html[data-mode="light"] .referralHeroMeta {
+  color: #5b6572 !important;
+}
+
+html[data-mode="light"] .referralBalanceTileValue,
+html[data-mode="light"] .referralHeroValue {
+  color: #1e2329 !important;
 }

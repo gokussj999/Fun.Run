@@ -103,3 +103,36 @@
   --shadow2: var(--fr-shadow-card-hover);
   --shine: inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
+
+/* Light mode: force readable surfaces even if JS theme vars lag or PWA serves stale defaults */
+html[data-mode="light"] {
+  --fr-bg: #eaecef;
+  --fr-bg-secondary: #e4e6eb;
+  --fr-card: #f0f1f3;
+  --fr-card-solid: #f0f1f3;
+  --fr-surface: #f0f1f3;
+  --fr-surface-strong: #e6e8ed;
+  --fr-surface-hover: rgba(30, 35, 41, 0.06);
+  --fr-border: rgba(30, 35, 41, 0.1);
+  --fr-border-soft: rgba(30, 35, 41, 0.07);
+  --fr-text: #1e2329;
+  --fr-text-secondary: #5b6572;
+  --fr-text-muted: #4a5563;
+
+  --bg: #eaecef;
+  --bg2: #e4e6eb;
+  --card: #f0f1f3;
+  --card2: #e6e8ed;
+  --surface: #f0f1f3;
+  --surface2: #e8eaee;
+  --text: #1e2329;
+  --muted: #4a5563;
+  --muted2: #5b6572;
+  --border: rgba(30, 35, 41, 0.1);
+  --borderSoft: rgba(30, 35, 41, 0.07);
+  --inputBg: rgba(30, 35, 41, 0.05);
+  --inputBorder: rgba(30, 35, 41, 0.12);
+  --btnText: #1e2329;
+  --shadow1: 0 1px 3px rgba(30, 35, 41, 0.06);
+  --shadow2: 0 4px 14px rgba(30, 35, 41, 0.08);
+}

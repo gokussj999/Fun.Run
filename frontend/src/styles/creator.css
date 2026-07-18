@@ -380,3 +380,29 @@
   opacity: 0.7;
   cursor: wait;
 }
+
+/* Light theme — mobile-readable tiles */
+html[data-mode="light"] .creatorBalanceTile,
+html[data-mode="light"] .creatorMetricCard {
+  background: #e8eaee !important;
+  border-color: rgba(30, 35, 41, 0.12) !important;
+  color: #1e2329 !important;
+}
+
+html[data-mode="light"] .creatorBalanceTileLabel,
+html[data-mode="light"] .creatorBalanceTileSub,
+html[data-mode="light"] .creatorHeroLabel,
+html[data-mode="light"] .creatorHeroMeta {
+  color: #5b6572 !important;
+}
+
+html[data-mode="light"] .creatorBalanceTileValue,
+html[data-mode="light"] .creatorHeroValue {
+  color: #1e2329 !important;
+}
+
+@media (max-width: 640px) {
+  html[data-mode="light"] .creatorBalanceTile {
+    background: #eceef2 !important;
+  }
+}

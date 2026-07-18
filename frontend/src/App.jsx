@@ -2028,6 +2028,9 @@ const [connectingPhantom, setConnectingPhantom] = useState(false);
       set("--fr-surface-hover", "rgba(30, 35, 41, 0.06)");
       set("--fr-border", t.border);
       set("--fr-border-soft", t.borderSoft);
+      set("--fr-text", t.text);
+      set("--fr-text-secondary", t.muted2);
+      set("--fr-text-muted", t.muted);
     } else {
       set("--card2", tokens.bgSecondary);
       set("--card3", "rgba(255,255,255,.03)");
