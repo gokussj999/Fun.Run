@@ -130,6 +130,14 @@ const REFERRAL_PCT_OF_FEE = clampNum(Number(process.env.REFERRAL_PCT_OF_FEE || 2
 const APP_OWNER_WALLET = String(process.env.APP_OWNER_WALLET || "CZ9bps8dTtK69bRaQc8A4hUR8ZmUbfbYbTWfvaHpqSyn").trim();
 const SOL_USD = clampNum(Number(process.env.SOL_USD || 80), 1, 100000);
 
+// RUN platform coin — off-curve pools (not shown in public UI copy)
+const RUN_COIN_ID = String(process.env.RUN_COIN_ID || "7cc0f755e5a5475ca8345a062d5c2475").trim();
+const RUN_UNLOCK_AT_MS = Date.parse(
+  String(process.env.RUN_UNLOCK_AT || "2027-01-01T00:00:00Z")
+);
+const RUN_AIRDROP_POOL = Math.max(0, Number(process.env.RUN_AIRDROP_POOL || 5_000_000_000));
+const RUN_OWNER_ALLOC = Math.max(0, Number(process.env.RUN_OWNER_ALLOC || 2_000_000_000));
+
 let currentSolUsd = SOL_USD;
 let _solPriceCache = { price: SOL_USD, ts: 0 };
 
@@ -1029,8 +1037,13 @@ function calcPricing(input) {
 function mapDbCoinToApi(row = {}) {
   const totalSupply = Math.max(1, safeNum(row.total_supply, TOTAL_SUPPLY));
   const curveSupply = Math.max(1, safeNum(row.curve_supply, saleSupplyFromTotal(totalSupply)));
-  const tokenReserve = clampNum(safeNum(row.reserve_token, curveSupply), 1, curveSupply);
-  const curveSold = clampNum(safeNum(row.curve_sold, curveSupply - tokenReserve), 0, curveSupply);
+  // tokenReserve may exceed curveSupply when off-curve tokens (airdrop/owner) are sold in
+  const tokenReserve = Math.max(1, safeNum(row.reserve_token, curveSupply));
+  const curveSold = clampNum(
+    safeNum(row.curve_sold, Math.max(0, curveSupply - Math.min(tokenReserve, curveSupply))),
+    0,
+    curveSupply
+  );
   const vSol = Math.max(1e-9, safeNum(row.v_sol, VIRTUAL_SOL));
   const vTokens = calcVirtualTokens(totalSupply, curveSupply, row.v_tokens);
 
@@ -1390,6 +1403,7 @@ encrypted_mnemonic text
   await sql`create unique index if not exists withdrawals_idempotency_key_unique on withdrawals (idempotency_key) where idempotency_key is not null`;
 
   await sql`alter table profiles add column if not exists run_tokens numeric not null default 0`;
+  await sql`alter table profiles add column if not exists run_tokens_unlocked numeric not null default 0`;
   await sql`alter table profiles alter column run_balance set default 0`;
 
   // One-time align old 300k signup airdrop → 200k
@@ -1410,6 +1424,22 @@ encrypted_mnemonic text
   await sql`create index if not exists creator_follows_creator_idx on creator_follows (creator_wallet)`;
 
   await sql`alter table coins add column if not exists notified_mc_100k boolean not null default false`;
+  await sql`alter table coins add column if not exists airdrop_pool numeric not null default 0`;
+  await sql`alter table coins add column if not exists airdrop_released numeric not null default 0`;
+  await sql`alter table coins add column if not exists owner_alloc numeric not null default 0`;
+  await sql`alter table coins add column if not exists owner_alloc_released numeric not null default 0`;
+
+  // Seed RUN off-curve pools once (idempotent when pool still 0)
+  if (RUN_COIN_ID) {
+    await sql`
+      update coins set
+        airdrop_pool = ${RUN_AIRDROP_POOL},
+        owner_alloc = ${RUN_OWNER_ALLOC}
+      where id = ${RUN_COIN_ID}
+        and coalesce(airdrop_pool, 0) = 0
+        and coalesce(owner_alloc, 0) = 0
+    `;
+  }
 }
 
 // -------------------- AUDIT LOG --------------------
@@ -2323,6 +2353,43 @@ async function requireAuthWallet(req, res) {
   }
 }
 
+async function requireAppOwner(req, res) {
+  const auth = await requireAuthWallet(req, res);
+  if (!auth) return null;
+  if (!APP_OWNER_WALLET || auth.wallet !== APP_OWNER_WALLET) {
+    res.status(403).json({ ok: false, error: "owner only" });
+    return null;
+  }
+  return auth;
+}
+
+async function getRunCoinRow(_tx = null) {
+  const db = _tx || sql;
+  if (RUN_COIN_ID) {
+    const byId = await db`select * from coins where id = ${RUN_COIN_ID} limit 1`;
+    if (byId[0]) return byId[0];
+  }
+  const bySym = await db`select * from coins where upper(symbol) = 'RUN' order by created_at desc limit 1`;
+  return bySym[0] || null;
+}
+
+/** Credit tokens outside the bonding curve (airdrop / owner alloc). Updates holdings + coin.holders. */
+async function creditOffCurveHolding(wallet, coinId, amount, _tx) {
+  const w = String(wallet || "").trim();
+  const c = String(coinId || "").trim();
+  const amt = Math.max(0, safeNum(amount, 0));
+  if (!w || !c || amt <= 0 || !_tx) return 0;
+
+  const next = await upsertHolding(w, c, "inc", amt, _tx);
+
+  const rows = await _tx`select holders from coins where id = ${c} for update`;
+  const holders = asObj(rows[0]?.holders, {});
+  holders[w] = next;
+  await _tx`update coins set holders = ${holders} where id = ${c}`;
+  coinCache.del(c);
+  return next;
+}
+
 // -------------------- ROUTES --------------------
 app.get("/", async (req, res) => {
   return res.json({
@@ -2476,6 +2543,190 @@ app.get("/admin/stats", async (req, res) => {
     });
   } catch (e) {
     return serverErr(e, res, "admin/stats");
+  }
+});
+
+app.get("/admin/run-control", async (req, res) => {
+  const auth = await requireAppOwner(req, res);
+  if (!auth) return;
+  try {
+    await requireDb();
+    const coin = await getRunCoinRow();
+    if (!coin) return res.status(404).json({ ok: false, error: "RUN coin not found" });
+
+    const pending = await sql`
+      select
+        count(*)::int as users,
+        coalesce(sum(greatest(coalesce(run_tokens, 0) - coalesce(run_tokens_unlocked, 0), 0)), 0)::numeric as tokens
+      from profiles
+      where coalesce(run_tokens, 0) > coalesce(run_tokens_unlocked, 0)
+    `;
+
+    const unlockAt = Number.isFinite(RUN_UNLOCK_AT_MS) ? RUN_UNLOCK_AT_MS : Date.parse("2027-01-01T00:00:00Z");
+    const now = Date.now();
+    const pool = Math.max(0, safeNum(coin.airdrop_pool, RUN_AIRDROP_POOL));
+    const released = Math.max(0, safeNum(coin.airdrop_released, 0));
+    const ownerAlloc = Math.max(0, safeNum(coin.owner_alloc, RUN_OWNER_ALLOC));
+    const ownerReleased = Math.max(0, safeNum(coin.owner_alloc_released, 0));
+
+    return res.json({
+      ok: true,
+      coinId: coin.id,
+      symbol: coin.symbol,
+      unlockAt,
+      unlockReady: now >= unlockAt,
+      pendingUsers: safeNum(pending?.[0]?.users, 0),
+      pendingTokens: safeNum(pending?.[0]?.tokens, 0),
+      airdropPool: pool,
+      airdropReleased: released,
+      airdropRemaining: Math.max(0, pool - released),
+      ownerAlloc,
+      ownerReleased,
+      ownerReady: ownerReleased < ownerAlloc,
+    });
+  } catch (e) {
+    return serverErr(e, res, "admin/run-control");
+  }
+});
+
+app.post("/admin/run-release-owner", async (req, res) => {
+  const auth = await requireAppOwner(req, res);
+  if (!auth) return;
+  try {
+    await requireDb();
+    if (!APP_OWNER_WALLET) {
+      return res.status(500).json({ ok: false, error: "APP_OWNER_WALLET not set" });
+    }
+
+    await getProfile(APP_OWNER_WALLET, true);
+
+    const result = await sql.begin(async (_tx) => {
+      const coin = await getRunCoinRow(_tx);
+      if (!coin) return { ok: false, error: "RUN coin not found" };
+
+      const ownerAlloc = Math.max(0, safeNum(coin.owner_alloc, RUN_OWNER_ALLOC));
+      const already = Math.max(0, safeNum(coin.owner_alloc_released, 0));
+      const remaining = Math.max(0, ownerAlloc - already);
+      if (remaining <= 0) {
+        return { ok: false, error: "Owner allocation already credited" };
+      }
+
+      await creditOffCurveHolding(APP_OWNER_WALLET, coin.id, remaining, _tx);
+      await _tx`
+        update coins set owner_alloc_released = ${already + remaining}
+        where id = ${coin.id}
+      `;
+      coinCache.del(coin.id);
+
+      return { ok: true, credited: remaining, wallet: APP_OWNER_WALLET, coinId: coin.id };
+    });
+
+    if (!result?.ok) {
+      return res.status(400).json(result);
+    }
+    await writeAudit("RUN_OWNER_ALLOC", APP_OWNER_WALLET, result.credited, {
+      coinId: result.coinId,
+      meta: { credited: result.credited },
+    });
+    return res.json(result);
+  } catch (e) {
+    return serverErr(e, res, "admin/run-release-owner");
+  }
+});
+
+app.post("/admin/run-release-airdrop", async (req, res) => {
+  const auth = await requireAppOwner(req, res);
+  if (!auth) return;
+  try {
+    await requireDb();
+
+    const unlockAt = Number.isFinite(RUN_UNLOCK_AT_MS) ? RUN_UNLOCK_AT_MS : Date.parse("2027-01-01T00:00:00Z");
+    if (Date.now() < unlockAt) {
+      return res.status(400).json({
+        ok: false,
+        error: "Unlock date not reached",
+        unlockAt,
+      });
+    }
+
+    const batchLimit = Math.min(2000, Math.max(1, Math.floor(safeNum(req.body?.limit, 500))));
+
+    const result = await sql.begin(async (_tx) => {
+      const coin = await getRunCoinRow(_tx);
+      if (!coin) return { ok: false, error: "RUN coin not found" };
+
+      const pool = Math.max(0, safeNum(coin.airdrop_pool, RUN_AIRDROP_POOL));
+      let released = Math.max(0, safeNum(coin.airdrop_released, 0));
+      let remaining = Math.max(0, pool - released);
+      if (remaining <= 0) {
+        return { ok: false, error: "Airdrop pool exhausted" };
+      }
+
+      const pending = await _tx`
+        select wallet,
+          greatest(coalesce(run_tokens, 0) - coalesce(run_tokens_unlocked, 0), 0)::numeric as pending
+        from profiles
+        where coalesce(run_tokens, 0) > coalesce(run_tokens_unlocked, 0)
+        order by created_at asc
+        limit ${batchLimit}
+        for update skip locked
+      `;
+
+      if (!pending.length) {
+        return { ok: true, users: 0, tokens: 0, airdropRemaining: remaining, done: true };
+      }
+
+      let users = 0;
+      let tokensOut = 0;
+
+      for (const row of pending) {
+        if (remaining <= 0) break;
+        const wallet = String(row.wallet || "").trim();
+        let amt = Math.max(0, safeNum(row.pending, 0));
+        if (!wallet || amt <= 0) continue;
+        if (amt > remaining) amt = remaining;
+
+        await creditOffCurveHolding(wallet, coin.id, amt, _tx);
+        await _tx`
+          update profiles set
+            run_tokens_unlocked = coalesce(run_tokens_unlocked, 0) + ${amt},
+            updated_at = now()
+          where wallet = ${wallet}
+        `;
+        remaining -= amt;
+        released += amt;
+        tokensOut += amt;
+        users += 1;
+      }
+
+      await _tx`
+        update coins set airdrop_released = ${released}
+        where id = ${coin.id}
+      `;
+      coinCache.del(coin.id);
+
+      return {
+        ok: true,
+        users,
+        tokens: tokensOut,
+        airdropRemaining: remaining,
+        done: remaining <= 0 || users < pending.length,
+        coinId: coin.id,
+      };
+    });
+
+    if (!result?.ok && result?.error) {
+      return res.status(400).json(result);
+    }
+    if (result?.tokens > 0) {
+      await writeAudit("RUN_AIRDROP_RELEASE", auth.wallet, result.tokens, {
+        coinId: result.coinId,
+        meta: { users: result.users, remaining: result.airdropRemaining },
+      });
+    }
+    return res.json(result);
+  } catch (e) {
+    return serverErr(e, res, "admin/run-release-airdrop");
   }
 });
 
@@ -3511,6 +3762,16 @@ async function doTrade(req, res, side, authWallet = null) {
 
       // trader ka profile (run_balance isi primary wallet ke under hai)
       const traderProfile = await getProfile(wallet, true);
+
+      // Holdings table = source of truth for sellable balance (airdrop/owner credits live here)
+      const holdRows = _tx
+        ? await _tx`select tokens from holdings where wallet = ${wallet} and coin_id = ${coinId} limit 1`
+        : await sql`select tokens from holdings where wallet = ${wallet} and coin_id = ${coinId} limit 1`;
+      const holdBal = Math.max(0, safeNum(holdRows?.[0]?.tokens, 0));
+      coin.holders = asObj(coin.holders, {});
+      if (holdBal > 0 || coin.holders[wallet] != null) {
+        coin.holders[wallet] = holdBal;
+      }
 
       // On-chain trading only when flag is on AND the Anchor CoinState PDA exists.
       // If PDA is missing (mint still pending / create_coin failed), fall back to DB AMM

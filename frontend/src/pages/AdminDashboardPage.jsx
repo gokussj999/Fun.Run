@@ -132,6 +132,13 @@ export function AdminDashboardPage({
   onGoHome,
   onGoSearch,
   shortWallet,
+  runControl = null,
+  runControlLoading = false,
+  runControlError = "",
+  onRefreshRunControl,
+  onReleaseOwnerRun,
+  onReleaseAirdropRun,
+  runActionBusy = false,
 }) {
   const snapshot = useMemo(
     () =>
@@ -235,6 +242,99 @@ export function AdminDashboardPage({
               </div>
             </div>
           </>
+        )}
+      </Card>
+
+      <Card>
+        <SectionHeader
+          title="RUN Lock & Release"
+          right={
+            onRefreshRunControl ? (
+              <MiniBtn onClick={onRefreshRunControl} disabled={runControlLoading || runActionBusy}>
+                Refresh
+              </MiniBtn>
+            ) : null
+          }
+        />
+        <div className="miniMuted" style={{ marginBottom: 12 }}>
+          Total 10B — Market 3B · Airdrop lock 5B · Owner lock 2B
+        </div>
+        {runControlLoading && !runControl ? (
+          <AdminPanelSkeleton />
+        ) : runControl ? (
+          <div className="adminStatList">
+            <div className="adminMetricGrid" style={{ marginBottom: 12 }}>
+              <MetricCard
+                label="Airdrop lock (5B)"
+                value={`${fmtNum(runControl.airdropRemaining || 0, 0)}`}
+                sub={`Released ${fmtNum(runControl.airdropReleased || 0, 0)} / ${fmtNum(runControl.airdropPool || 5_000_000_000, 0)}`}
+              />
+              <MetricCard
+                label="Owner lock (2B)"
+                value={
+                  runControl.ownerReady
+                    ? fmtNum(Math.max(0, (runControl.ownerAlloc || 0) - (runControl.ownerReleased || 0)), 0)
+                    : "Credited"
+                }
+                sub={
+                  runControl.ownerReady
+                    ? "Ready to credit holdings"
+                    : `${fmtNum(runControl.ownerReleased || 0, 0)} in your wallet`
+                }
+                tone={runControl.ownerReady ? "up" : "neutral"}
+              />
+            </div>
+            <StatRow
+              label="Unlock date"
+              value={
+                runControl.unlockAt
+                  ? new Date(runControl.unlockAt).toISOString().slice(0, 10)
+                  : "—"
+              }
+              sub={runControl.unlockReady ? "Ready to release" : "Still locked"}
+            />
+            <StatRow
+              label="Pending user rewards"
+              value={`${fmtNum(runControl.pendingTokens || 0, 0)} RUN`}
+              sub={`${runControl.pendingUsers || 0} users`}
+            />
+            <div className="adminActionsRow" style={{ marginTop: 14, flexWrap: "wrap", gap: 10 }}>
+              <MiniBtn
+                tone="good"
+                onClick={onReleaseOwnerRun}
+                disabled={runActionBusy || !runControl.ownerReady || !onReleaseOwnerRun}
+              >
+                Release 2B → Owner Wallet
+              </MiniBtn>
+              <MiniBtn
+                tone="good"
+                onClick={onReleaseAirdropRun}
+                disabled={
+                  runActionBusy ||
+                  !runControl.unlockReady ||
+                  !(runControl.pendingUsers > 0) ||
+                  !(runControl.airdropRemaining > 0) ||
+                  !onReleaseAirdropRun
+                }
+              >
+                Release 5B Airdrop → Users
+              </MiniBtn>
+            </div>
+            {!runControl.unlockReady ? (
+              <div className="miniMuted" style={{ marginTop: 10 }}>
+                Airdrop release button unlocks on 01 Jan 2027 (same as profile countdown). Owner 2B abhi release ho sakta hai.
+              </div>
+            ) : null}
+          </div>
+        ) : (
+          <EmptyState
+            icon="🪙"
+            title="RUN control unavailable"
+            description={runControlError || "Could not load RUN release status. Deploy backend + refresh."}
+            actionLabel="Retry"
+            onAction={onRefreshRunControl}
+            compact
+          />
         )}
       </Card>
 

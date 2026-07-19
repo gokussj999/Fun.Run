@@ -1193,6 +1193,10 @@ const [loadingProfile, setLoadingProfile] = useState(false);
 const [walletSolBalance, setWalletSolBalance] = useState(0);
 const [solPriceUsd, setSolPriceUsd] = useState(80);
 const [unlockNow, setUnlockNow] = useState(Date.now());
+const [runControl, setRunControl] = useState(null);
+const [runControlLoading, setRunControlLoading] = useState(false);
+const [runControlError, setRunControlError] = useState("");
+const [runActionBusy, setRunActionBusy] = useState(false);
 
 useEffect(() => {
   // Only tick countdown on screens that show unlock timer — avoids full-app blink.
@@ -2721,6 +2725,94 @@ const [connectingPhantom, setConnectingPhantom] = useState(false);
     }
   }
 
+  async function loadRunControl() {
+    if (!authenticated || !isAdmin) return;
+    setRunControlLoading(true);
+    setRunControlError("");
+    try {
+      const token = await getAccessToken();
+      const json = await api("/admin/run-control", {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (json?.ok) {
+        setRunControl(json);
+        setRunControlError("");
+      } else {
+        setRunControl(null);
+        setRunControlError(json?.error || "RUN control failed");
+      }
+    } catch (e) {
+      setRunControl(null);
+      setRunControlError(e?.message || "RUN control request failed");
+    } finally {
+      setRunControlLoading(false);
+    }
+  }
+
+  async function handleReleaseOwnerRun() {
+    if (!authenticated || !isAdmin) return;
+    setRunActionBusy(true);
+    try {
+      const token = await getAccessToken();
+      const json = await api("/admin/run-release-owner", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: "{}",
+      });
+      if (json?.ok) {
+        showToast(`Owner credited ${fmtNum(json.credited || 0, 0)} RUN`);
+        await loadRunControl();
+        await loadProfile(solAddr);
+      } else {
+        showToast(json?.error || "Owner credit failed");
+      }
+    } catch (e) {
+      showToast(e?.message || "Owner credit failed");
+    } finally {
+      setRunActionBusy(false);
+    }
+  }
+
+  async function handleReleaseAirdropRun() {
+    if (!authenticated || !isAdmin) return;
+    setRunActionBusy(true);
+    try {
+      const token = await getAccessToken();
+      const json = await api("/admin/run-release-airdrop", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ limit: 500 }),
+      });
+      if (json?.ok) {
+        showToast(
+          json.users > 0
+            ? `Released ${fmtNum(json.tokens || 0, 0)} RUN → ${json.users} users`
+            : "No pending rewards left"
+        );
+        await loadRunControl();
+      } else {
+        showToast(json?.error || "Release failed");
+      }
+    } catch (e) {
+      showToast(e?.message || "Release failed");
+    } finally {
+      setRunActionBusy(false);
+    }
+  }
+
+  useEffect(() => {
+    if (screen === "ADMIN" && authenticated && isAdmin) {
+      loadRunControl();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [screen, authenticated, isAdmin]);
+
   const creatorCoin = selectedCoin || null;
   const creatorCoins = useMemo(() => {
     const cid = creatorProfileId || creatorCoin?.creatorWallet || "";
@@ -3582,6 +3674,13 @@ const walletHistory = [
             onGoHome={() => goScreen("HOME")}
             onGoSearch={() => goScreen("SEARCH")}
             shortWallet={shortWallet}
+            runControl={runControl}
+            runControlLoading={runControlLoading}
+            runControlError={runControlError}
+            onRefreshRunControl={loadRunControl}
+            onReleaseOwnerRun={handleReleaseOwnerRun}
+            onReleaseAirdropRun={handleReleaseAirdropRun}
+            runActionBusy={runActionBusy}
           />
         )}
 
