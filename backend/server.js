@@ -127,7 +127,7 @@ const OWNER_PCT_OF_FEE = clampNum(Number(process.env.OWNER_PCT_OF_FEE || 40), 0,
 const CREATOR_PCT_OF_FEE = clampNum(Number(process.env.CREATOR_PCT_OF_FEE || 40), 0, 100);
 const REFERRAL_PCT_OF_FEE = clampNum(Number(process.env.REFERRAL_PCT_OF_FEE || 20), 0, 100);
 
-const APP_OWNER_WALLET = String(process.env.APP_OWNER_WALLET || "HEBqdStfnZgygQVMxpq5CXjsfPPagytdZoAyY2WcC1ji").trim();
+const APP_OWNER_WALLET = String(process.env.APP_OWNER_WALLET || "29QQikVXzYSzk15ELXtERgydrAKWwpLoxBqL5Q4eVNdu").trim();
 const SOL_USD = clampNum(Number(process.env.SOL_USD || 80), 1, 100000);
 
 let currentSolUsd = SOL_USD;

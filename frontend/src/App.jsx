@@ -67,7 +67,7 @@ const STARTING_MC_USD = 6500;
 const LS_THEME = "theme";
 const LS_PROFILE_AVATAR = "profile_avatar_v1";
 
-const APP_OWNER_WALLET = "HEBqdStfnZgygQVMxpq5CXjsfPPagytdZoAyY2WcC1ji";
+const APP_OWNER_WALLET = "29QQikVXzYSzk15ELXtERgydrAKWwpLoxBqL5Q4eVNdu";
 const DEX_LAUNCH_MC_USD = 5_000_000;
 const DEX_OPTIONS = [
   { id: "raydium", name: "Raydium", sub: "Most popular Solana liquidity pool option." },
