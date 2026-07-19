@@ -2044,6 +2044,15 @@ async function distributeFeeDirect(coin, traderWallet, feeSol) {
     if (updates.length) await Promise.all(updates);
   });
 
+  if (APP_OWNER_WALLET && ownerPart > 0) {
+    broadcast("portfolio:update", {
+      wallet: APP_OWNER_WALLET,
+      type: "OWNER_FEE",
+      amount: ownerPart,
+      fee,
+    });
+  }
+
   // In-memory coin state update (outside DB transaction — safe, read from DB on next cache miss).
   if (creatorWallet && creatorPart > 0) {
     coin.creatorRewardsSol = Math.max(0, safeNum(coin.creatorRewardsSol, 0) + creatorPart);

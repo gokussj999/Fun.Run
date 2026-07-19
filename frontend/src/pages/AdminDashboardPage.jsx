@@ -257,14 +257,23 @@ export function AdminDashboardPage({
         />
       </div>
 
-      {!loading && snapshot.ownerRewardsSol > 0 && onClaimOwner ? (
+      {!loading && onClaimOwner ? (
         <Card>
           <div className="adminClaimCard">
             <div>
               <div className="adminHeroLabel">Platform owner fees</div>
               <div className="adminClaimValue">{fmtSol(snapshot.ownerRewardsSol)} SOL</div>
+              <div className="miniMuted" style={{ marginTop: 6 }}>
+                {snapshot.ownerRewardsSol > 0
+                  ? "Claim → Main Wallet (run balance), then Withdraw if needed"
+                  : "No claimable owner fees yet — new trades will credit here"}
+              </div>
             </div>
-            <MiniBtn tone="good" onClick={onClaimOwner}>
+            <MiniBtn
+              tone="good"
+              onClick={onClaimOwner}
+              disabled={!(snapshot.ownerRewardsSol > 0)}
+            >
               Claim Owner Fees
             </MiniBtn>
           </div>
