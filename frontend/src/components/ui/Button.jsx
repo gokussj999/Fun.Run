@@ -2,10 +2,11 @@ import React from "react";
 
 const MINI_TONES = {
   good: {
-    background: "color-mix(in srgb, var(--primary) 14%, transparent)",
-    border: "1px solid color-mix(in srgb, var(--primary) 32%, transparent)",
-    color: "var(--primary)",
-    boxShadow: "inset 0 1px 0 rgba(255,255,255,.08)",
+    background: "var(--primary)",
+    border: "1px solid var(--primary)",
+    color: "var(--btnText, #0B0E11)",
+    boxShadow: "0 4px 14px rgba(252, 213, 53, 0.28)",
+    fontWeight: 1000,
   },
   success: {
     background: "var(--fr-buy, #0a9b68)",

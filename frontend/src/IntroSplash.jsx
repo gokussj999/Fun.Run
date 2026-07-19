@@ -420,11 +420,13 @@ export default function IntroSplash({
         }
 
         .funBrand{
-          color:#10392f;
+          color:#FFE566;
           font-size:clamp(22px, 3vw, 34px);
-          font-weight:950;
+          font-weight:1000;
           letter-spacing:.3px;
-          text-shadow:0 2px 0 rgba(255,255,255,.18);
+          text-shadow:
+            0 0 18px rgba(255, 229, 102, 0.45),
+            0 2px 0 rgba(0,0,0,.18);
         }
 
         .funTitle{

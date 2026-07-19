@@ -648,9 +648,10 @@ body {
       }
 
       .nativeAdText strong{
-        color:var(--primary);
+        color:#FFE566;
         font-size:1.08em;
         letter-spacing:.2px;
+        text-shadow: 0 0 12px rgba(255, 229, 102, 0.35);
       }
 
       .nativeAdSub{

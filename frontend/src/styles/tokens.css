@@ -10,10 +10,10 @@
   --color-fr-bg-secondary: #12161c;
   --color-fr-card: #1e2329;
   --color-fr-border: #2b3139;
-  --color-fr-primary: #fcd535;
-  --color-fr-primary-hover: #f0b90b;
-  --color-fr-secondary: #f0b90b;
-  --color-fr-accent: #fcd535;
+  --color-fr-primary: #ffe566;
+  --color-fr-primary-hover: #fcd535;
+  --color-fr-secondary: #fcd535;
+  --color-fr-accent: #ffe566;
   --color-fr-success: #0a9b68;
   --color-fr-danger: #d63d52;
   --color-fr-warning: #f0b90b;
@@ -37,10 +37,10 @@
   --fr-border: #2b3139;
   --fr-border-soft: #1e2329;
 
-  --fr-primary: #fcd535;
-  --fr-primary-hover: #f0b90b;
-  --fr-secondary: #f0b90b;
-  --fr-accent: #fcd535;
+  --fr-primary: #ffe566;
+  --fr-primary-hover: #fcd535;
+  --fr-secondary: #fcd535;
+  --fr-accent: #ffe566;
   --fr-success: #0a9b68;
   --fr-danger: #d63d52;
   --fr-warning: #f0b90b;
@@ -61,9 +61,9 @@
   --fr-sell-border: rgba(214, 61, 82, 0.36);
   --fr-sell-text: #ffffff;
 
-  --fr-glow: rgba(252, 213, 53, 0.14);
-  --fr-accent-muted: rgba(252, 213, 53, 0.1);
-  --fr-accent-border: rgba(252, 213, 53, 0.28);
+  --fr-glow: rgba(255, 229, 102, 0.2);
+  --fr-accent-muted: rgba(255, 229, 102, 0.14);
+  --fr-accent-border: rgba(255, 229, 102, 0.4);
   --fr-surface-hover: rgba(255, 255, 255, 0.04);
   --fr-focus-ring: rgba(252, 213, 53, 0.28);
   --fr-radius-sm: 8px;

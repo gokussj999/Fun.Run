@@ -343,13 +343,14 @@
 .profileAffiliatePill {
   padding: 9px 12px;
   border-radius: 999px;
-  background: rgba(252, 213, 53, 0.1);
-  border: 1px solid rgba(252, 213, 53, 0.22);
-  color: var(--primary);
+  background: var(--primary);
+  border: 1px solid var(--primary);
+  color: var(--btnText, #0b0e11);
   font-size: 12px;
   font-weight: 1000;
   line-height: 1;
   white-space: nowrap;
+  box-shadow: 0 4px 14px rgba(252, 213, 53, 0.28);
 }
 
 /* ── Profile dashboard (exchange-style) ── */
