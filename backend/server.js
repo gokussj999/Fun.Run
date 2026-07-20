@@ -2576,13 +2576,22 @@ app.get("/admin/run-control", async (req, res) => {
     const coin = await getRunCoinRow();
     if (!coin) return res.status(404).json({ ok: false, error: "RUN coin not found" });
 
-    const pending = await sql`
-      select
-        count(*)::int as users,
-        coalesce(sum(greatest(coalesce(run_tokens, 0) - coalesce(run_tokens_unlocked, 0), 0)), 0)::numeric as tokens
-      from profiles
-      where coalesce(run_tokens, 0) > coalesce(run_tokens_unlocked, 0)
-    `;
+    const [pending, totals] = await Promise.all([
+      sql`
+        select
+          count(*)::int as users,
+          coalesce(sum(greatest(coalesce(run_tokens, 0) - coalesce(run_tokens_unlocked, 0), 0)), 0)::numeric as tokens
+        from profiles
+        where coalesce(run_tokens, 0) > coalesce(run_tokens_unlocked, 0)
+      `,
+      sql`
+        select
+          count(*)::int as total_users,
+          count(*) filter (where coalesce(run_tokens, 0) > 0)::int as users_with_run,
+          count(*) filter (where coalesce(run_balance, 0) > 0)::int as users_with_balance
+        from profiles
+      `,
+    ]);
 
     const unlockAt = Number.isFinite(RUN_UNLOCK_AT_MS) ? RUN_UNLOCK_AT_MS : Date.parse("2027-01-01T00:00:00Z");
     const now = Date.now();
@@ -2597,6 +2606,9 @@ app.get("/admin/run-control", async (req, res) => {
       symbol: coin.symbol,
       unlockAt,
       unlockReady: now >= unlockAt,
+      totalUsers: safeNum(totals?.[0]?.total_users, 0),
+      usersWithRun: safeNum(totals?.[0]?.users_with_run, 0),
+      usersWithBalance: safeNum(totals?.[0]?.users_with_balance, 0),
       pendingUsers: safeNum(pending?.[0]?.users, 0),
       pendingTokens: safeNum(pending?.[0]?.tokens, 0),
       airdropPool: pool,

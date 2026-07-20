@@ -204,6 +204,104 @@ export function AdminDashboardPage({
 
       {adSlot}
 
+      {/* RUN supply locks — always first so admin never misses release controls */}
+      <Card className="adminHeroCard" style={{ borderColor: "rgba(255, 229, 102, 0.45)" }}>
+        <PageHeader
+          title="RUN Locks"
+          right={<Pill>10B total</Pill>}
+        />
+        <div className="miniMuted" style={{ marginBottom: 12 }}>
+          Market <b>3B</b> public · Airdrop <b>5B</b> locked · Owner <b>2B</b> locked
+        </div>
+        {runControlLoading && !runControl ? (
+          <AdminPanelSkeleton />
+        ) : runControl ? (
+          <div className="adminStatList">
+            <div className="adminMetricGrid" style={{ marginBottom: 12 }}>
+              <MetricCard
+                label="Airdrop lock (5B)"
+                value={`${fmtNum(runControl.airdropRemaining || 0, 0)}`}
+                sub={`Released ${fmtNum(runControl.airdropReleased || 0, 0)} / ${fmtNum(runControl.airdropPool || 5_000_000_000, 0)}`}
+              />
+              <MetricCard
+                label="Owner lock (2B)"
+                value={
+                  runControl.ownerReady
+                    ? fmtNum(Math.max(0, (runControl.ownerAlloc || 0) - (runControl.ownerReleased || 0)), 0)
+                    : "Credited"
+                }
+                sub={
+                  runControl.ownerReady
+                    ? "Ready to credit holdings"
+                    : `${fmtNum(runControl.ownerReleased || 0, 0)} in your wallet`
+                }
+                tone={runControl.ownerReady ? "up" : "neutral"}
+              />
+              <MetricCard
+                label="Market (public)"
+                value="3B"
+                sub="Bonding curve tradeable"
+              />
+              <MetricCard
+                label="Pending users"
+                value={String(runControl.pendingUsers || 0)}
+                sub={`${fmtNum(runControl.pendingTokens || 0, 0)} RUN waiting`}
+              />
+            </div>
+            <StatRow
+              label="Unlock date"
+              value={
+                runControl.unlockAt
+                  ? new Date(runControl.unlockAt).toISOString().slice(0, 10)
+                  : "2027-01-01"
+              }
+              sub={runControl.unlockReady ? "Ready to release" : "Still locked"}
+            />
+            <div className="adminActionsRow" style={{ marginTop: 14, flexWrap: "wrap", gap: 10 }}>
+              <MiniBtn
+                tone="good"
+                onClick={onReleaseOwnerRun}
+                disabled={runActionBusy || !runControl.ownerReady || !onReleaseOwnerRun}
+              >
+                Release 2B → Owner Wallet
+              </MiniBtn>
+              <MiniBtn
+                tone="good"
+                onClick={onReleaseAirdropRun}
+                disabled={
+                  runActionBusy ||
+                  !runControl.unlockReady ||
+                  !(runControl.pendingUsers > 0) ||
+                  !(runControl.airdropRemaining > 0) ||
+                  !onReleaseAirdropRun
+                }
+              >
+                Release 5B Airdrop → Users
+              </MiniBtn>
+              {onRefreshRunControl ? (
+                <MiniBtn onClick={onRefreshRunControl} disabled={runControlLoading || runActionBusy}>
+                  Refresh
+                </MiniBtn>
+              ) : null}
+            </div>
+            {!runControl.unlockReady ? (
+              <div className="miniMuted" style={{ marginTop: 10 }}>
+                Airdrop unlock = profile date (01 Jan 2027). Owner 2B abhi release ho sakta hai.
+              </div>
+            ) : null}
+          </div>
+        ) : (
+          <EmptyState
+            icon="🪙"
+            title="RUN locks loading failed"
+            description={runControlError || "Backend /admin/run-control deploy + login as owner, then Retry."}
+            actionLabel="Retry"
+            onAction={onRefreshRunControl}
+            compact
+          />
+        )}
+      </Card>
+
       <Card className="adminHeroCard">
         <PageHeader
           title="Admin Console"
@@ -231,6 +329,17 @@ export function AdminDashboardPage({
                 </div>
               </div>
               <div className="adminBalanceTile">
+                <div className="adminBalanceTileLabel">Total Users</div>
+                <div className="adminBalanceTileValue">
+                  {runControl ? String(runControl.totalUsers ?? 0) : "—"}
+                </div>
+                <div className="adminBalanceTileSub">
+                  {runControl
+                    ? `${runControl.usersWithBalance ?? 0} with SOL balance`
+                    : "Open RUN Locks / Refresh"}
+                </div>
+              </div>
+              <div className="adminBalanceTile">
                 <div className="adminBalanceTileLabel">Creators</div>
                 <div className="adminBalanceTileValue">{snapshot.creatorsCount}</div>
                 <div className="adminBalanceTileSub">Unique launch wallets</div>
@@ -242,99 +351,6 @@ export function AdminDashboardPage({
               </div>
             </div>
           </>
-        )}
-      </Card>
-
-      <Card>
-        <SectionHeader
-          title="RUN Lock & Release"
-          right={
-            onRefreshRunControl ? (
-              <MiniBtn onClick={onRefreshRunControl} disabled={runControlLoading || runActionBusy}>
-                Refresh
-              </MiniBtn>
-            ) : null
-          }
-        />
-        <div className="miniMuted" style={{ marginBottom: 12 }}>
-          Total 10B — Market 3B · Airdrop lock 5B · Owner lock 2B
-        </div>
-        {runControlLoading && !runControl ? (
-          <AdminPanelSkeleton />
-        ) : runControl ? (
-          <div className="adminStatList">
-            <div className="adminMetricGrid" style={{ marginBottom: 12 }}>
-              <MetricCard
-                label="Airdrop lock (5B)"
-                value={`${fmtNum(runControl.airdropRemaining || 0, 0)}`}
-                sub={`Released ${fmtNum(runControl.airdropReleased || 0, 0)} / ${fmtNum(runControl.airdropPool || 5_000_000_000, 0)}`}
-              />
-              <MetricCard
-                label="Owner lock (2B)"
-                value={
-                  runControl.ownerReady
-                    ? fmtNum(Math.max(0, (runControl.ownerAlloc || 0) - (runControl.ownerReleased || 0)), 0)
-                    : "Credited"
-                }
-                sub={
-                  runControl.ownerReady
-                    ? "Ready to credit holdings"
-                    : `${fmtNum(runControl.ownerReleased || 0, 0)} in your wallet`
-                }
-                tone={runControl.ownerReady ? "up" : "neutral"}
-              />
-            </div>
-            <StatRow
-              label="Unlock date"
-              value={
-                runControl.unlockAt
-                  ? new Date(runControl.unlockAt).toISOString().slice(0, 10)
-                  : "—"
-              }
-              sub={runControl.unlockReady ? "Ready to release" : "Still locked"}
-            />
-            <StatRow
-              label="Pending user rewards"
-              value={`${fmtNum(runControl.pendingTokens || 0, 0)} RUN`}
-              sub={`${runControl.pendingUsers || 0} users`}
-            />
-            <div className="adminActionsRow" style={{ marginTop: 14, flexWrap: "wrap", gap: 10 }}>
-              <MiniBtn
-                tone="good"
-                onClick={onReleaseOwnerRun}
-                disabled={runActionBusy || !runControl.ownerReady || !onReleaseOwnerRun}
-              >
-                Release 2B → Owner Wallet
-              </MiniBtn>
-              <MiniBtn
-                tone="good"
-                onClick={onReleaseAirdropRun}
-                disabled={
-                  runActionBusy ||
-                  !runControl.unlockReady ||
-                  !(runControl.pendingUsers > 0) ||
-                  !(runControl.airdropRemaining > 0) ||
-                  !onReleaseAirdropRun
-                }
-              >
-                Release 5B Airdrop → Users
-              </MiniBtn>
-            </div>
-            {!runControl.unlockReady ? (
-              <div className="miniMuted" style={{ marginTop: 10 }}>
-                Airdrop release button unlocks on 01 Jan 2027 (same as profile countdown). Owner 2B abhi release ho sakta hai.
-              </div>
-            ) : null}
-          </div>
-        ) : (
-          <EmptyState
-            icon="🪙"
-            title="RUN control unavailable"
-            description={runControlError || "Could not load RUN release status. Deploy backend + refresh."}
-            actionLabel="Retry"
-            onAction={onRefreshRunControl}
-            compact
-          />
         )}
       </Card>
 
@@ -408,10 +424,20 @@ export function AdminDashboardPage({
             <AdminPanelSkeleton />
           ) : (
             <div className="adminStatList">
+              <StatRow
+                label="Total registered users"
+                value={runControl ? String(runControl.totalUsers ?? 0) : "—"}
+              />
+              <StatRow
+                label="Users with RUN rewards"
+                value={runControl ? String(runControl.usersWithRun ?? 0) : "—"}
+              />
+              <StatRow
+                label="Users with SOL balance"
+                value={runControl ? String(runControl.usersWithBalance ?? 0) : "—"}
+              />
               <StatRow label="Unique creators" value={String(snapshot.creatorsCount)} />
               <StatRow label="Holders observed" value={String(snapshot.holdersCount)} />
-              <StatRow label="Registered users (global)" value="—" />
-              <StatRow label="Active sessions" value="—" />
             </div>
           )}
         </Card>
