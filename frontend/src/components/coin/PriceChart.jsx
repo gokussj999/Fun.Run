@@ -115,8 +115,8 @@ export function PriceChart({ coin, height = 280, chartRange, setChartRange, relo
         timeVisible: true,
         secondsVisible: false,
         rightOffset: 6,
-        barSpacing: compact ? 8 : 6,
-        minBarSpacing: compact ? 3 : 2,
+        barSpacing: compact ? 10 : 8,
+        minBarSpacing: compact ? 4 : 3,
         rightBarStaysOnScroll: true,
       },
       crosshair: {
@@ -263,6 +263,8 @@ export function PriceChart({ coin, height = 280, chartRange, setChartRange, relo
   const tfLabels = { "5M": "5m", "15M": "15m", "1H": "1h", "4H": "4h", "1D": "1D", "1W": "Week" };
 
   const lastPointsLenRef = useRef(0);
+  const firstBarTimeRef = useRef(null);
+  const lastBarTimeRef = useRef(null);
 
   useEffect(() => {
     if (!candleSeriesRef.current || !chartApiRef.current || !candlePoints.length) return;
@@ -270,10 +272,16 @@ export function PriceChart({ coin, height = 280, chartRange, setChartRange, relo
     const series = candleSeriesRef.current;
     const vol = volumeSeriesRef.current;
     const prevLen = lastPointsLenRef.current;
+    const first = candlePoints[0];
     const last = candlePoints[candlePoints.length - 1];
+    const sameWindow =
+      prevLen === candlePoints.length &&
+      prevLen > 0 &&
+      firstBarTimeRef.current === first?.time &&
+      lastBarTimeRef.current === last?.time;
 
-    // Fast path: only last candle changed → update() instead of full redraw
-    if (prevLen === candlePoints.length && prevLen > 0 && last) {
+    // Fast path: only OHLC of the current bar changed (same time window)
+    if (sameWindow && last) {
       try {
         series.update(last);
         const lastVol = volumePoints[volumePoints.length - 1];
@@ -288,6 +296,8 @@ export function PriceChart({ coin, height = 280, chartRange, setChartRange, relo
     series.setData(candlePoints);
     vol?.setData(volumePoints);
     lastPointsLenRef.current = candlePoints.length;
+    firstBarTimeRef.current = first?.time ?? null;
+    lastBarTimeRef.current = last?.time ?? null;
     chartApiRef.current.timeScale().scrollToRealTime();
   }, [candlePoints, volumePoints, chartVersion]);
 

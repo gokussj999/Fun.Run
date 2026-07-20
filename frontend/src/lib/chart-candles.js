@@ -12,132 +12,171 @@ export const CHART_TF_API_MAP = {
 };
 
 export function chartRangeToApiTf(range) {
-  return CHART_TF_API_MAP[String(range || "1D").toUpperCase()] || "1d";
+  return CHART_TF_API_MAP[String(range || "5M").toUpperCase()] || "5m";
 }
 
-export function normalizeCandleData(rawList, chartRange, coin) {
-  const list = Array.isArray(rawList) ? rawList : [];
-  if (!list.length) return [];
+function cleanPxLoose(v, fallback) {
+  const x = safeNum(v, 0);
+  if (x > 0 && Number.isFinite(x)) return x;
+  return Math.max(0.00000001, safeNum(fallback, 0.00000001));
+}
 
+function isActiveBar(c) {
+  return (
+    safeNum(c.volume, 0) > 0.0000001 ||
+    Math.abs(Number(c.close) - Number(c.open)) > 0 ||
+    Number(c.high) > Number(c.low)
+  );
+}
+
+/**
+ * Build OHLCV for the selected timeframe.
+ * - Keeps real trade / moved candles
+ * - Drops quiet gap-fill stubs from the API (those looked like thin green sticks)
+ * - Forward-fills only after the last real bar through "now" so TF can advance without a trade
+ * - Open chains from previous close; live price stitches the active bucket only
+ */
+export function normalizeCandleData(rawList, chartRange, coin, nowMs = Date.now()) {
+  const list = Array.isArray(rawList) ? rawList : [];
   const cfg = getTimeframeCfg(chartRange);
   const bucketMs = cfg.ms;
   const maxBars = 120;
 
-  const refPrice = Math.max(
+  const livePrice = Math.max(
     0.00000001,
     safeNum(coin?.priceUsd || coin?.lastPriceUsd || coin?.price || 0, 0.00000001)
   );
 
-  const cleanPx = (v) => {
-    const x = Math.max(0.00000001, safeNum(v, refPrice));
-    if (refPrice > 0 && x > refPrice * 250) return refPrice;
-    if (refPrice > 0 && x < refPrice / 250) return refPrice;
-    return x;
-  };
-
-  const cleanVol = (row, high, low) => {
-    const direct = safeNum(row?.volume ?? row?.vol ?? row?.v, 0);
-    if (direct > 0) return direct;
-    return Math.max(0, Math.abs(high - low) * 1_000_000);
-  };
-
   const sorted = [...list]
     .map((c) => {
-      const close = cleanPx(c.close);
-      const rawHigh = cleanPx(c.high);
-      const rawLow = cleanPx(c.low);
+      const close = cleanPxLoose(c.close, livePrice);
+      const open = cleanPxLoose(c.open, close);
+      const high = Math.max(open, close, cleanPxLoose(c.high, close));
+      const low = Math.min(open, close, cleanPxLoose(c.low, close));
+      const volDirect = safeNum(c.volume ?? c.vol ?? c.v ?? c.volumeSol, 0);
       return {
         time: Math.floor(safeNum(c.time, 0) / bucketMs) * bucketMs,
-        rawOpen: cleanPx(c.open),
-        rawHigh,
-        rawLow,
+        open,
+        high,
+        low,
         close,
-        volume: cleanVol(c, rawHigh, rawLow),
+        volume: Math.max(0, volDirect),
       };
     })
-    .filter((c) => c.time > 0 && c.rawOpen > 0 && c.rawHigh > 0 && c.rawLow > 0 && c.close > 0)
+    .filter((c) => c.time > 0 && c.open > 0 && c.high > 0 && c.low > 0 && c.close > 0)
     .sort((a, b) => a.time - b.time);
 
-  if (!sorted.length) return [];
+  const nowBucket = Math.floor(nowMs / bucketMs) * bucketMs;
 
+  if (!sorted.length) {
+    return [
+      {
+        time: nowBucket,
+        open: livePrice,
+        high: livePrice,
+        low: livePrice,
+        close: livePrice,
+        volume: 0,
+      },
+    ];
+  }
+
+  // Merge same-bucket rows; chain open from previous close
   const merged = [];
-  let chainPrevClose = null;
-
+  let prevClose = null;
   for (const row of sorted) {
+    const open = prevClose != null ? prevClose : row.open;
+    const close = row.close;
+    const high = Math.max(open, close, row.high);
+    const low = Math.min(open, close, row.low);
     const last = merged[merged.length - 1];
-    const open = chainPrevClose !== null ? chainPrevClose : row.rawOpen;
-    const high = Math.max(open, row.close, row.rawHigh);
-    const low = Math.min(open, row.close, row.rawLow);
 
     if (last && last.time === row.time) {
       last.high = Math.max(last.high, high);
       last.low = Math.min(last.low, low);
-      last.close = row.close;
+      last.close = close;
       last.volume = Math.max(last.volume || 0, row.volume || 0);
+      prevClose = last.close;
     } else {
       merged.push({
         time: row.time,
         open,
         high,
         low,
-        close: row.close,
+        close,
         volume: row.volume || 0,
       });
+      prevClose = close;
     }
-
-    chainPrevClose = row.close;
   }
 
-  const nowBucket = Math.floor(Date.now() / bucketMs) * bucketMs;
-  const start = Math.max(merged[0].time, nowBucket - (maxBars - 1) * bucketMs);
-
-  const normalized = [];
-  let cursor = start;
-  let i = 0;
-  let prevClose = merged[0].close;
-
-  while (i < merged.length && merged[i].time < start) {
-    prevClose = merged[i].close;
-    i += 1;
-  }
-
-  while (cursor <= nowBucket) {
-    const row = merged[i];
-
-    if (row && row.time === cursor) {
-      normalized.push(row);
-      prevClose = row.close;
-      i += 1;
-    } else {
-      normalized.push({
-        time: cursor,
-        open: prevClose,
-        high: prevClose,
-        low: prevClose,
-        close: prevClose,
+  // Drop quiet API gap-fills; keep real activity only
+  const windowStart = nowBucket - (maxBars - 1) * bucketMs;
+  let trades = merged.filter((c) => c.time >= windowStart && isActiveBar(c));
+  if (!trades.length) {
+    const last = merged[merged.length - 1];
+    trades = [
+      {
+        time: Math.min(Math.max(last.time, windowStart), nowBucket),
+        open: last.close,
+        high: last.close,
+        low: last.close,
+        close: last.close,
         volume: 0,
-      });
-    }
+      },
+    ];
+  }
 
+  let carry = trades[0].open;
+  const chained = trades.map((row, idx) => {
+    if (idx === 0) {
+      carry = row.close;
+      return { ...row, open: row.open, high: Math.max(row.open, row.close, row.high), low: Math.min(row.open, row.close, row.low) };
+    }
+    const open = carry;
+    const close = row.close;
+    const next = {
+      time: row.time,
+      open,
+      high: Math.max(open, close, row.high),
+      low: Math.min(open, close, row.low),
+      close,
+      volume: row.volume || 0,
+    };
+    carry = close;
+    return next;
+  });
+
+  // Forward-fill last trade → current bucket (new candle on the clock, no buy needed)
+  const out = [...chained];
+  let cursor = out[out.length - 1].time + bucketMs;
+  let flatCarry = out[out.length - 1].close;
+  while (cursor <= nowBucket) {
+    out.push({
+      time: cursor,
+      open: flatCarry,
+      high: flatCarry,
+      low: flatCarry,
+      close: flatCarry,
+      volume: 0,
+    });
     cursor += bucketMs;
   }
 
-  // Live stitch: when coin price moves (WS / trade) before candle API refetches,
-  // paint the current bucket so buy→sell shows a real candle on every device.
-  const out = normalized.slice(-maxBars);
-  if (out.length && refPrice > 0) {
-    const last = out[out.length - 1];
-    const live = cleanPx(refPrice);
-    if (Math.abs(live - last.close) / Math.max(last.close, 1e-12) > 0.00001) {
-      last.close = live;
-      last.high = Math.max(last.high, last.open, live);
-      last.low = Math.min(last.low, last.open, live);
+  const trimmed = out.slice(-maxBars);
+  if (trimmed.length && livePrice > 0) {
+    const last = trimmed[trimmed.length - 1];
+    if (last.time === nowBucket) {
+      last.close = livePrice;
+      last.high = Math.max(last.open, last.high, livePrice);
+      last.low = Math.min(last.open, last.low, livePrice);
     }
   }
 
-  return out;
+  return trimmed;
 }
 
+/** Flat/doji bars stay equal OHLC (tick) — no artificial pad / fake green sticks. */
 export function toCandleSeriesPoints(candleData) {
   const unique = [];
   const seen = new Set();
@@ -152,13 +191,15 @@ export function toCandleSeriesPoints(candleData) {
       Number.isFinite(c.close)
     ) {
       seen.add(t);
-      unique.push({
-        time: t,
-        open: Number(c.open),
-        high: Number(c.high),
-        low: Number(c.low),
-        close: Number(c.close),
-      });
+      const open = Number(c.open);
+      const close = Number(c.close);
+      let high = Math.max(open, close, Number(c.high));
+      let low = Math.min(open, close, Number(c.low));
+      if (!(high > low)) {
+        high = open;
+        low = open;
+      }
+      unique.push({ time: t, open, high, low, close });
     }
   }
 

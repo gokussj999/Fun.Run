@@ -24,7 +24,52 @@ function SectionHeader({ title, right }) {
 
 const EXPANSION_ITEMS = [
   {
-    icon: "⚡",
+    icon: "✅",
+    label: "Solana",
+    badge: "LIVE",
+    live: true,
+    dk: "#00FFA3",
+    lk: "#047857",
+    bgDk: "rgba(0,255,163,.10)",
+    bgLk: "rgba(4,120,87,.10)",
+    bdDk: "rgba(0,255,163,.28)",
+    bdLk: "rgba(4,120,87,.28)",
+  },
+  {
+    icon: "🔜",
+    label: "Robinhood Chain",
+    badge: "COMING SOON",
+    dk: "#FF6B35",
+    lk: "#C2410C",
+    bgDk: "rgba(255,107,53,.10)",
+    bgLk: "rgba(194,65,12,.10)",
+    bdDk: "rgba(255,107,53,.24)",
+    bdLk: "rgba(194,65,12,.28)",
+  },
+  {
+    icon: "🔜",
+    label: "Base",
+    badge: "COMING SOON",
+    dk: "#5B8DEF",
+    lk: "#1D4ED8",
+    bgDk: "rgba(91,141,239,.10)",
+    bgLk: "rgba(29,78,216,.10)",
+    bdDk: "rgba(91,141,239,.24)",
+    bdLk: "rgba(29,78,216,.28)",
+  },
+  {
+    icon: "🔜",
+    label: "Arbitrum",
+    badge: "COMING SOON",
+    dk: "#9DBCF9",
+    lk: "#1E3A8A",
+    bgDk: "rgba(157,188,249,.10)",
+    bgLk: "rgba(30,58,138,.10)",
+    bdDk: "rgba(157,188,249,.24)",
+    bdLk: "rgba(30,58,138,.28)",
+  },
+  {
+    icon: "🔜",
     label: "BNB Chain",
     badge: "COMING SOON",
     dk: "#FFD86B",
@@ -35,37 +80,15 @@ const EXPANSION_ITEMS = [
     bdLk: "rgba(180,130,0,.28)",
   },
   {
-    icon: "🔷",
-    label: "Polygon",
+    icon: "🔜",
+    label: "Sui",
     badge: "COMING SOON",
-    dk: "#FCD535",
-    lk: "#4C1D95",
-    bgDk: "rgba(59,130,246,.1)",
-    bgLk: "rgba(109,40,217,.10)",
-    bdDk: "rgba(59,130,246,.22)",
-    bdLk: "rgba(109,40,217,.25)",
-  },
-  {
-    icon: "↔",
-    label: "P2P Trading",
-    badge: "COMING SOON",
-    dk: "#0A9B68",
-    lk: "#047857",
-    bgDk: "rgba(10,155,104,.1)",
-    bgLk: "rgba(4,120,87,.10)",
-    bdDk: "rgba(10,155,104,.22)",
-    bdLk: "rgba(4,120,87,.25)",
-  },
-  {
-    icon: "🚀",
-    label: "Fun.Run Exchange",
-    badge: "IN DEVELOPMENT",
-    dk: "var(--primary)",
-    lk: "#065F46",
-    bgDk: "rgba(252,213,53,.1)",
-    bgLk: "rgba(6,95,70,.10)",
-    bdDk: "rgba(252,213,53,.22)",
-    bdLk: "rgba(6,95,70,.25)",
+    dk: "#6FBCF0",
+    lk: "#0E7490",
+    bgDk: "rgba(111,188,240,.10)",
+    bgLk: "rgba(14,116,144,.10)",
+    bdDk: "rgba(111,188,240,.24)",
+    bdLk: "rgba(14,116,144,.28)",
   },
 ];
 
@@ -375,15 +398,15 @@ export function ProfilePage({
             <div className="profileExpansionGlow profileExpansionGlow--tl" />
             <div className="profileExpansionGlow profileExpansionGlow--br" />
             <div className="profileExpansionBody">
-              <div className="profileExpansionIcon">🚀</div>
+              <div className="profileExpansionIcon">🌐</div>
               <div className={`profileExpansionTitle ${isLight ? "profileExpansionTitle--light" : "profileExpansionTitle--dark"}`}>
-                Multi-Chain Expansion
+                Supported Chains
               </div>
               <div className="profileExpansionList">
                 {EXPANSION_ITEMS.map((item) => (
                   <div
                     key={item.label}
-                    className="profileExpansionItem"
+                    className={`profileExpansionItem${item.live ? " profileExpansionItem--live" : ""}`}
                     style={{
                       background: isLight ? item.bgLk : item.bgDk,
                       border: `1px solid ${isLight ? item.bdLk : item.bdDk}`,
@@ -413,7 +436,7 @@ export function ProfilePage({
                   boxShadow: "none",
                 }}
               >
-                P2P Coming Soon
+                Solana live · more chains soon
               </div>
             </div>
           </Card>

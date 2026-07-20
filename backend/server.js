@@ -2033,6 +2033,8 @@ async function upsertCandlesForTrade(coinId, price, volumeSol) {
     timeframes.map(async ([tf, ms]) => {
       const bucket = Math.floor(now / ms) * ms;
 
+      // Open = previous bucket close so a buy paints green+up and a sell red+down.
+      // high/low must always bracket open+close (never high=low=close alone).
       let openPrice = p;
       try {
         const prev = await sql`
@@ -2043,6 +2045,9 @@ async function upsertCandlesForTrade(coinId, price, volumeSol) {
         openPrice = Math.max(0.00000001, safeNum(prev?.[0]?.close, p));
       } catch {}
 
+      const high = Math.max(openPrice, p);
+      const low = Math.min(openPrice, p);
+
       await sql`
         insert into candles (
           coin_id, timeframe, bucket_time,
@@ -2051,13 +2056,13 @@ async function upsertCandlesForTrade(coinId, price, volumeSol) {
         )
         values (
           ${id}, ${tf}, ${bucket},
-          ${openPrice}, ${p}, ${p}, ${p},
+          ${openPrice}, ${high}, ${low}, ${p},
           ${vol}, 1, now()
         )
         on conflict (coin_id, timeframe, bucket_time)
         do update set
-          high = greatest(candles.high, excluded.close),
-          low = least(candles.low, excluded.close),
+          high = greatest(candles.high, excluded.high, excluded.close),
+          low = least(candles.low, excluded.low, excluded.close),
           close = excluded.close,
           volume_sol = candles.volume_sol + excluded.volume_sol,
           trades_count = candles.trades_count + 1,
@@ -3331,6 +3336,19 @@ app.get("/coin/:id/candles", async (req, res) => {
         .filter((c) => c.time > 0 && c.open > 0 && c.high > 0 && c.low > 0 && c.close > 0)
       : [];
 
+    const fallbackPrice =
+      Math.max(
+        0.00000001,
+        safeNum(coinApi.priceUsd, 0),
+        safeNum(coinApi.lastPriceUsd, 0),
+        safeNum(coin.market_cap, 0) > 0
+          ? safeNum(coin.market_cap, 0) / Math.max(1, safeNum(coin.total_supply, TOTAL_SUPPLY))
+          : 0,
+        Array.isArray(coin.chart) && coin.chart.length
+          ? safeNum(coin.chart[coin.chart.length - 1], 0)
+          : 0.000001
+      ) || 0.000001;
+
     if (!candles.length) {
       const txRows = await sql`
         select created_at, sol, tokens, type
@@ -3342,19 +3360,7 @@ app.get("/coin/:id/candles", async (req, res) => {
 
       const list = Array.isArray(txRows) ? txRows.slice().reverse() : [];
       const map = new Map();
-
-      const fallbackPrice =
-        Math.max(
-          0.00000001,
-          safeNum(coinApi.priceUsd, 0),
-          safeNum(coinApi.lastPriceUsd, 0),
-          safeNum(coin.market_cap, 0) > 0
-            ? safeNum(coin.market_cap, 0) / Math.max(1, safeNum(coin.total_supply, TOTAL_SUPPLY))
-            : 0,
-          Array.isArray(coin.chart) && coin.chart.length
-            ? safeNum(coin.chart[coin.chart.length - 1], 0)
-            : 0.000001
-        ) || 0.000001;
+      let carryClose = null;
 
       for (const tx of list) {
         const ts = new Date(tx.created_at).getTime();
@@ -3363,73 +3369,89 @@ app.get("/coin/:id/candles", async (req, res) => {
         const sol = Math.max(0, safeNum(tx.sol, 0));
         const tokens = Math.max(0, safeNum(tx.tokens, 0));
         const execPx = tokens > 0 ? (sol / tokens) * currentSolUsd : 0;
-        let px = Math.max(0.00000001, execPx || fallbackPrice);
-        // Clamp execution-avg outliers so sparse charts don't look like 50% crashes.
-        if (fallbackPrice > 0) {
-          px = Math.min(fallbackPrice * 1.08, Math.max(fallbackPrice * 0.92, px));
-        }
+        const px = Math.max(0.00000001, execPx || fallbackPrice);
 
         const bucket = Math.floor(ts / bucketMs) * bucketMs;
         const prev = map.get(bucket);
 
         if (!prev) {
+          const open = carryClose != null ? carryClose : px;
           map.set(bucket, {
-            time: bucket, open: px, high: px, low: px, close: px,
-            volumeSol: sol, tradesCount: 1,
+            time: bucket,
+            open,
+            high: Math.max(open, px),
+            low: Math.min(open, px),
+            close: px,
+            volumeSol: sol,
+            tradesCount: 1,
           });
+          carryClose = px;
         } else {
           prev.high = Math.max(prev.high, px);
           prev.low = Math.min(prev.low, px);
           prev.close = px;
           prev.volumeSol += sol;
           prev.tradesCount += 1;
+          carryClose = px;
         }
       }
 
       candles = Array.from(map.values()).sort((a, b) => a.time - b.time);
+    }
 
-      if (!candles.length) {
-        const start = Math.floor(
-          Math.max(createdAtMs, now - bucketMs * Math.max(30, limit - 1)) / bucketMs
-        ) * bucketMs;
-
-        candles = [{
-          time: start, open: fallbackPrice, high: fallbackPrice,
-          low: fallbackPrice, close: fallbackPrice, volumeSol: 0, tradesCount: 0,
-        }];
-      }
-
-      const first = candles[0];
+    if (!candles.length) {
       const currentBucket = Math.floor(now / bucketMs) * bucketMs;
+      candles = [
+        {
+          time: currentBucket,
+          open: fallbackPrice,
+          high: fallbackPrice,
+          low: fallbackPrice,
+          close: fallbackPrice,
+          volumeSol: 0,
+          tradesCount: 0,
+        },
+      ];
+    }
 
-      if (first) {
-        const filled = [];
-        const byTime = new Map(candles.map((c) => [c.time, c]));
-        const fillStart = Math.floor(
-          Math.max(createdAtMs, now - bucketMs * Math.max(30, limit - 1)) / bucketMs
-        ) * bucketMs;
-
-        let cursor = fillStart;
-        let prevClose = first.close;
-
-        while (cursor <= currentBucket) {
-          const existing = byTime.get(cursor);
-
-          if (existing) {
-            filled.push(existing);
-            prevClose = existing.close;
-          } else {
-            filled.push({
-              time: cursor, open: prevClose, high: prevClose,
-              low: prevClose, close: prevClose, volumeSol: 0, tradesCount: 0,
-            });
-          }
-
-          cursor += bucketMs;
+    // Chain opens + forward-fill only after the last real bar through "now"
+    // (do not invent a forest of empty mid-history candles)
+    {
+      const currentBucket = Math.floor(now / bucketMs) * bucketMs;
+      let carry = candles[0].open || candles[0].close || fallbackPrice;
+      const chained = candles.map((c, idx) => {
+        if (idx === 0) {
+          carry = c.close;
+          return c;
         }
+        const open = carry;
+        const close = c.close;
+        const next = {
+          ...c,
+          open,
+          high: Math.max(open, close, c.high),
+          low: Math.min(open, close, c.low),
+        };
+        carry = close;
+        return next;
+      });
 
-        candles = filled;
+      const out = [...chained];
+      let cursor = out[out.length - 1].time + bucketMs;
+      let flat = out[out.length - 1].close;
+      while (cursor <= currentBucket) {
+        out.push({
+          time: cursor,
+          open: flat,
+          high: flat,
+          low: flat,
+          close: flat,
+          volumeSol: 0,
+          tradesCount: 0,
+        });
+        cursor += bucketMs;
       }
+      candles = out;
     }
 
     if (candles.length > limit) {
