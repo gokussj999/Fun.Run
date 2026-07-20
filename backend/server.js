@@ -21,6 +21,7 @@ import treasury from "./solana/treasury.js";
 import { createMint } from "@solana/spl-token";
 import morgan from "morgan";
 import crypto from "crypto";
+import { createJobQueue, createWsHub, createRedisCache } from "./lib/scale-runtime.js";
 
 // ---- F-08: Optional Redis client for distributed rate limiting ----
 // Agar REDIS_URL set hai to ioredis use karo; warna in-memory fallback (single-instance).
@@ -381,7 +382,8 @@ app.use("/api/onchain", async (req, res, next) => {
 const sql = DATABASE_URL
   ? postgres(DATABASE_URL, {
       ssl: "require",
-      max: Math.max(5, Math.min(30, Number(process.env.PG_MAX_CONNECTIONS || 12))),
+      // Higher default pool for concurrent trades; still clamp to avoid Neon saturation.
+      max: Math.max(5, Math.min(80, Number(process.env.PG_MAX_CONNECTIONS || 24))),
       idle_timeout: 20,
       connect_timeout: 15,
       prepare: false,
@@ -413,43 +415,28 @@ function safeNum(v, d = 0) {
   return Number.isFinite(n) ? n : d;
 }
 
-// WebSocket scaling knobs:
-// If user count grows, naive "broadcast to all clients" becomes O(N).
-// Throttling high-frequency events prevents event-loop overload during burst traffic.
-const WS_BROADCAST_THROTTLE_MS = clampNum(
-  Number(process.env.WS_BROADCAST_THROTTLE_MS || 150),
-  0,
-  5000
+// WebSocket + background job runtime (scale path)
+const WS_TICK_MS = clampNum(Number(process.env.WS_TICK_MS || 80), 16, 1000);
+const TRADE_QUEUE_CONCURRENCY = Math.max(
+  1,
+  Math.min(16, Number(process.env.TRADE_QUEUE_CONCURRENCY || 6))
 );
-// Only throttle noisy portfolio fan-out — never drop trade/price (charts need every tick).
-const WS_THROTTLE_EVENTS = new Set([
-  "portfolio:update",
-  "creator:update",
-  "referral:update",
-  "owner:update",
-]);
+const wsHub = createWsHub({ tickMs: WS_TICK_MS });
+const tradeSideQueue = createJobQueue({
+  name: "trade-side",
+  concurrency: TRADE_QUEUE_CONCURRENCY,
+});
+const redisCache = createRedisCache(_redis, { prefix: "funrun" });
+
+function invalidateCoinCache(coinId) {
+  const id = String(coinId || "").trim();
+  if (!id) return;
+  coinCache.del(id);
+  if (redisCache.enabled) redisCache.del(`coin:${id}`).catch(() => {});
+}
 
 function broadcast(event, payload) {
-  // Per-key throttle (event + coin/wallet) — global event throttle was dropping
-  // back-to-back buy+sell so mobile charts never moved.
-  if (WS_BROADCAST_THROTTLE_MS > 0 && WS_THROTTLE_EVENTS.has(event)) {
-    if (!broadcast._lastSent) broadcast._lastSent = new Map();
-    const scope =
-      String(payload?.wallet || payload?.id || payload?.coinId || "g").trim() || "g";
-    const key = `${event}:${scope}`;
-    const last = broadcast._lastSent.get(key) || 0;
-    const now = Date.now();
-    if (now - last < WS_BROADCAST_THROTTLE_MS) return;
-    broadcast._lastSent.set(key, now);
-  }
-
-  const msg = JSON.stringify({ event, payload });
-
-  if (typeof wsClients !== "undefined") {
-    wsClients.forEach((ws) => {
-      if (ws.readyState === 1) ws.send(msg);
-    });
-  }
+  wsHub.broadcast(event, payload);
 }
 
 function notifyWallet(wallet, title, extra = {}) {
@@ -1785,6 +1772,14 @@ async function getCoinRowById(coinId) {
   const cached = coinCache.get(id);
   if (cached) return cached;
 
+  if (redisCache.enabled) {
+    const remote = await redisCache.get(`coin:${id}`);
+    if (remote) {
+      coinCache.set(id, remote);
+      return remote;
+    }
+  }
+
   await requireDb();
 
   const rows = await sql`select * from coins where id = ${id} limit 1`;
@@ -1792,6 +1787,7 @@ async function getCoinRowById(coinId) {
 
   if (row) {
     coinCache.set(id, row);
+    if (redisCache.enabled) redisCache.set(`coin:${id}`, row, 3).catch(() => {});
   }
 
   return row;
@@ -1892,6 +1888,7 @@ async function saveCoin(coin, _tx = null) {
     returning *`;
 
   coinCache.set(payload.id, rows[0]);
+  if (redisCache.enabled) redisCache.set(`coin:${payload.id}`, rows[0], 3).catch(() => {});
   broadcast("coin:update", mapDbCoinToApi(rows[0]));
 
   return mapDbCoinToApi(rows[0]);
@@ -2411,7 +2408,7 @@ async function creditOffCurveHolding(wallet, coinId, amount, _tx) {
   const holders = asObj(rows[0]?.holders, {});
   holders[w] = next;
   await _tx`update coins set holders = ${holders} where id = ${c}`;
-  coinCache.del(c);
+  invalidateCoinCache(c);
   return next;
 }
 
@@ -2641,7 +2638,7 @@ app.post("/admin/run-release-owner", async (req, res) => {
         update coins set owner_alloc_released = ${already + remaining}
         where id = ${coin.id}
       `;
-      coinCache.del(coin.id);
+      invalidateCoinCache(coin.id);
 
       return { ok: true, credited: remaining, wallet: APP_OWNER_WALLET, coinId: coin.id };
     });
@@ -2728,7 +2725,7 @@ app.post("/admin/run-release-airdrop", async (req, res) => {
         update coins set airdrop_released = ${released}
         where id = ${coin.id}
       `;
-      coinCache.del(coin.id);
+      invalidateCoinCache(coin.id);
 
       return {
         ok: true,
@@ -3940,7 +3937,7 @@ async function doTrade(req, res, side, authWallet = null) {
         await _tx`
           update coins set notified_mc_100k = true where id = ${coin.id}
         `;
-        coinCache.del(coin.id);
+        invalidateCoinCache(coin.id);
       }
 
       const txPayload = {
@@ -3994,15 +3991,14 @@ async function doTrade(req, res, side, authWallet = null) {
     if (result?.ok && result?._postTrade) {
       const pt = result._postTrade;
       const sideCoin = { ...result.coin };
-      // Side-effects ko next tick pe defer karte hain ta ke trade handler ka
-      // HTTP response pehle bhej diya jaye (event-loop smoother).
       const coinId = result.coin.id;
       const coinPriceUsd = Math.max(
         0.00000001,
         safeNum(result.coin?.priceUsd || result.coin?.price || 0, 0.00000001)
       );
-      setImmediate(() => {
-        Promise.allSettled([
+      // Queue side-effects off the request path (bounded concurrency).
+      tradeSideQueue.enqueue(`trade:${coinId}`, async () => {
+        const sideEffects = await Promise.allSettled([
           upsertCandlesForTrade(coinId, coinPriceUsd, pt.candleVolumeSol),
           distributeFeeDirect(sideCoin, pt.wallet, pt.tradeFeeSol),
           insertTransaction(pt.txPayload),
@@ -4012,12 +4008,9 @@ async function doTrade(req, res, side, authWallet = null) {
             pt.sideLower === "buy" ? pt.sol : safeNum(pt.tradeResult.solOutNet, 0),
             { coinId, meta: { fee: pt.tradeFeeSol, tokens: pt.txPayload.tokens } }
           ),
-        ])
-          .then((sideEffects) => {
-            const failed = sideEffects.find((x) => x.status === "rejected");
-            if (failed) console.log("trade side-effect error:", failed.reason?.message || failed.reason);
-          })
-          .catch(() => {});
+        ]);
+        const failed = sideEffects.find((x) => x.status === "rejected");
+        if (failed) console.log("trade side-effect error:", failed.reason?.message || failed.reason);
       });
       delete result._postTrade;
     }
@@ -4567,12 +4560,24 @@ const server = app.listen(PORT, () => {
 });
 
 const wss = new WebSocketServer({ server });
-const wsClients = new Set();
 
 wss.on("connection", (ws) => {
-  wsClients.add(ws);
+  wsHub.attach(ws);
+});
 
-  ws.on("close", () => {
-    wsClients.delete(ws);
+// Lightweight scale metrics for operators
+app.get("/health/scale", (_req, res) => {
+  res.json({
+    ok: true,
+    wsClients: wsHub.clientCount,
+    tradeQueue: {
+      size: tradeSideQueue.size,
+      active: tradeSideQueue.active,
+      dropped: tradeSideQueue.dropped,
+      concurrency: TRADE_QUEUE_CONCURRENCY,
+    },
+    redisCache: redisCache.enabled,
+    pgMax: Math.max(5, Math.min(80, Number(process.env.PG_MAX_CONNECTIONS || 24))),
+    wsTickMs: WS_TICK_MS,
   });
 });

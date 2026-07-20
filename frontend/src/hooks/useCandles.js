@@ -1,14 +1,14 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { chartRangeToApiTf, normalizeCandleData } from "../lib/chart-candles.js";
 import { env } from "../lib/env.js";
 import { api } from "../services/api.js";
 import * as platformApi from "../services/platform-api.js";
 
-const CACHE_TTL_MS = 1200;
-const LIVE_POLL_MS = 4_000;
+const CACHE_TTL_MS = 800;
+const LIVE_POLL_MS = 2_500;
 
 function cacheKey(coinId, chartRange) {
-  return `coin_activity_${coinId}_${String(chartRange || "1D").toUpperCase()}`;
+  return `coin_activity_${coinId}_${String(chartRange || "5M").toUpperCase()}`;
 }
 
 function clearCandleCache(coinId, chartRange) {
@@ -22,6 +22,7 @@ function clearCandleCache(coinId, chartRange) {
 export function useCandles(coin, chartRange, reloadKey = 0) {
   const [rawCandles, setRawCandles] = useState([]);
   const [loading, setLoading] = useState(false);
+  const hasDataRef = useRef(false);
 
   useEffect(() => {
     let mounted = true;
@@ -35,7 +36,8 @@ export function useCandles(coin, chartRange, reloadKey = 0) {
 
       try {
         if (force) clearCandleCache(coin.id, chartRange);
-        setLoading(true);
+        // Only show skeleton on first load — background refresh stays smooth
+        if (!hasDataRef.current) setLoading(true);
 
         if (!force) {
           try {
@@ -47,7 +49,10 @@ export function useCandles(coin, chartRange, reloadKey = 0) {
                 Array.isArray(cached.rows) &&
                 Date.now() - Number(cached.ts || 0) < CACHE_TTL_MS
               ) {
-                if (mounted) setRawCandles(cached.rows);
+                if (mounted) {
+                  setRawCandles(cached.rows);
+                  hasDataRef.current = cached.rows.length > 0;
+                }
                 setLoading(false);
                 return;
               }
@@ -60,13 +65,14 @@ export function useCandles(coin, chartRange, reloadKey = 0) {
         const tf = chartRangeToApiTf(chartRange);
         const json = env.usePlatform
           ? await platformApi.fetchCandles(coin.id, tf, 120)
-          : await api(`/coin/${coin.id}/candles?tf=${tf}&limit=120`);
+          : await api(`/coin/${coin.id}/candles?tf=${tf}&limit=120`, { timeout: 8000 });
 
         if (!mounted) return;
 
         const rows = Array.isArray(json?.candles) ? json.candles : [];
         if (rows.length > 0) {
           setRawCandles(rows);
+          hasDataRef.current = true;
           try {
             localStorage.setItem(key, JSON.stringify({ ts: Date.now(), rows }));
           } catch {
@@ -80,10 +86,9 @@ export function useCandles(coin, chartRange, reloadKey = 0) {
       }
     }
 
-    // reloadKey: immediate + short delayed refetch so DB candle upsert can land
     if (reloadKey) {
       load(true);
-      delayed = setTimeout(() => load(true), 450);
+      delayed = setTimeout(() => load(true), 280);
     } else {
       load(false);
     }

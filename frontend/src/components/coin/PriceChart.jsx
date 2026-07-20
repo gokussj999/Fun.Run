@@ -261,15 +261,33 @@ export function PriceChart({ coin, height = 280, chartRange, setChartRange, relo
 
   const tfLabels = { "5M": "5m", "15M": "15m", "1H": "1h", "4H": "4h", "1D": "1D", "1W": "Week" };
 
+  const lastPointsLenRef = useRef(0);
+
   useEffect(() => {
     if (!candleSeriesRef.current || !chartApiRef.current || !candlePoints.length) return;
 
-    candleSeriesRef.current.setData(candlePoints);
-    volumeSeriesRef.current?.setData(volumePoints);
+    const series = candleSeriesRef.current;
+    const vol = volumeSeriesRef.current;
+    const prevLen = lastPointsLenRef.current;
+    const last = candlePoints[candlePoints.length - 1];
 
-    const chart = chartApiRef.current;
-    // Keep right edge live without re-fit every tick (fitContent was hiding small buy/sell moves)
-    chart.timeScale().scrollToRealTime();
+    // Fast path: only last candle changed → update() instead of full redraw
+    if (prevLen === candlePoints.length && prevLen > 0 && last) {
+      try {
+        series.update(last);
+        const lastVol = volumePoints[volumePoints.length - 1];
+        if (vol && lastVol) vol.update(lastVol);
+        chartApiRef.current.timeScale().scrollToRealTime();
+        return;
+      } catch {
+        // fall through to setData
+      }
+    }
+
+    series.setData(candlePoints);
+    vol?.setData(volumePoints);
+    lastPointsLenRef.current = candlePoints.length;
+    chartApiRef.current.timeScale().scrollToRealTime();
   }, [candlePoints, volumePoints, chartVersion]);
 
   useEffect(() => {

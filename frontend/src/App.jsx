@@ -1245,7 +1245,7 @@ const [connectingPhantom, setConnectingPhantom] = useState(false);
   const [creating, setCreating] = useState(false);
 
   const [tradeMode, setTradeMode] = useState("BUY");
-  const [chartRange, setChartRange] = useState("1D");
+  const [chartRange, setChartRange] = useState("5M");
   const [chartReloadKey, setChartReloadKey] = useState(0);
   const [tradeAmount, setTradeAmount] = useState("");
   const [trading, setTrading] = useState(false);
@@ -1302,6 +1302,15 @@ const [connectingPhantom, setConnectingPhantom] = useState(false);
     [solAddr]
   );
 
+  const chartBumpTimerRef = useRef(null);
+  const bumpChartSoon = () => {
+    if (chartBumpTimerRef.current) return;
+    chartBumpTimerRef.current = setTimeout(() => {
+      chartBumpTimerRef.current = null;
+      setChartReloadKey((k) => k + 1);
+    }, 100);
+  };
+
   useEffect(() => {
     if (!USE_PLATFORM) {
       let ws;
@@ -1321,11 +1330,23 @@ const [connectingPhantom, setConnectingPhantom] = useState(false);
         ws.onopen = () => {
           attempt = 0;
           setWsConnected(true);
+          try {
+            // Wallet-scoped personal events + optional active coin for filtered fan-out
+            ws.send(
+              JSON.stringify({
+                type: "subscribe",
+                wallet: solAddr || "",
+                coinId: selectedCoinId || undefined,
+                all: true,
+              })
+            );
+          } catch {}
         };
 
         ws.onmessage = (event) => {
           try {
             const msg = JSON.parse(event.data);
+            if (msg.event === "pong") return;
             if (msg.event === "coin:update") {
               const updated = normalizeCoin(msg.payload);
               setCoins((prev) =>
@@ -1341,12 +1362,11 @@ const [connectingPhantom, setConnectingPhantom] = useState(false);
                   };
                 })
               );
-              // Keep chart in sync across devices (PC trade → mobile candles)
-              setChartReloadKey((k) => k + 1);
+              bumpChartSoon();
             }
             if (msg.event === "trade:new") {
               setRecentTrades((prev) => [msg.payload, ...prev.slice(0, 24)]);
-              setChartReloadKey((k) => k + 1);
+              bumpChartSoon();
             }
             if (msg.event === "coin:created") {
               loadCoins(0, false);
@@ -1396,11 +1416,28 @@ const [connectingPhantom, setConnectingPhantom] = useState(false);
       return () => {
         stopped = true;
         clearTimeout(reconnectTimer);
+        if (chartBumpTimerRef.current) clearTimeout(chartBumpTimerRef.current);
         if (ws) ws.close();
       };
     }
     return undefined;
   }, [solAddr, showToast]);
+
+  // Re-subscribe when user opens another coin (server can filter fan-out later)
+  useEffect(() => {
+    const ws = wsRef.current;
+    if (!ws || ws.readyState !== 1) return;
+    try {
+      ws.send(
+        JSON.stringify({
+          type: "subscribe",
+          wallet: solAddr || "",
+          coinId: selectedCoinId || undefined,
+          all: true,
+        })
+      );
+    } catch {}
+  }, [selectedCoinId, solAddr, wsConnected]);
 
   useEffect(() => {
     try {

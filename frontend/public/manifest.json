@@ -1,13 +1,15 @@
 {
   "name": "Fun.Run",
-  "short_name": "FunRun",
-  "description": "The Next Generation Solana Launchpad. Launch fast, trade smooth, earn rewards.",
-  "theme_color": "#4F46E5",
+  "short_name": "Fun.Run",
+  "description": "Fun.Run — The Next Generation Solana Launchpad. Launch fast, trade smooth, earn rewards.",
+  "theme_color": "#0b0e11",
   "background_color": "#0a0a0a",
   "display": "standalone",
   "orientation": "portrait",
   "start_url": "/",
   "scope": "/",
+  "id": "/?source=pwa-fun-run",
+  "categories": ["finance", "utilities"],
   "icons": [
     {
       "src": "/logo.png",
