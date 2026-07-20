@@ -1341,9 +1341,12 @@ const [connectingPhantom, setConnectingPhantom] = useState(false);
                   };
                 })
               );
+              // Keep chart in sync across devices (PC trade → mobile candles)
+              setChartReloadKey((k) => k + 1);
             }
             if (msg.event === "trade:new") {
               setRecentTrades((prev) => [msg.payload, ...prev.slice(0, 24)]);
+              setChartReloadKey((k) => k + 1);
             }
             if (msg.event === "coin:created") {
               loadCoins(0, false);
@@ -1764,9 +1767,11 @@ const [connectingPhantom, setConnectingPhantom] = useState(false);
             };
           })
         );
+        setChartReloadKey((k) => k + 1);
       }
       if (msg.event === "trade:new") {
         setRecentTrades((prev) => [msg.payload, ...prev.slice(0, 24)]);
+        setChartReloadKey((k) => k + 1);
       }
       if (msg.event === "coin:created") {
         loadCoins(0, false);

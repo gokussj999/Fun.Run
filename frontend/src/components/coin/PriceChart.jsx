@@ -268,9 +268,15 @@ export function PriceChart({ coin, height = 280, chartRange, setChartRange, relo
     volumeSeriesRef.current?.setData(volumePoints);
 
     const chart = chartApiRef.current;
-    chart.timeScale().fitContent();
+    // Keep right edge live without re-fit every tick (fitContent was hiding small buy/sell moves)
     chart.timeScale().scrollToRealTime();
-  }, [candlePoints, volumePoints, chartRange, chartVersion]);
+  }, [candlePoints, volumePoints, chartVersion]);
+
+  useEffect(() => {
+    if (!chartApiRef.current || !candlePoints.length) return;
+    chartApiRef.current.timeScale().fitContent();
+    chartApiRef.current.timeScale().scrollToRealTime();
+  }, [chartRange]);
 
   const displayPrice = crosshairInfo?.close ?? livePrice;
   const ohlc = crosshairInfo;

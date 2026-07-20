@@ -413,17 +413,41 @@ function safeNum(v, d = 0) {
   return Number.isFinite(n) ? n : d;
 }
 
+// WebSocket scaling knobs:
+// If user count grows, naive "broadcast to all clients" becomes O(N).
+// Throttling high-frequency events prevents event-loop overload during burst traffic.
+const WS_BROADCAST_THROTTLE_MS = clampNum(
+  Number(process.env.WS_BROADCAST_THROTTLE_MS || 150),
+  0,
+  5000
+);
+// Only throttle noisy portfolio fan-out — never drop trade/price (charts need every tick).
+const WS_THROTTLE_EVENTS = new Set([
+  "portfolio:update",
+  "creator:update",
+  "referral:update",
+  "owner:update",
+]);
+
 function broadcast(event, payload) {
-  const msg = JSON.stringify({
-    event,
-    payload,
-  });
+  // Per-key throttle (event + coin/wallet) — global event throttle was dropping
+  // back-to-back buy+sell so mobile charts never moved.
+  if (WS_BROADCAST_THROTTLE_MS > 0 && WS_THROTTLE_EVENTS.has(event)) {
+    if (!broadcast._lastSent) broadcast._lastSent = new Map();
+    const scope =
+      String(payload?.wallet || payload?.id || payload?.coinId || "g").trim() || "g";
+    const key = `${event}:${scope}`;
+    const last = broadcast._lastSent.get(key) || 0;
+    const now = Date.now();
+    if (now - last < WS_BROADCAST_THROTTLE_MS) return;
+    broadcast._lastSent.set(key, now);
+  }
+
+  const msg = JSON.stringify({ event, payload });
 
   if (typeof wsClients !== "undefined") {
     wsClients.forEach((ws) => {
-      if (ws.readyState === 1) {
-        ws.send(msg);
-      }
+      if (ws.readyState === 1) ws.send(msg);
     });
   }
 }
@@ -1704,7 +1728,8 @@ async function insertTransaction(tx = {}) {
     type: row.type,
     sol: row.sol,
     tokens: row.tokens,
-    price: row.price,
+    price: Math.max(0, safeNum(tx.priceUsd ?? tx.price, 0)),
+    priceUsd: Math.max(0, safeNum(tx.priceUsd ?? tx.price, 0)),
     ts: Date.now(),
   });
 
@@ -3969,23 +3994,31 @@ async function doTrade(req, res, side, authWallet = null) {
     if (result?.ok && result?._postTrade) {
       const pt = result._postTrade;
       const sideCoin = { ...result.coin };
-      // Fire-and-forget after response path is ready — do not await before res.json
-      Promise.allSettled([
-        upsertCandlesForTrade(
-          result.coin.id,
-          Math.max(0.00000001, safeNum(result.coin?.priceUsd || result.coin?.price || 0, 0.00000001)),
-          pt.candleVolumeSol
-        ),
-        distributeFeeDirect(sideCoin, pt.wallet, pt.tradeFeeSol),
-        insertTransaction(pt.txPayload),
-        writeAudit(pt.sideLower === "buy" ? "BUY" : "SELL", pt.wallet,
-          pt.sideLower === "buy" ? pt.sol : safeNum(pt.tradeResult.solOutNet, 0),
-          { coinId: result.coin.id, meta: { fee: pt.tradeFeeSol, tokens: pt.txPayload.tokens } }
-        ),
-      ]).then((sideEffects) => {
-        const failed = sideEffects.find((x) => x.status === "rejected");
-        if (failed) console.log("trade side-effect error:", failed.reason?.message || failed.reason);
-      }).catch(() => {});
+      // Side-effects ko next tick pe defer karte hain ta ke trade handler ka
+      // HTTP response pehle bhej diya jaye (event-loop smoother).
+      const coinId = result.coin.id;
+      const coinPriceUsd = Math.max(
+        0.00000001,
+        safeNum(result.coin?.priceUsd || result.coin?.price || 0, 0.00000001)
+      );
+      setImmediate(() => {
+        Promise.allSettled([
+          upsertCandlesForTrade(coinId, coinPriceUsd, pt.candleVolumeSol),
+          distributeFeeDirect(sideCoin, pt.wallet, pt.tradeFeeSol),
+          insertTransaction(pt.txPayload),
+          writeAudit(
+            pt.sideLower === "buy" ? "BUY" : "SELL",
+            pt.wallet,
+            pt.sideLower === "buy" ? pt.sol : safeNum(pt.tradeResult.solOutNet, 0),
+            { coinId, meta: { fee: pt.tradeFeeSol, tokens: pt.txPayload.tokens } }
+          ),
+        ])
+          .then((sideEffects) => {
+            const failed = sideEffects.find((x) => x.status === "rejected");
+            if (failed) console.log("trade side-effect error:", failed.reason?.message || failed.reason);
+          })
+          .catch(() => {});
+      });
       delete result._postTrade;
     }
 

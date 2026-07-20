@@ -122,7 +122,20 @@ export function normalizeCandleData(rawList, chartRange, coin) {
     cursor += bucketMs;
   }
 
-  return normalized.slice(-maxBars);
+  // Live stitch: when coin price moves (WS / trade) before candle API refetches,
+  // paint the current bucket so buy→sell shows a real candle on every device.
+  const out = normalized.slice(-maxBars);
+  if (out.length && refPrice > 0) {
+    const last = out[out.length - 1];
+    const live = cleanPx(refPrice);
+    if (Math.abs(live - last.close) / Math.max(last.close, 1e-12) > 0.00001) {
+      last.close = live;
+      last.high = Math.max(last.high, last.open, live);
+      last.low = Math.min(last.low, last.open, live);
+    }
+  }
+
+  return out;
 }
 
 export function toCandleSeriesPoints(candleData) {

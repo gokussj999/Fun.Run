@@ -4,11 +4,19 @@ import { env } from "../lib/env.js";
 import { api } from "../services/api.js";
 import * as platformApi from "../services/platform-api.js";
 
-const CACHE_TTL_MS = 2500;
-const LIVE_POLL_MS = 30_000;
+const CACHE_TTL_MS = 1200;
+const LIVE_POLL_MS = 4_000;
 
 function cacheKey(coinId, chartRange) {
   return `coin_activity_${coinId}_${String(chartRange || "1D").toUpperCase()}`;
+}
+
+function clearCandleCache(coinId, chartRange) {
+  try {
+    localStorage.removeItem(cacheKey(coinId, chartRange));
+  } catch {
+    // ignore
+  }
 }
 
 export function useCandles(coin, chartRange, reloadKey = 0) {
@@ -18,6 +26,7 @@ export function useCandles(coin, chartRange, reloadKey = 0) {
   useEffect(() => {
     let mounted = true;
     let timer = null;
+    let delayed = null;
 
     async function load(force = false) {
       if (!coin?.id) return;
@@ -25,6 +34,7 @@ export function useCandles(coin, chartRange, reloadKey = 0) {
       const key = cacheKey(coin.id, chartRange);
 
       try {
+        if (force) clearCandleCache(coin.id, chartRange);
         setLoading(true);
 
         if (!force) {
@@ -70,12 +80,20 @@ export function useCandles(coin, chartRange, reloadKey = 0) {
       }
     }
 
-    load(Boolean(reloadKey));
+    // reloadKey: immediate + short delayed refetch so DB candle upsert can land
+    if (reloadKey) {
+      load(true);
+      delayed = setTimeout(() => load(true), 450);
+    } else {
+      load(false);
+    }
+
     timer = setInterval(() => load(true), LIVE_POLL_MS);
 
     return () => {
       mounted = false;
       if (timer) clearInterval(timer);
+      if (delayed) clearTimeout(delayed);
     };
   }, [coin?.id, chartRange, reloadKey]);
 
