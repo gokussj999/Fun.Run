@@ -10,7 +10,11 @@ const TABS = [
 
 export function HoldersActivityPanel({ coin, activity = [], fallbackWallet = "" }) {
   const [tab, setTab] = useState(activity.length ? "ACTIVITY" : "HOLDERS");
-  const holderCount = Object.keys(coin?.holders || {}).length;
+  const holderCount = Math.max(
+    0,
+    Number(coin?.holderCount) ||
+      Object.values(coin?.holders || {}).filter((v) => Number(v) > 0.0000001).length
+  );
 
   return (
     <div className="coinHoldersPanel">

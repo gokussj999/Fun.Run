@@ -107,6 +107,7 @@ export function PriceChart({ coin, height = 280, chartRange, setChartRange, relo
         visible: true,
         borderColor: themeCfg.axis,
         entireTextOnly: true,
+        scaleMargins: { top: 0.18, bottom: 0.22 },
       },
       leftPriceScale: { visible: false },
       timeScale: {

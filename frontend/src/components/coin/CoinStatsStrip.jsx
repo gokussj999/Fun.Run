@@ -6,7 +6,12 @@ export function CoinStatsStrip({ coin, compact = false, variant = "full" }) {
 
   const move24h = getCoin24hMovePct(coin);
   const up = move24h >= 0;
-  const holderCount = Object.keys(coin?.holders || {}).length;
+  const holdersMap = coin?.holders && typeof coin.holders === "object" ? coin.holders : {};
+  const holderCount = Math.max(
+    0,
+    Number(coin?.holderCount) ||
+      Object.values(holdersMap).filter((v) => Number(v) > 0.0000001).length
+  );
   const price = coin?.priceUsd || coin?.lastPriceUsd || coin?.price || 0;
 
   if (variant === "key") {

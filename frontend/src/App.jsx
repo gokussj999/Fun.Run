@@ -932,6 +932,13 @@ function normalizeCoin(c = {}) {
         : c.prevHolders && typeof c.prevHolders === "object"
         ? c.prevHolders
         : {},
+    holderCount: Math.max(
+      0,
+      safeNum(c.holderCount, 0) ||
+        Object.values(
+          c && typeof c.holders === "object" && !Array.isArray(c.holders) ? c.holders : {}
+        ).filter((v) => safeNum(v, 0) > 0.0000001).length
+    ),
     createdAt: safeNum(c.createdAt, c.created_at ? new Date(c.created_at).getTime() : Date.now()),
     lastTradeAt: safeNum(c.lastTradeAt, c.last_trade_at || 0),
     creatorRewardsSol: Math.max(0, safeNum(c.creatorRewardsSol, c.creator_rewards || 0)),
@@ -1356,9 +1363,14 @@ const [connectingPhantom, setConnectingPhantom] = useState(false);
                     ...c,
                     ...updated,
                     holders:
-                      updated.holders && Object.keys(updated.holders).length
-                        ? { ...c.holders, ...updated.holders }
+                      updated.holders && typeof updated.holders === "object"
+                        ? { ...updated.holders }
                         : c.holders || {},
+                    holderCount:
+                      updated.holderCount != null
+                        ? updated.holderCount
+                        : Object.values(updated.holders || {}).filter((v) => Number(v) > 0).length ||
+                          c.holderCount,
                   };
                 })
               );
@@ -1798,9 +1810,14 @@ const [connectingPhantom, setConnectingPhantom] = useState(false);
               ...c,
               ...updated,
               holders:
-                updated.holders && Object.keys(updated.holders).length
-                  ? { ...c.holders, ...updated.holders }
+                updated.holders && typeof updated.holders === "object"
+                  ? { ...updated.holders }
                   : c.holders || {},
+              holderCount:
+                updated.holderCount != null
+                  ? updated.holderCount
+                  : Object.values(updated.holders || {}).filter((v) => Number(v) > 0).length ||
+                    c.holderCount,
             };
           })
         );

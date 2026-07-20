@@ -29,7 +29,11 @@ export function CoinOverviewPanel({
 }) {
   if (!coin) return null;
 
-  const holderCount = Object.keys(coin?.holders || {}).length;
+  const holderCount = Math.max(
+    0,
+    Number(coin?.holderCount) ||
+      Object.values(coin?.holders || {}).filter((v) => Number(v) > 0.0000001).length
+  );
   const liquiditySol = Math.max(0, Number(coin.solReserve || 0) + Number(coin.vSol || 0));
 
   const stats = [

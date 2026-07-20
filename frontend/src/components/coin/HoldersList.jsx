@@ -10,6 +10,7 @@ function shortWallet(w) {
 
 export function HoldersList({ coin, limit = 50 }) {
   const holders = Object.entries(coin?.holders || {})
+    .filter(([, amount]) => Number(amount) > 0.0000001)
     .sort((a, b) => Number(b[1] || 0) - Number(a[1] || 0))
     .slice(0, limit);
 

@@ -1113,6 +1113,11 @@ function mapDbCoinToApi(row = {}) {
     ),
     chart,
     holders: asObj(row.holders, {}),
+    holderCount: Math.max(
+      0,
+      safeNum(row.holder_count, 0) ||
+        Object.values(asObj(row.holders, {})).filter((v) => safeNum(v, 0) > 0.0000001).length
+    ),
     creatorRewardsSol: Math.max(0, safeNum(row.creator_rewards, 0)),
     mintAddress: String(row.mint_address || ""),
     migrated: Boolean(row.migrated),
@@ -1723,6 +1728,32 @@ async function insertTransaction(tx = {}) {
   return row;
 }
 
+async function loadHoldersMap(coinId, _tx = null) {
+  const id = String(coinId || "").trim();
+  if (!id) return {};
+  const db = _tx || sql;
+  const rows = await db`
+    select wallet, tokens
+    from holdings
+    where coin_id = ${id} and tokens > 0.0000001
+  `;
+  const map = {};
+  for (const r of rows || []) {
+    const w = String(r.wallet || "").trim();
+    const t = Math.max(0, safeNum(r.tokens, 0));
+    if (w && t > 0.0000001) map[w] = t;
+  }
+  return map;
+}
+
+async function enrichCoinHolders(coin, _tx = null) {
+  if (!coin?.id) return coin;
+  const map = await loadHoldersMap(coin.id, _tx);
+  coin.holders = map;
+  coin.holderCount = Object.keys(map).length;
+  return coin;
+}
+
 async function upsertHolding(wallet, coinId, mode = "set", amount = 0, _tx = null) {
   const w = String(wallet || "").trim();
   const c = String(coinId || "").trim();
@@ -1889,9 +1920,16 @@ async function saveCoin(coin, _tx = null) {
 
   coinCache.set(payload.id, rows[0]);
   if (redisCache.enabled) redisCache.set(`coin:${payload.id}`, rows[0], 3).catch(() => {});
-  broadcast("coin:update", mapDbCoinToApi(rows[0]));
-
-  return mapDbCoinToApi(rows[0]);
+  const apiCoin = mapDbCoinToApi(rows[0]);
+  // Keep API holderCount in sync with the map we just saved
+  if (apiCoin) {
+    apiCoin.holders = asObj(coin.holders, apiCoin.holders);
+    apiCoin.holderCount = Object.values(apiCoin.holders || {}).filter(
+      (v) => safeNum(v, 0) > 0.0000001
+    ).length;
+  }
+  broadcast("coin:update", apiCoin);
+  return apiCoin;
 }
 
 function buildChartTrail(prevChart, nextPoint, sideHint = "") {
@@ -3099,6 +3137,21 @@ app.get("/coin/list*", async (req, res) => {
 
     const coins = Array.isArray(rows) ? rows.map(mapDbCoinToApi).filter(Boolean) : [];
 
+    // Accurate holder counts from holdings table (coins.holders jsonb can lag / wipe)
+    if (coins.length) {
+      const ids = coins.map((c) => c.id);
+      const counts = await sql`
+        select coin_id, count(*)::int as c
+        from holdings
+        where coin_id = any(${ids}) and tokens > 0.0000001
+        group by coin_id
+      `;
+      const byId = new Map(counts.map((r) => [String(r.coin_id), safeNum(r.c, 0)]));
+      for (const c of coins) {
+        c.holderCount = byId.get(String(c.id)) ?? 0;
+      }
+    }
+
     return res.json({
       ok: true,
       coins,
@@ -3202,6 +3255,7 @@ app.get("/coin/:id", async (req, res) => {
     await requireDb();
     const coin = mapDbCoinToApi(await getCoinRowById(req.params.id));
     if (!coin) return res.status(404).json({ ok: false, error: "Coin not found" });
+    await enrichCoinHolders(coin);
     return res.json({ ok: true, coin });
   } catch (e) {
     return serverErr(e, res, "coin/detail");
@@ -3797,15 +3851,10 @@ async function doTrade(req, res, side, authWallet = null) {
       // trader ka profile (run_balance isi primary wallet ke under hai)
       const traderProfile = await getProfile(wallet, true);
 
-      // Holdings table = source of truth for sellable balance (airdrop/owner credits live here)
-      const holdRows = _tx
-        ? await _tx`select tokens from holdings where wallet = ${wallet} and coin_id = ${coinId} limit 1`
-        : await sql`select tokens from holdings where wallet = ${wallet} and coin_id = ${coinId} limit 1`;
-      const holdBal = Math.max(0, safeNum(holdRows?.[0]?.tokens, 0));
-      coin.holders = asObj(coin.holders, {});
-      if (holdBal > 0 || coin.holders[wallet] != null) {
-        coin.holders[wallet] = holdBal;
-      }
+      // Holdings table = source of truth. Rebuild full holders map so one trade
+      // cannot wipe other wallets from coins.holders jsonb.
+      coin.holders = await loadHoldersMap(coinId, _tx);
+      coin.holderCount = Object.keys(coin.holders).length;
 
       // On-chain trading only when flag is on AND the Anchor CoinState PDA exists.
       // If PDA is missing (mint still pending / create_coin failed), fall back to DB AMM
