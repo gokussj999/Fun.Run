@@ -1057,20 +1057,19 @@ function getTradePriceUsd(trade, coin, fallback) {
   );
 }
 
-function getReferralLink(addr) {
-  if (!addr) return "";
+function getReferralLink(addr, code = "") {
+  if (!addr && !code) return "";
 
   let base = "";
 
   try {
-    base =
-      (env.appUrl || window.location.origin || "")
-        .replace(/\/$/, "");
+    base = (env.appUrl || window.location.origin || "").replace(/\/$/, "");
   } catch {
     base = window.location.origin || "";
   }
 
-  return `${base}/?ref=${encodeURIComponent(addr)}`;
+  const ref = String(code || "").trim() || String(addr || "").trim();
+  return `${base}/?ref=${encodeURIComponent(ref)}`;
 }
 
 function InlineAffiliateBar({ wallet, onCopy }) {
@@ -2767,23 +2766,50 @@ const [connectingPhantom, setConnectingPhantom] = useState(false);
       const saved = (localStorage.getItem("ref") || "").trim();
       if (!saved || saved === solAddr) return;
 
+      const token = await getAccessToken().catch(() => null);
+      if (!token && !USE_PLATFORM) {
+        // Retry shortly — Privy token sometimes lags wallet ready
+        setTimeout(() => { void handleSetReferrer(); }, 1500);
+        return;
+      }
+
+      let json = null;
       if (USE_PLATFORM) {
-        const token = await getAccessToken();
-        await platformApi.bindReferrer({ wallet: solAddr, referrer: saved, authToken: token });
+        json = await platformApi.bindReferrer({
+          wallet: solAddr,
+          referrer: saved,
+          authToken: token || (await getAccessToken()),
+        });
       } else {
-        await api("/referral/set", {
+        json = await api("/referral/set", {
           method: "POST",
           body: JSON.stringify({ wallet: solAddr, referrer: saved }),
-          headers: { Authorization: `Bearer ${await getToken()}` },
+          headers: { Authorization: `Bearer ${token || (await getToken())}` },
         });
       }
-    } catch {}
+
+      if (json?.ok && Number(json.runBonus || 0) > 0) {
+        showToast(`Referral linked · +${Number(json.runBonus).toLocaleString()} RUN to referrer`);
+        localStorage.removeItem("ref");
+        if (solAddr) void loadProfile(solAddr);
+      } else if (json?.ok && json?.alreadySet) {
+        localStorage.removeItem("ref");
+      }
+    } catch (e) {
+      console.warn("[referral/set]", e?.message || e);
+    }
   }
 
   useEffect(() => {
     if (!isWalletConnected || !solAddr) return;
     handleSetReferrer();
-  }, [isWalletConnected, solAddr]);
+    const t1 = setTimeout(() => void handleSetReferrer(), 2000);
+    const t2 = setTimeout(() => void handleSetReferrer(), 6000);
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+    };
+  }, [isWalletConnected, solAddr, authenticated]);
 
   async function handleClaim(kind) {
     if (!authenticated) { login(); return; }
@@ -3706,7 +3732,7 @@ const walletHistory = [
             loading={loadingProfile}
             profile={profile}
             solAddr={solAddr}
-            referralLink={solAddr ? getReferralLink(solAddr) : ""}
+            referralLink={solAddr ? getReferralLink(solAddr, profile?.referralCode) : ""}
             referralCount={profile?.referralCount || 0}
             referralRewardsSol={profile?.referralRewardsSol || 0}
             referralActivity={profile?.referralActivity || []}

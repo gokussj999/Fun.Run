@@ -1701,6 +1701,41 @@ async function syncReferralCount(wallet) {
   return count;
 }
 
+/** Accept full wallet OR short referral_code from ?ref= */
+async function resolveReferrerWallet(raw) {
+  const s = String(raw || "").trim();
+  if (!s || s.length < 4) return "";
+  // Solana address-like
+  if (s.length >= 32 && !s.includes("/") && !s.includes(":") && !s.includes("?")) {
+    return s;
+  }
+  await requireDb();
+  const byCode = await sql`
+    select wallet from profiles
+    where lower(referral_code) = ${s.toLowerCase()}
+    limit 1
+  `;
+  if (byCode?.[0]?.wallet) return String(byCode[0].wallet).trim();
+  // Also allow unique prefix match on wallet (first 6+) when unambiguous
+  if (s.length >= 6) {
+    const byPrefix = await sql`
+      select wallet from profiles
+      where wallet ilike ${s + "%"}
+      limit 2
+    `;
+    if (byPrefix?.length === 1) return String(byPrefix[0].wallet).trim();
+  }
+  return "";
+}
+
+/** RUN-only display volume multiplier: 0.01 SOL buy → +0.1 volume */
+function tradeVolumeCredit(coinId, solAmount) {
+  const sol = Math.max(0, safeNum(solAmount, 0));
+  if (!(sol > 0)) return 0;
+  if (String(coinId || "") === RUN_COIN_ID) return sol * 10;
+  return sol;
+}
+
 async function insertTransaction(tx = {}) {
   await requireDb();
   const row = {
@@ -2323,7 +2358,6 @@ function ammBuy(coin, wallet, solInGross) {
 
   coin.holders[wallet] = Math.max(0, safeNum(coin.holders[wallet], 0) + tokensOut);
 
-  coin.volumeSol += solInGross;
   coin.lastTradeAt = nowMS();
 
   return { ok: true, tokensOut, feeSol: fee, netSol: net };
@@ -2374,7 +2408,6 @@ function ammSellByTokensIn(coin, wallet, tokensInRequested) {
   coin.holders[wallet] = Math.max(0, holderBal - tokensIn);
   if (coin.holders[wallet] <= 0.0000001) delete coin.holders[wallet];
 
-  coin.volumeSol += grossSolOut;
   coin.lastTradeAt = nowMS();
 
   return {
@@ -3891,7 +3924,8 @@ app.post("/referral/set", async (req, res) => {
     await requireDb();
 
     const wallet = auth.wallet; // Privy session se — req.body.wallet kabhi trust nahi hota
-    const referrer = String(req.body?.referrer || "").trim();
+    const rawRef = String(req.body?.referrer || req.body?.ref || req.body?.code || "").trim();
+    const referrer = await resolveReferrerWallet(rawRef);
 
     if (!referrer) {
       return res.json({ ok: false, error: "referrer required" });
@@ -3915,7 +3949,7 @@ app.post("/referral/set", async (req, res) => {
       const updated = await tx`
         update profiles
         set referrer = ${referrer}, updated_at = now()
-        where wallet = ${wallet} and referrer is null
+        where wallet = ${wallet} and (referrer is null or referrer = '')
       `;
       if (updated.count === 0) return false; // already set tha
 
@@ -3930,7 +3964,9 @@ app.post("/referral/set", async (req, res) => {
     });
 
     if (!credited) {
-      return res.json({ ok: false, error: "immutable: already set" });
+      // Still sync count so UI isn't stuck at 0 when binds already happened
+      const count = await syncReferralCount(referrer);
+      return res.json({ ok: true, referrer, alreadySet: true, referralCount: count, runBonus: 0 });
     }
 
     // Cache invalidate karo taake agle read pe fresh data mile
@@ -3938,14 +3974,19 @@ app.post("/referral/set", async (req, res) => {
     profileCache.del(referrer);
 
     // Referral count sync (non-financial, tx ke baad safe hai)
-    await syncReferralCount(referrer);
+    const referralCount = await syncReferralCount(referrer);
 
     notifyWallet(referrer, `Referral bonus: +${REFERRAL_RUN_BONUS.toLocaleString()} RUN`, {
       type: "referral_run_bonus",
       amount: REFERRAL_RUN_BONUS,
     });
+    broadcast("referral:update", {
+      wallet: referrer,
+      referralCount,
+      runBonus: REFERRAL_RUN_BONUS,
+    });
 
-    return res.json({ ok: true, referrer, runBonus: REFERRAL_RUN_BONUS });
+    return res.json({ ok: true, referrer, runBonus: REFERRAL_RUN_BONUS, referralCount });
   } catch (e) {
     return serverErr(e, res, "referral/set");
   }
@@ -4128,6 +4169,13 @@ async function doTrade(req, res, side, authWallet = null) {
         );
       }
 
+      // Volume credit (RUN uses 10x display volume: 0.01 buy → +0.1 vol)
+      const rawVolSol =
+        sideLower === "buy"
+          ? Math.max(0, safeNum(sol, 0))
+          : Math.max(0, safeNum(tradeResult?.solOutGross || tradeResult?.solOutNet || 0, 0));
+      coin.volumeSol = Math.max(0, safeNum(coin.volumeSol, 0)) + tradeVolumeCredit(coin.id, rawVolSol);
+
       coin = recalcCoin(coin, { appendChart: true, sideHint: sideLower });
       const newMc = Math.max(0, safeNum(coin.mc, 0));
       const crossed100k = !alreadyNotified100k && prevMc < 100000 && newMc >= 100000;
@@ -4153,9 +4201,7 @@ async function doTrade(req, res, side, authWallet = null) {
         priceUsd: coin.priceUsd,
       };
 
-      const candleVolumeSol = sideLower === "buy"
-        ? Math.max(0, safeNum(sol, 0))
-        : Math.max(0, safeNum(tradeResult?.solOutGross || tradeResult?.solOutNet || 0, 0));
+      const candleVolumeSol = tradeVolumeCredit(coin.id, rawVolSol);
 
       // _tx ke andar: holdings atomic update (advisory lock ke saath)
       await upsertHolding(wallet, coin.id, "set", Math.max(0, safeNum(coin?.holders?.[wallet], 0)), _tx);
