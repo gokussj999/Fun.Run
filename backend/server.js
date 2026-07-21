@@ -3398,7 +3398,7 @@ app.get("/coin/:id/candles", async (req, res) => {
 
     const coinId = String(req.params.id || "").trim();
     const tfRaw = String(req.query.tf || "5m").trim().toLowerCase();
-    const limit = Math.max(10, Math.min(300, safeNum(req.query.limit, 120)));
+    const limit = Math.max(10, Math.min(500, safeNum(req.query.limit, 120)));
 
     const TF_MS = {
       "5m": 5 * 60 * 1000,

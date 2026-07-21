@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { chartRangeToApiTf, normalizeCandleData } from "../lib/chart-candles.js";
+import { chartRangeToApiTf, maxBarsForTf, normalizeCandleData } from "../lib/chart-candles.js";
 import { getTimeframeCfg } from "../lib/chart-utils.js";
 import { env } from "../lib/env.js";
 import { api } from "../services/api.js";
@@ -27,10 +27,8 @@ export function useCandles(coin, chartRange, reloadKey = 0) {
   const [nowTick, setNowTick] = useState(() => Date.now());
   const hasDataRef = useRef(false);
 
-  // Advance "now" so empty timeframe buckets close and a new candle opens without trades
   useEffect(() => {
     const cfg = getTimeframeCfg(chartRange);
-    // Fast TFs tick every 1s; slow TFs still tick so the current bucket stays live
     const ms = cfg.ms <= 5 * 60 * 1000 ? NOW_TICK_MS : Math.min(15_000, Math.max(NOW_TICK_MS, cfg.ms / 60));
     const id = setInterval(() => setNowTick(Date.now()), ms);
     return () => clearInterval(id);
@@ -45,6 +43,7 @@ export function useCandles(coin, chartRange, reloadKey = 0) {
       if (!coin?.id) return;
 
       const key = cacheKey(coin.id, chartRange);
+      const limit = maxBarsForTf(chartRange);
 
       try {
         if (force) clearCandleCache(coin.id, chartRange);
@@ -75,13 +74,12 @@ export function useCandles(coin, chartRange, reloadKey = 0) {
 
         const tf = chartRangeToApiTf(chartRange);
         const json = env.usePlatform
-          ? await platformApi.fetchCandles(coin.id, tf, 120)
-          : await api(`/coin/${coin.id}/candles?tf=${tf}&limit=120`, { timeout: 8000 });
+          ? await platformApi.fetchCandles(coin.id, tf, limit)
+          : await api(`/coin/${coin.id}/candles?tf=${tf}&limit=${limit}`, { timeout: 8000 });
 
         if (!mounted) return;
 
         const rows = Array.isArray(json?.candles) ? json.candles : [];
-        // Allow empty array to clear stale cache after force
         setRawCandles(rows);
         if (rows.length > 0) {
           hasDataRef.current = true;
@@ -92,7 +90,7 @@ export function useCandles(coin, chartRange, reloadKey = 0) {
           }
         }
       } catch {
-        // keep previous candles on error
+        // keep previous
       } finally {
         if (mounted) setLoading(false);
       }
@@ -116,7 +114,7 @@ export function useCandles(coin, chartRange, reloadKey = 0) {
 
   const candleData = useMemo(
     () => normalizeCandleData(rawCandles, chartRange, coin, nowTick),
-    [rawCandles, chartRange, coin?.priceUsd, coin?.lastPriceUsd, coin?.price, nowTick]
+    [rawCandles, chartRange, coin?.priceUsd, coin?.lastPriceUsd, coin?.price, coin?.createdAt, nowTick]
   );
 
   return { candleData, loading };

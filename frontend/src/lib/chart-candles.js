@@ -21,18 +21,40 @@ function cleanPxLoose(v, fallback) {
   return Math.max(0.00000001, safeNum(fallback, 0.00000001));
 }
 
+/** How many TF bars to keep on screen (covers multi-day 15m/5m history). */
+export function maxBarsForTf(chartRange) {
+  const key = String(chartRange || "5M").toUpperCase();
+  switch (key) {
+    case "5M":
+      return 288; // 24h
+    case "15M":
+      return 384; // 4 days
+    case "1H":
+      return 168; // 7 days
+    case "4H":
+      return 180; // 30 days
+    case "1D":
+      return 90;
+    case "1W":
+      return 52;
+    case "1M":
+      return 36;
+    default:
+      return 200;
+  }
+}
+
 /**
- * Chart candles:
- * - Real trade bars stay as normal green/red OHLC
- * - After the last trade, empty TF buckets forward-fill as clean flat
- *   "khali" candles (open=high=low=close) so the clock advances
- * - Do NOT backfill the whole history with quiet dojis (that looked unprofessional)
+ * Continuous timeframe chart:
+ * - Every bucket from start → now has a candle (15m = every 15 min, etc.)
+ * - Trade buckets = real green/red OHLC
+ * - Empty buckets = clean flat khali candle (no fake wicks / doji sticks)
  */
 export function normalizeCandleData(rawList, chartRange, coin, nowMs = Date.now()) {
   const list = Array.isArray(rawList) ? rawList : [];
   const cfg = getTimeframeCfg(chartRange);
   const bucketMs = cfg.ms;
-  const maxBars = 120;
+  const maxBars = maxBarsForTf(chartRange);
 
   const livePrice = Math.max(
     0.00000001,
@@ -40,6 +62,11 @@ export function normalizeCandleData(rawList, chartRange, coin, nowMs = Date.now(
   );
 
   const nowBucket = Math.floor(nowMs / bucketMs) * bucketMs;
+  const createdMs = Math.max(
+    0,
+    safeNum(coin?.createdAt || coin?.created_at, 0)
+  );
+  const createdBucket = createdMs > 0 ? Math.floor(createdMs / bucketMs) * bucketMs : 0;
 
   const byBucket = new Map();
   for (const c of list) {
@@ -68,78 +95,76 @@ export function normalizeCandleData(rawList, chartRange, coin, nowMs = Date.now(
     }
   }
 
-  // Only keep buckets that had real activity (trades / move)
-  const activity = [...byBucket.values()]
-    .filter((r) => r.volume > 0 || r.trades > 0 || r.close !== r.open || r.high !== r.low)
-    .sort((a, b) => a.time - b.time);
+  const times = [...byBucket.keys()].sort((a, b) => a - b);
+  const firstTrade = times[0] || 0;
 
-  if (!activity.length) {
-    return [
-      {
-        time: nowBucket,
-        open: livePrice,
-        high: livePrice,
-        low: livePrice,
-        close: livePrice,
-        volume: 0,
-        quiet: true,
-      },
-    ];
+  // Start from coin create / first trade / maxBars window — whichever is latest
+  let start = nowBucket - (maxBars - 1) * bucketMs;
+  if (createdBucket > 0) start = Math.max(start, createdBucket);
+  if (firstTrade > 0) start = Math.max(start, Math.min(firstTrade, nowBucket));
+  // If first trade is inside window, still fill from firstTrade so we don't invent
+  // pre-launch empty candles — but DO fill every slot after first trade.
+  if (firstTrade > 0) start = Math.max(start, firstTrade);
+  start = Math.floor(start / bucketMs) * bucketMs;
+
+  // Seed carry price from nearest bar at/before start
+  let carry = livePrice;
+  if (times.length) {
+    let seed = byBucket.get(times[0]);
+    for (const t of times) {
+      if (t <= start) seed = byBucket.get(t);
+      else break;
+    }
+    if (seed) carry = seed.close || seed.open || carry;
   }
 
-  const windowStart = nowBucket - (maxBars - 1) * bucketMs;
-  const trades = activity.filter((r) => r.time >= windowStart);
-  const seed = trades.length ? trades : [activity[activity.length - 1]];
+  const out = [];
+  for (let t = start; t <= nowBucket; t += bucketMs) {
+    const row = byBucket.get(t);
+    const hasActivity =
+      row && (row.volume > 0 || row.trades > 0 || row.close !== row.open || row.high !== row.low);
 
-  let carry = seed[0].open;
-  const chained = seed.map((row, idx) => {
-    if (idx === 0) {
-      carry = row.close;
-      return {
-        time: row.time,
-        open: row.open,
-        high: Math.max(row.open, row.close, row.high),
-        low: Math.min(row.open, row.close, row.low),
-        close: row.close,
+    if (hasActivity) {
+      const open = carry;
+      const close = row.close;
+      out.push({
+        time: t,
+        open,
+        high: Math.max(open, close, row.high),
+        low: Math.min(open, close, row.low),
+        close,
         volume: row.volume || 0,
         quiet: false,
-      };
+      });
+      carry = close;
+    } else {
+      // Khali candle — flat, clean
+      out.push({
+        time: t,
+        open: carry,
+        high: carry,
+        low: carry,
+        close: carry,
+        volume: 0,
+        quiet: true,
+      });
     }
-    const open = carry;
-    const close = row.close;
-    const next = {
-      time: row.time,
-      open,
-      high: Math.max(open, close, row.high),
-      low: Math.min(open, close, row.low),
-      close,
-      volume: row.volume || 0,
-      quiet: false,
-    };
-    carry = close;
-    return next;
-  });
+  }
 
-  // Forward-fill ONLY after last trade → now: clean empty candles on the clock
-  const out = [...chained];
-  let cursor = out[out.length - 1].time + bucketMs;
-  let flat = out[out.length - 1].close;
-  while (cursor <= nowBucket) {
+  if (!out.length) {
     out.push({
-      time: cursor,
-      open: flat,
-      high: flat,
-      low: flat,
-      close: flat,
+      time: nowBucket,
+      open: livePrice,
+      high: livePrice,
+      low: livePrice,
+      close: livePrice,
       volume: 0,
       quiet: true,
     });
-    cursor += bucketMs;
   }
 
   const trimmed = out.slice(-maxBars);
 
-  // Live stitch active bucket — only if price actually moved
   if (trimmed.length && livePrice > 0) {
     const last = trimmed[trimmed.length - 1];
     if (last.time === nowBucket) {
@@ -156,10 +181,7 @@ export function normalizeCandleData(rawList, chartRange, coin, nowMs = Date.now(
   return trimmed;
 }
 
-/**
- * Khali (quiet) candles: true flat OHLC → LWC draws a clean horizontal body.
- * No fake wicks (those looked like unprofessional doji sticks).
- */
+/** Quiet = flat khali body. No artificial wicks. */
 export function toCandleSeriesPoints(candleData) {
   const unique = [];
   const seen = new Set();
@@ -178,17 +200,9 @@ export function toCandleSeriesPoints(candleData) {
       const close = Number(c.close);
       let high = Math.max(open, close, Number(c.high));
       let low = Math.min(open, close, Number(c.low));
-      const quiet = Boolean(c.quiet);
 
-      if (quiet) {
-        // Clean empty candle — flat body only
-        unique.push({
-          time: t,
-          open,
-          high: open,
-          low: open,
-          close: open,
-        });
+      if (c.quiet) {
+        unique.push({ time: t, open, high: open, low: open, close: open });
       } else {
         if (!(high > low)) {
           high = Math.max(open, close);
