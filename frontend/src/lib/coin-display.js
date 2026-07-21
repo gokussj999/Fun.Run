@@ -56,14 +56,65 @@ export function timeAgo(ts) {
   return `${years}y ago`;
 }
 
+function normalizeChartPoints(chart) {
+  if (!Array.isArray(chart) || !chart.length) return [];
+  const now = Date.now();
+  const out = [];
+  for (let i = 0; i < chart.length; i++) {
+    const x = chart[i];
+    if (x && typeof x === "object") {
+      const p = Math.max(0, safeNum(x.p ?? x.price ?? x.priceUsd, 0));
+      const t = Math.max(0, safeNum(x.t ?? x.ts ?? x.time, 0));
+      if (p > 0) out.push({ t: t || now - (chart.length - i) * 60_000, p });
+      continue;
+    }
+    const p = Math.max(0, safeNum(x, 0));
+    if (p > 0) out.push({ t: now - (chart.length - 1 - i) * 60_000, p });
+  }
+  return out;
+}
+
+/**
+ * True 24h move: prefer server `change24hPct`, else compute from timestamped chart.
+ * Legacy number-only charts fall back to launch→now if coin age < 24h, else last points.
+ */
 export function getCoin24hMovePct(c) {
-  const chart = Array.isArray(c?.chart) ? c.chart.map((x) => safeNum(x, 0)).filter((x) => x > 0) : [];
-  if (chart.length < 2) return 0;
-  const lookback = Math.min(24, chart.length - 1);
-  const start = Math.max(0.00000001, safeNum(chart[chart.length - 1 - lookback], chart[0]));
-  const end = Math.max(0.00000001, safeNum(chart[chart.length - 1], start));
+  if (c?.change24hPct != null && Number.isFinite(Number(c.change24hPct))) {
+    const direct = Number(c.change24hPct);
+    return Math.max(-99.99, Math.min(9999, direct));
+  }
+
+  const end = Math.max(
+    0.00000001,
+    safeNum(c?.priceUsd || c?.lastPriceUsd || c?.price, 0)
+  );
+  const points = normalizeChartPoints(c?.chart);
+  if (!(end > 0)) return 0;
+
+  const now = Date.now();
+  const windowStart = now - 24 * 60 * 60 * 1000;
+  const created = Math.max(0, safeNum(c?.createdAt || c?.created_at, 0));
+
+  if (created > 0 && created > windowStart) {
+    const start = Math.max(0.00000001, safeNum(points[0]?.p, end));
+    const pct = ((end - start) / start) * 100;
+    return Number.isFinite(pct) ? Math.max(-99.99, Math.min(9999, pct)) : 0;
+  }
+
+  if (points.length < 2) return 0;
+
+  let start = null;
+  for (let i = points.length - 1; i >= 0; i--) {
+    if (points[i].t <= windowStart) {
+      start = points[i].p;
+      break;
+    }
+  }
+  if (start == null) start = points[0].p;
+
+  start = Math.max(0.00000001, safeNum(start, end));
   const pct = ((end - start) / start) * 100;
-  return Number.isFinite(pct) ? Math.max(-99.99, Math.min(199.99, pct)) : 0;
+  return Number.isFinite(pct) ? Math.max(-99.99, Math.min(9999, pct)) : 0;
 }
 
 export function getCoinAgeLabel(c) {

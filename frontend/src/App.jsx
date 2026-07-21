@@ -870,6 +870,11 @@ function shortWallet(w) {
 }
 
 function pctChangeFromChart(chart, lookback = 12) {
+  // Prefer timestamp-aware helper when possible
+  if (Array.isArray(chart) && chart.some((x) => x && typeof x === "object")) {
+    return getCoin24hMovePct({ chart });
+  }
+
   const arr = Array.isArray(chart)
     ? chart.map((x) => Number(x)).filter((x) => Number.isFinite(x) && x > 0)
     : [];
@@ -898,10 +903,32 @@ function normalizeCoin(c = {}) {
     safeNum(c.market_cap, 0) ||
     STARTING_MC_USD;
 
-  const chart =
-    Array.isArray(c.chart) && c.chart.length
-      ? c.chart.map((x) => safeNum(x, 0)).filter((x) => x >= 0)
-      : [mc, mc, mc, mc, mc];
+  const rawChart = Array.isArray(c.chart) ? c.chart : [];
+  const chart = rawChart.length
+    ? rawChart
+        .map((x) => {
+          if (x && typeof x === "object") {
+            const p = Math.max(0, safeNum(x.p ?? x.price ?? x.priceUsd, 0));
+            const t = Math.max(0, safeNum(x.t ?? x.ts ?? x.time, 0));
+            return p > 0 ? { t, p } : null;
+          }
+          const p = Math.max(0, safeNum(x, 0));
+          return p > 0 ? p : null;
+        })
+        .filter(Boolean)
+    : [mc, mc, mc, mc, mc];
+
+  const priceUsd = Math.max(0, safeNum(c.priceUsd, c.price || 0));
+  const change24hPct =
+    c.change24hPct != null && Number.isFinite(Number(c.change24hPct))
+      ? Number(c.change24hPct)
+      : getCoin24hMovePct({
+          chart,
+          priceUsd,
+          lastPriceUsd: c.lastPriceUsd,
+          price: c.price,
+          createdAt: c.createdAt || c.created_at,
+        });
 
   return {
     ...c,
@@ -919,13 +946,14 @@ function normalizeCoin(c = {}) {
     circulating,
     volumeSol: Math.max(0, safeNum(c.volumeSol, c.volume_sol || 0)),
     priceSol: Math.max(0, safeNum(c.priceSol, c.last_price || 0)),
-    priceUsd: Math.max(0, safeNum(c.priceUsd, c.price || 0)),
-    lastPriceUsd: Math.max(0, safeNum(c.lastPriceUsd, c.last_price_usd || c.priceUsd || c.price || 0)),
+    priceUsd,
+    lastPriceUsd: Math.max(0, safeNum(c.lastPriceUsd, c.last_price_usd || priceUsd)),
     vTokens: Math.max(0, safeNum(c.vTokens, c.v_tokens || 0)),
     vSol: Math.max(0, safeNum(c.vSol, c.v_sol || 0)),
     mc,
     ath: Math.max(mc, safeNum(c.ath, c.ath_market_cap || mc)),
     chart,
+    change24hPct,
     holders:
       c && typeof c.holders === "object" && !Array.isArray(c.holders)
         ? c.holders
@@ -956,7 +984,9 @@ function getCoinPriceUsd(c) {
   if (mc > 0 && total > 0) return mc / total;
 
   const chart = Array.isArray(c?.chart) ? c.chart : [];
-  return Math.max(0, safeNum(chart[chart.length - 1], 0));
+  const last = chart[chart.length - 1];
+  if (last && typeof last === "object") return Math.max(0, safeNum(last.p ?? last.price, 0));
+  return Math.max(0, safeNum(last, 0));
 }
 
 async function copyText(text) {

@@ -1067,19 +1067,24 @@ function mapDbCoinToApi(row = {}) {
     vTokens,
   });
 
-  const chartInput = Array.isArray(row.chart)
-    ? row.chart.filter((n) => Number.isFinite(Number(n))).map(Number)
-    : [];
-
+  const chartInput = Array.isArray(row.chart) ? row.chart : [];
+  const chart = normalizeChartPoints(chartInput).slice(-MAX_CHART_POINTS);
   const seedPrice = Math.max(0, safeNum(pricing.priceUsd, 0));
-
-  const chart =
-    chartInput.length > 0
-      ? chartInput.slice(-MAX_CHART_POINTS)
-      : [seedPrice, seedPrice, seedPrice, seedPrice, seedPrice];
+  const chartOut =
+    chart.length > 0
+      ? chart
+      : seedPrice > 0
+      ? [
+          { t: Date.now() - 4 * 60_000, p: seedPrice },
+          { t: Date.now(), p: seedPrice },
+        ]
+      : [];
 
   const safeId = String(row.id || row.coin_id || "").trim();
   if (!safeId) return null;
+
+  const createdAt = row.created_at ? new Date(row.created_at).getTime() : nowMS();
+  const change24hPct = computeChange24hPct(chartOut, pricing.priceUsd, createdAt);
 
   return {
     id: safeId,
@@ -1090,7 +1095,7 @@ function mapDbCoinToApi(row = {}) {
     metadataUri: String(row.metadata_uri || ""),
     creatorWallet: String(row.creator_wallet || "").trim(),
     owner: String(row.creator_wallet || "").trim(),
-    createdAt: row.created_at ? new Date(row.created_at).getTime() : nowMS(),
+    createdAt,
     status: "LIVE",
     totalSupply,
     curveSupply,
@@ -1111,7 +1116,8 @@ function mapDbCoinToApi(row = {}) {
       Math.max(0, safeNum(row.market_cap, pricing.mcUsd)),
       pricing.mcUsd
     ),
-    chart,
+    chart: chartOut,
+    change24hPct,
     holders: asObj(row.holders, {}),
     holderCount: Math.max(
       0,
@@ -1161,7 +1167,7 @@ function coinToDbUpdate(coin = {}) {
     last_trade_at: coin.lastTradeAt || 0,
     creator_rewards: coin.creatorRewardsSol || 0,
     holders: asObj(coin.holders, {}),
-    chart: Array.isArray(coin.chart) ? coin.chart.slice(-MAX_CHART_POINTS) : [],
+    chart: normalizeChartPoints(Array.isArray(coin.chart) ? coin.chart : []).slice(-MAX_CHART_POINTS),
     reserve_wallet_address: coin.reserveWalletAddress || null,
     reserve_wallet_encrypted: coin.reserveWalletEncrypted || null,
   };
@@ -1754,6 +1760,44 @@ async function enrichCoinHolders(coin, _tx = null) {
   return coin;
 }
 
+/** Prefer real candle close ~24h ago over legacy untimestamped chart trails. */
+async function enrichChange24h(coins) {
+  const list = (Array.isArray(coins) ? coins : [coins]).filter((c) => c?.id);
+  if (!list.length) return coins;
+
+  const ids = list.map((c) => c.id);
+  const ago = Date.now() - 24 * 60 * 60 * 1000;
+
+  try {
+    const rows = await sql`
+      select distinct on (coin_id) coin_id, close
+      from candles
+      where coin_id = any(${ids})
+        and timeframe in ('1h', '5m', '15m')
+        and bucket_time <= ${ago}
+      order by coin_id, timeframe asc, bucket_time desc
+    `;
+    const byId = new Map(
+      (rows || []).map((r) => [String(r.coin_id), Math.max(0.00000001, safeNum(r.close, 0))])
+    );
+
+    for (const c of list) {
+      const start = byId.get(String(c.id));
+      const end = Math.max(0.00000001, safeNum(c.priceUsd || c.price, 0));
+      if (start > 0 && end > 0) {
+        const pct = ((end - start) / start) * 100;
+        if (Number.isFinite(pct)) {
+          c.change24hPct = Math.max(-99.99, Math.min(9999, pct));
+        }
+      }
+    }
+  } catch (e) {
+    console.warn("[enrichChange24h]", e?.message || e);
+  }
+
+  return coins;
+}
+
 async function upsertHolding(wallet, coinId, mode = "set", amount = 0, _tx = null) {
   const w = String(wallet || "").trim();
   const c = String(coinId || "").trim();
@@ -1932,26 +1976,91 @@ async function saveCoin(coin, _tx = null) {
   return apiCoin;
 }
 
-function buildChartTrail(prevChart, nextPoint, sideHint = "") {
-  const history = Array.isArray(prevChart)
-    ? prevChart.map((x) => Math.max(0, safeNum(x, 0))).filter((x) => Number.isFinite(x) && x > 0)
-    : [];
+function normalizeChartPoints(prevChart) {
+  const now = Date.now();
+  if (!Array.isArray(prevChart) || !prevChart.length) return [];
 
+  const out = [];
+  for (let i = 0; i < prevChart.length; i++) {
+    const x = prevChart[i];
+    if (x && typeof x === "object") {
+      const p = Math.max(0, safeNum(x.p ?? x.price ?? x.priceUsd, 0));
+      const t = Math.max(0, safeNum(x.t ?? x.ts ?? x.time, 0));
+      if (p > 0) out.push({ t: t || now - (prevChart.length - i) * 60_000, p });
+      continue;
+    }
+    const p = Math.max(0, safeNum(x, 0));
+    if (p > 0) {
+      // Legacy number-only trail: approximate spacing at 1 point / trade (~no clock)
+      out.push({ t: now - (prevChart.length - 1 - i) * 60_000, p });
+    }
+  }
+  return out;
+}
+
+function computeChange24hPct(chart, currentPrice, createdAtMs = 0) {
+  const end = Math.max(0.00000001, safeNum(currentPrice, 0));
+  const points = normalizeChartPoints(chart);
+  if (!(end > 0)) return 0;
+
+  const now = Date.now();
+  const windowStart = now - 24 * 60 * 60 * 1000;
+  const created = Math.max(0, safeNum(createdAtMs, 0));
+
+  // Coin younger than 24h → move since launch (first known price)
+  if (created > 0 && created > windowStart) {
+    const start = Math.max(0.00000001, safeNum(points[0]?.p, end));
+    const pct = ((end - start) / start) * 100;
+    return Number.isFinite(pct) ? Math.max(-99.99, Math.min(9999, pct)) : 0;
+  }
+
+  // Find price at/near 24h ago
+  let start = null;
+  for (let i = points.length - 1; i >= 0; i--) {
+    if (points[i].t <= windowStart) {
+      start = points[i].p;
+      break;
+    }
+  }
+  if (start == null) {
+    // No point old enough yet — use earliest in trail (partial window)
+    start = points[0]?.p ?? end;
+  }
+
+  start = Math.max(0.00000001, safeNum(start, end));
+  const pct = ((end - start) / start) * 100;
+  return Number.isFinite(pct) ? Math.max(-99.99, Math.min(9999, pct)) : 0;
+}
+
+function buildChartTrail(prevChart, nextPoint, sideHint = "") {
+  const now = Date.now();
+  const history = normalizeChartPoints(prevChart);
   const point = Math.max(0, safeNum(nextPoint, 0));
 
   if (!point) {
-    return history.length ? history.slice(-MAX_CHART_POINTS) : [0];
+    return history.length ? history.slice(-MAX_CHART_POINTS) : [];
   }
 
   if (!history.length) {
-    // Flat seed — do not fabricate a fake pump/dump trail for brand-new coins.
-    return [point, point, point, point, point];
+    // Seed with timestamps so 24h% can age correctly
+    return [
+      { t: now - 4 * 60_000, p: point },
+      { t: now - 3 * 60_000, p: point },
+      { t: now - 2 * 60_000, p: point },
+      { t: now - 1 * 60_000, p: point },
+      { t: now, p: point },
+    ];
   }
 
-  // Append the actual AMM-derived price — no random noise or direction correction.
-  // The bonding curve already produces the correct price; fabricated adjustments
-  // would make displayed price history diverge from on-chain reality.
-  return history.slice(-(MAX_CHART_POINTS - 1)).concat([Math.max(0.00000001, point)]);
+  const last = history[history.length - 1];
+  // Avoid spamming identical stamps within 5s
+  if (last && Math.abs(last.p - point) < point * 1e-12 && now - last.t < 5000) {
+    return history.slice(-MAX_CHART_POINTS);
+  }
+
+  const next = history.concat([{ t: now, p: Math.max(0.00000001, point) }]);
+  const cutoff = now - 48 * 60 * 60 * 1000;
+  return next.filter((x) => x.t >= cutoff).slice(-MAX_CHART_POINTS);
 }
 
 function recalcCoin(coin, opts = {}) {
@@ -1997,10 +2106,13 @@ function recalcCoin(coin, opts = {}) {
 
   fixed.chart = shouldAppend
     ? buildChartTrail(prev, point, opts.sideHint)
-    : prev.length
-    ? prev.slice(-MAX_CHART_POINTS)
-    : [point, point, point, point, point];
+    : normalizeChartPoints(prev).slice(-MAX_CHART_POINTS);
 
+  if (!fixed.chart.length && point > 0) {
+    fixed.chart = buildChartTrail([], point);
+  }
+
+  fixed.change24hPct = computeChange24hPct(fixed.chart, fixed.priceUsd, fixed.createdAt);
   fixed.lastTradeAt = nowMS();
   fixed.ath = Math.max(safeNum(fixed.ath, 0), pricing.mcUsd);
 
@@ -3155,6 +3267,7 @@ app.get("/coin/list*", async (req, res) => {
       for (const c of coins) {
         c.holderCount = byId.get(String(c.id)) ?? 0;
       }
+      await enrichChange24h(coins);
     }
 
     return res.json({
@@ -3261,6 +3374,7 @@ app.get("/coin/:id", async (req, res) => {
     const coin = mapDbCoinToApi(await getCoinRowById(req.params.id));
     if (!coin) return res.status(404).json({ ok: false, error: "Coin not found" });
     await enrichCoinHolders(coin);
+    await enrichChange24h(coin);
     return res.json({ ok: true, coin });
   } catch (e) {
     return serverErr(e, res, "coin/detail");

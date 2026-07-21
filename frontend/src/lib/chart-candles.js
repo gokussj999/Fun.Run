@@ -21,162 +21,115 @@ function cleanPxLoose(v, fallback) {
   return Math.max(0.00000001, safeNum(fallback, 0.00000001));
 }
 
-function isActiveBar(c) {
-  return (
-    safeNum(c.volume, 0) > 0.0000001 ||
-    Math.abs(Number(c.close) - Number(c.open)) > 0 ||
-    Number(c.high) > Number(c.low)
-  );
-}
-
 /**
- * Build OHLCV for the selected timeframe.
- * - Keeps real trade / moved candles
- * - Drops quiet gap-fill stubs from the API (those looked like thin green sticks)
- * - Forward-fills only after the last real bar through "now" so TF can advance without a trade
- * - Open chains from previous close; live price stitches the active bucket only
+ * Continuous OHLCV for the selected timeframe.
+ * Quiet (0-volume) buckets still exist so the TF clock advances, but they are
+ * marked quiet so the chart can paint them gray — not fake green pumps.
  */
 export function normalizeCandleData(rawList, chartRange, coin, nowMs = Date.now()) {
   const list = Array.isArray(rawList) ? rawList : [];
   const cfg = getTimeframeCfg(chartRange);
   const bucketMs = cfg.ms;
-  const maxBars = 120;
+  const maxBars = 96;
 
   const livePrice = Math.max(
     0.00000001,
     safeNum(coin?.priceUsd || coin?.lastPriceUsd || coin?.price || 0, 0.00000001)
   );
 
-  const sorted = [...list]
-    .map((c) => {
-      const close = cleanPxLoose(c.close, livePrice);
-      const open = cleanPxLoose(c.open, close);
-      const high = Math.max(open, close, cleanPxLoose(c.high, close));
-      const low = Math.min(open, close, cleanPxLoose(c.low, close));
-      const volDirect = safeNum(c.volume ?? c.vol ?? c.v ?? c.volumeSol, 0);
-      return {
-        time: Math.floor(safeNum(c.time, 0) / bucketMs) * bucketMs,
-        open,
-        high,
-        low,
-        close,
-        volume: Math.max(0, volDirect),
-      };
-    })
-    .filter((c) => c.time > 0 && c.open > 0 && c.high > 0 && c.low > 0 && c.close > 0)
-    .sort((a, b) => a.time - b.time);
-
   const nowBucket = Math.floor(nowMs / bucketMs) * bucketMs;
+  const windowStart = nowBucket - (maxBars - 1) * bucketMs;
 
-  if (!sorted.length) {
-    return [
-      {
-        time: nowBucket,
-        open: livePrice,
-        high: livePrice,
-        low: livePrice,
-        close: livePrice,
-        volume: 0,
-      },
-    ];
+  const byBucket = new Map();
+  for (const c of list) {
+    const time = Math.floor(safeNum(c.time, 0) / bucketMs) * bucketMs;
+    if (time <= 0) continue;
+    const close = cleanPxLoose(c.close, livePrice);
+    const open = cleanPxLoose(c.open, close);
+    const high = Math.max(open, close, cleanPxLoose(c.high, close));
+    const low = Math.min(open, close, cleanPxLoose(c.low, close));
+    const volume = Math.max(0, safeNum(c.volume ?? c.vol ?? c.v ?? c.volumeSol, 0));
+    const trades = Math.max(0, safeNum(c.tradesCount ?? c.trades_count, 0));
+    if (!(open > 0 && high > 0 && low > 0 && close > 0)) continue;
+
+    const prev = byBucket.get(time);
+    if (!prev) {
+      byBucket.set(time, { time, open, high, low, close, volume, trades });
+    } else {
+      prev.high = Math.max(prev.high, high);
+      prev.low = Math.min(prev.low, low);
+      prev.close = close;
+      prev.volume += volume;
+      prev.trades += trades;
+    }
   }
 
-  // Merge same-bucket rows; chain open from previous close
-  const merged = [];
-  let prevClose = null;
-  for (const row of sorted) {
-    const open = prevClose != null ? prevClose : row.open;
-    const close = row.close;
-    const high = Math.max(open, close, row.high);
-    const low = Math.min(open, close, row.low);
-    const last = merged[merged.length - 1];
+  let carry = livePrice;
+  const earlier = [...byBucket.keys()].filter((t) => t < windowStart).sort((a, b) => a - b);
+  if (earlier.length) {
+    carry = byBucket.get(earlier[earlier.length - 1]).close;
+  } else {
+    const firstIn = [...byBucket.keys()].filter((t) => t >= windowStart).sort((a, b) => a - b);
+    if (firstIn.length) carry = byBucket.get(firstIn[0]).open || byBucket.get(firstIn[0]).close;
+  }
 
-    if (last && last.time === row.time) {
-      last.high = Math.max(last.high, high);
-      last.low = Math.min(last.low, low);
-      last.close = close;
-      last.volume = Math.max(last.volume || 0, row.volume || 0);
-      prevClose = last.close;
-    } else {
-      merged.push({
-        time: row.time,
+  const out = [];
+  for (let t = windowStart; t <= nowBucket; t += bucketMs) {
+    const row = byBucket.get(t);
+    const hasActivity = row && (row.volume > 0 || row.trades > 0 || row.close !== row.open || row.high !== row.low);
+
+    if (hasActivity) {
+      const open = carry;
+      const close = row.close;
+      out.push({
+        time: t,
         open,
-        high,
-        low,
+        high: Math.max(open, close, row.high),
+        low: Math.min(open, close, row.low),
         close,
         volume: row.volume || 0,
+        quiet: false,
       });
-      prevClose = close;
-    }
-  }
-
-  // Drop quiet API gap-fills; keep real activity only
-  const windowStart = nowBucket - (maxBars - 1) * bucketMs;
-  let trades = merged.filter((c) => c.time >= windowStart && isActiveBar(c));
-  if (!trades.length) {
-    const last = merged[merged.length - 1];
-    trades = [
-      {
-        time: Math.min(Math.max(last.time, windowStart), nowBucket),
-        open: last.close,
-        high: last.close,
-        low: last.close,
-        close: last.close,
+      carry = close;
+    } else {
+      out.push({
+        time: t,
+        open: carry,
+        high: carry,
+        low: carry,
+        close: carry,
         volume: 0,
-      },
-    ];
-  }
-
-  let carry = trades[0].open;
-  const chained = trades.map((row, idx) => {
-    if (idx === 0) {
-      carry = row.close;
-      return { ...row, open: row.open, high: Math.max(row.open, row.close, row.high), low: Math.min(row.open, row.close, row.low) };
+        quiet: true,
+      });
     }
-    const open = carry;
-    const close = row.close;
-    const next = {
-      time: row.time,
-      open,
-      high: Math.max(open, close, row.high),
-      low: Math.min(open, close, row.low),
-      close,
-      volume: row.volume || 0,
-    };
-    carry = close;
-    return next;
-  });
-
-  // Forward-fill last trade → current bucket (new candle on the clock, no buy needed)
-  const out = [...chained];
-  let cursor = out[out.length - 1].time + bucketMs;
-  let flatCarry = out[out.length - 1].close;
-  while (cursor <= nowBucket) {
-    out.push({
-      time: cursor,
-      open: flatCarry,
-      high: flatCarry,
-      low: flatCarry,
-      close: flatCarry,
-      volume: 0,
-    });
-    cursor += bucketMs;
   }
 
-  const trimmed = out.slice(-maxBars);
-  if (trimmed.length && livePrice > 0) {
-    const last = trimmed[trimmed.length - 1];
+  if (out.length && livePrice > 0) {
+    const last = out[out.length - 1];
     if (last.time === nowBucket) {
+      const moved = Math.abs(livePrice - last.open) / Math.max(last.open, 1e-12) > 1e-8;
       last.close = livePrice;
       last.high = Math.max(last.open, last.high, livePrice);
       last.low = Math.min(last.open, last.low, livePrice);
+      if (moved || last.volume > 0) last.quiet = false;
+      else {
+        // Keep truly flat live bar as quiet gray doji
+        last.close = last.open;
+        last.high = last.open;
+        last.low = last.open;
+        last.quiet = true;
+      }
     }
   }
 
-  return trimmed;
+  return out;
 }
 
-/** Flat/doji bars stay equal OHLC (tick) — no artificial pad / fake green sticks. */
+const QUIET_CANDLE = "#6b7280";
+
+/**
+ * Trade candles = green/red. Quiet TF fillers = gray flat ticks (not fake pumps).
+ */
 export function toCandleSeriesPoints(candleData) {
   const unique = [];
   const seen = new Set();
@@ -193,13 +146,26 @@ export function toCandleSeriesPoints(candleData) {
       seen.add(t);
       const open = Number(c.open);
       const close = Number(c.close);
-      let high = Math.max(open, close, Number(c.high));
-      let low = Math.min(open, close, Number(c.low));
-      if (!(high > low)) {
-        high = open;
-        low = open;
+      const high = Math.max(open, close, Number(c.high));
+      const low = Math.min(open, close, Number(c.low));
+      const flat = !(high > low);
+      const quiet = Boolean(c.quiet) || (flat && !(Number(c.volume) > 0));
+
+      const point = {
+        time: t,
+        open,
+        high: flat ? open : high,
+        low: flat ? open : low,
+        close: flat ? open : close,
+      };
+
+      if (quiet) {
+        point.color = QUIET_CANDLE;
+        point.borderColor = QUIET_CANDLE;
+        point.wickColor = QUIET_CANDLE;
       }
-      unique.push({ time: t, open, high, low, close });
+
+      unique.push(point);
     }
   }
 

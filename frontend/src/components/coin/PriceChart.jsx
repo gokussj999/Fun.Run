@@ -66,7 +66,10 @@ export function PriceChart({ coin, height = 280, chartRange, setChartRange, relo
     } catch {}
   }, [chartLook]);
 
-  const pct = useMemo(() => getCoin24hMovePct(coin || {}), [coin?.chart, coin?.priceUsd, coin?.lastPriceUsd]);
+  const pct = useMemo(
+    () => getCoin24hMovePct(coin || {}),
+    [coin?.chart, coin?.priceUsd, coin?.lastPriceUsd, coin?.change24hPct, coin?.createdAt]
+  );
 
   const livePrice = safeNum(
     candleData[candleData.length - 1]?.close,
@@ -171,22 +174,24 @@ export function PriceChart({ coin, height = 280, chartRange, setChartRange, relo
       scaleMargins: { top: 0.12, bottom: 0.28 },
     });
 
-    // Pad around the real high/low so wicks stay readable, without forcing a
-    // fake ±1.5% window that hides small green recoveries inside a red bar.
+    // Keep a usable price window even when many quiet 5m bars are flat.
+    // Without a min span, equal OHLC bars make the scale collapse and every
+    // doji looks like a full-height green candle.
     candleSeries.applyOptions({
       autoscaleInfoProvider: (original) => {
         const base = original();
         if (!base?.priceRange) return base;
         const { minValue, maxValue } = base.priceRange;
-        const mid = (minValue + maxValue) / 2;
+        const mid = (minValue + maxValue) / 2 || livePrice || 1;
         if (!(mid > 0)) return base;
         const span = Math.max(0, maxValue - minValue);
-        const pad = Math.max(span * 0.35, mid * 0.0015);
+        const minSpan = mid * 0.012; // at least ±0.6% visible range
+        const pad = Math.max(span * 0.25, (minSpan - span) / 2, mid * 0.002);
         return {
           ...base,
           priceRange: {
-            minValue: minValue - pad,
-            maxValue: maxValue + pad,
+            minValue: Math.min(minValue, mid) - pad,
+            maxValue: Math.max(maxValue, mid) + pad,
           },
         };
       },

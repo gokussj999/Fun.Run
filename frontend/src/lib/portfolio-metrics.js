@@ -9,7 +9,9 @@ export function getCoinPriceUsd(c) {
   if (mc > 0 && total > 0) return mc / total;
 
   const chart = Array.isArray(c?.chart) ? c.chart : [];
-  return Math.max(0, safeNum(chart[chart.length - 1], 0));
+  const last = chart[chart.length - 1];
+  if (last && typeof last === "object") return Math.max(0, safeNum(last.p ?? last.price, 0));
+  return Math.max(0, safeNum(last, 0));
 }
 
 function resolveCoin(coins, holding) {
