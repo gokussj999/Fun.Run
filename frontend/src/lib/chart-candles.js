@@ -22,15 +22,15 @@ function cleanPxLoose(v, fallback) {
 }
 
 /**
- * Continuous OHLCV for the selected timeframe.
- * Quiet (0-volume) buckets still exist so the TF clock advances, but they are
- * marked quiet so the chart can paint them gray — not fake green pumps.
+ * Continuous OHLCV for every selected timeframe bucket.
+ * Quiet buckets (no trades) are filled so 15m/1h/etc advance on the clock.
  */
 export function normalizeCandleData(rawList, chartRange, coin, nowMs = Date.now()) {
   const list = Array.isArray(rawList) ? rawList : [];
   const cfg = getTimeframeCfg(chartRange);
   const bucketMs = cfg.ms;
-  const maxBars = 96;
+  // Enough bars to fill the visible day for 5m/15m/1h without drowning the chart
+  const maxBars = cfg.ms >= 60 * 60 * 1000 ? 72 : cfg.ms >= 15 * 60 * 1000 ? 96 : 96;
 
   const livePrice = Math.max(
     0.00000001,
@@ -42,8 +42,12 @@ export function normalizeCandleData(rawList, chartRange, coin, nowMs = Date.now(
 
   const byBucket = new Map();
   for (const c of list) {
-    const time = Math.floor(safeNum(c.time, 0) / bucketMs) * bucketMs;
+    let rawT = safeNum(c.time, 0);
+    // Guard: some feeds send seconds
+    if (rawT > 0 && rawT < 1e12) rawT *= 1000;
+    const time = Math.floor(rawT / bucketMs) * bucketMs;
     if (time <= 0) continue;
+
     const close = cleanPxLoose(c.close, livePrice);
     const open = cleanPxLoose(c.open, close);
     const high = Math.max(open, close, cleanPxLoose(c.high, close));
@@ -76,7 +80,8 @@ export function normalizeCandleData(rawList, chartRange, coin, nowMs = Date.now(
   const out = [];
   for (let t = windowStart; t <= nowBucket; t += bucketMs) {
     const row = byBucket.get(t);
-    const hasActivity = row && (row.volume > 0 || row.trades > 0 || row.close !== row.open || row.high !== row.low);
+    const hasActivity =
+      row && (row.volume > 0 || row.trades > 0 || row.close !== row.open || row.high !== row.low);
 
     if (hasActivity) {
       const open = carry;
@@ -108,12 +113,12 @@ export function normalizeCandleData(rawList, chartRange, coin, nowMs = Date.now(
     const last = out[out.length - 1];
     if (last.time === nowBucket) {
       const moved = Math.abs(livePrice - last.open) / Math.max(last.open, 1e-12) > 1e-8;
-      last.close = livePrice;
-      last.high = Math.max(last.open, last.high, livePrice);
-      last.low = Math.min(last.open, last.low, livePrice);
-      if (moved || last.volume > 0) last.quiet = false;
-      else {
-        // Keep truly flat live bar as quiet gray doji
+      if (moved || last.volume > 0) {
+        last.close = livePrice;
+        last.high = Math.max(last.open, last.high, livePrice);
+        last.low = Math.min(last.open, last.low, livePrice);
+        last.quiet = false;
+      } else {
         last.close = last.open;
         last.high = last.open;
         last.low = last.open;
@@ -125,10 +130,11 @@ export function normalizeCandleData(rawList, chartRange, coin, nowMs = Date.now(
   return out;
 }
 
-const QUIET_CANDLE = "#6b7280";
+const QUIET_CANDLE = "#64748b";
 
 /**
- * Trade candles = green/red. Quiet TF fillers = gray flat ticks (not fake pumps).
+ * Trade candles = green/red bodies.
+ * Quiet TF fillers = gray wick ticks (MUST have high≠low or LWC paints nothing).
  */
 export function toCandleSeriesPoints(candleData) {
   const unique = [];
@@ -144,20 +150,29 @@ export function toCandleSeriesPoints(candleData) {
       Number.isFinite(c.close)
     ) {
       seen.add(t);
-      const open = Number(c.open);
-      const close = Number(c.close);
-      const high = Math.max(open, close, Number(c.high));
-      const low = Math.min(open, close, Number(c.low));
-      const flat = !(high > low);
-      const quiet = Boolean(c.quiet) || (flat && !(Number(c.volume) > 0));
+      let open = Number(c.open);
+      let close = Number(c.close);
+      let high = Math.max(open, close, Number(c.high));
+      let low = Math.min(open, close, Number(c.low));
+      const quiet = Boolean(c.quiet) || (!(high > low) && !(Number(c.volume) > 0));
 
-      const point = {
-        time: t,
-        open,
-        high: flat ? open : high,
-        low: flat ? open : low,
-        close: flat ? open : close,
-      };
+      if (quiet) {
+        // Equal OHLC is invisible in lightweight-charts → tiny gray wick so
+        // every 15m/1h slot is actually visible on the timeline.
+        const mid = Math.max(open, 1e-12);
+        const tick = Math.max(mid * 0.0012, 1e-12);
+        open = mid;
+        close = mid;
+        high = mid + tick;
+        low = Math.max(1e-12, mid - tick);
+      } else if (!(high > low)) {
+        const mid = Math.max(open, close, 1e-12);
+        const tick = Math.max(mid * 0.0004, 1e-12);
+        high = mid + tick;
+        low = Math.max(1e-12, mid - tick);
+      }
+
+      const point = { time: t, open, high, low, close };
 
       if (quiet) {
         point.color = QUIET_CANDLE;

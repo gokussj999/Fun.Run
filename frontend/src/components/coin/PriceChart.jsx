@@ -174,28 +174,28 @@ export function PriceChart({ coin, height = 280, chartRange, setChartRange, relo
       scaleMargins: { top: 0.12, bottom: 0.28 },
     });
 
-    // Keep a usable price window even when many quiet 5m bars are flat.
-    // Without a min span, equal OHLC bars make the scale collapse and every
-    // doji looks like a full-height green candle.
-    candleSeries.applyOptions({
-      autoscaleInfoProvider: (original) => {
-        const base = original();
-        if (!base?.priceRange) return base;
-        const { minValue, maxValue } = base.priceRange;
-        const mid = (minValue + maxValue) / 2 || livePrice || 1;
-        if (!(mid > 0)) return base;
-        const span = Math.max(0, maxValue - minValue);
-        const minSpan = mid * 0.012; // at least ±0.6% visible range
-        const pad = Math.max(span * 0.25, (minSpan - span) / 2, mid * 0.002);
-        return {
-          ...base,
-          priceRange: {
-            minValue: Math.min(minValue, mid) - pad,
-            maxValue: Math.max(maxValue, mid) + pad,
+        // Keep a usable price window so quiet wick-ticks stay small (not full-pane).
+        // Trade wicks remain readable.
+        candleSeries.applyOptions({
+          autoscaleInfoProvider: (original) => {
+            const base = original();
+            if (!base?.priceRange) return base;
+            const { minValue, maxValue } = base.priceRange;
+            const mid = (minValue + maxValue) / 2 || livePrice || 1;
+            if (!(mid > 0)) return base;
+            const span = Math.max(0, maxValue - minValue);
+            // ~±2% floor so 0.12% quiet ticks don't explode to full height
+            const minSpan = mid * 0.04;
+            const pad = Math.max(span * 0.2, (minSpan - span) / 2, mid * 0.004);
+            return {
+              ...base,
+              priceRange: {
+                minValue: Math.min(minValue, mid) - pad,
+                maxValue: Math.max(maxValue, mid) + pad,
+              },
+            };
           },
-        };
-      },
-    });
+        });
 
     const volumeSeries = chart.addHistogramSeries({
       priceFormat: { type: "volume" },
@@ -303,6 +303,10 @@ export function PriceChart({ coin, height = 280, chartRange, setChartRange, relo
     lastPointsLenRef.current = candlePoints.length;
     firstBarTimeRef.current = first?.time ?? null;
     lastBarTimeRef.current = last?.time ?? null;
+    // First dense paint / TF switch: fit so continuous quiet bars are on screen
+    if (prevLen < 8 || candlePoints.length - prevLen > 20) {
+      chartApiRef.current.timeScale().fitContent();
+    }
     chartApiRef.current.timeScale().scrollToRealTime();
   }, [candlePoints, volumePoints, chartVersion]);
 
