@@ -1728,14 +1728,6 @@ async function resolveReferrerWallet(raw) {
   return "";
 }
 
-/** RUN-only display volume multiplier: 0.01 SOL buy → +0.1 volume */
-function tradeVolumeCredit(coinId, solAmount) {
-  const sol = Math.max(0, safeNum(solAmount, 0));
-  if (!(sol > 0)) return 0;
-  if (String(coinId || "") === RUN_COIN_ID) return sol * 10;
-  return sol;
-}
-
 async function insertTransaction(tx = {}) {
   await requireDb();
   const row = {
@@ -4169,12 +4161,12 @@ async function doTrade(req, res, side, authWallet = null) {
         );
       }
 
-      // Volume credit (RUN uses 10x display volume: 0.01 buy → +0.1 vol)
+      // Volume: store real SOL only (RUN 10x is display-only on coin page)
       const rawVolSol =
         sideLower === "buy"
           ? Math.max(0, safeNum(sol, 0))
           : Math.max(0, safeNum(tradeResult?.solOutGross || tradeResult?.solOutNet || 0, 0));
-      coin.volumeSol = Math.max(0, safeNum(coin.volumeSol, 0)) + tradeVolumeCredit(coin.id, rawVolSol);
+      coin.volumeSol = Math.max(0, safeNum(coin.volumeSol, 0)) + rawVolSol;
 
       coin = recalcCoin(coin, { appendChart: true, sideHint: sideLower });
       const newMc = Math.max(0, safeNum(coin.mc, 0));
@@ -4201,7 +4193,7 @@ async function doTrade(req, res, side, authWallet = null) {
         priceUsd: coin.priceUsd,
       };
 
-      const candleVolumeSol = tradeVolumeCredit(coin.id, rawVolSol);
+      const candleVolumeSol = rawVolSol;
 
       // _tx ke andar: holdings atomic update (advisory lock ke saath)
       await upsertHolding(wallet, coin.id, "set", Math.max(0, safeNum(coin?.holders?.[wallet], 0)), _tx);

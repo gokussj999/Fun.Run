@@ -710,6 +710,10 @@
   gap: 10px;
 }
 
+.coinOverviewGrid--mobile {
+  margin: 12px 0 4px;
+}
+
 .coinOverviewStatCard {
   padding: 12px;
   border-radius: 12px;

@@ -15,11 +15,12 @@ export function CoinStatsStrip({ coin, compact = false, variant = "full" }) {
   const price = coin?.priceUsd || coin?.lastPriceUsd || coin?.price || 0;
 
   if (variant === "key") {
+    // Mobile key strip: no Volume — boosted Volume is only on Overview cards below.
     const keyStats = [
       { label: "Market Cap", value: fmtUsd(coin.mc || 0) },
       { label: "24h", value: `${up ? "+" : ""}${move24h.toFixed(2)}%`, tone: up ? "up" : "down" },
-      { label: "Volume", value: `${fmtSol(coin.volumeSol || 0)} SOL` },
       { label: "Holders", value: holderCount.toLocaleString() },
+      { label: "Age", value: getCoinAgeLabel(coin) },
     ];
 
     return (
@@ -36,6 +37,7 @@ export function CoinStatsStrip({ coin, compact = false, variant = "full" }) {
     );
   }
 
+  // Desktop strip: no Volume (boosted Volume lives only on Overview cards).
   const stats = [
     {
       label: "Price",
@@ -52,11 +54,6 @@ export function CoinStatsStrip({ coin, compact = false, variant = "full" }) {
       label: "24h Change",
       value: `${up ? "+" : ""}${move24h.toFixed(2)}%`,
       tone: up ? "up" : "down",
-    },
-    {
-      label: "Volume",
-      value: `${fmtSol(coin.volumeSol || 0)} SOL`,
-      tone: "default",
     },
     {
       label: "ATH",

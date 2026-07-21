@@ -103,10 +103,6 @@ export function CoinHeader({
             </div>
           </div>
           <div className="coinHeaderStat">
-            <div className="coinHeaderStatLabel">Volume</div>
-            <div className="coinHeaderStatValue">{fmtSol(coin.volumeSol || 0)} SOL</div>
-          </div>
-          <div className="coinHeaderStat">
             <div className="coinHeaderStatLabel">Creator Rewards</div>
             <div className="coinHeaderStatValue">{fmtSol(coin.creatorRewardsSol || 0)} SOL</div>
           </div>

@@ -34,6 +34,24 @@ export function fmtSol(n) {
   return fmtNum(x, 6);
 }
 
+/** Fun.Run coin id — display volume boost is coin-page only */
+export const RUN_COIN_ID = "7cc0f755e5a5475ca8345a062d5c2475";
+
+function isRunCoin(coin) {
+  const id = String(coin?.id || "").trim();
+  if (id && id === RUN_COIN_ID) return true;
+  return String(coin?.symbol || "").trim().toUpperCase() === "RUN";
+}
+
+/**
+ * RUN volume boost — ONLY for Coin Overview Volume card (desktop + mobile).
+ * Never use in portfolio, home lists, header, admin, creator dashboard, or charts.
+ */
+export function getCoinPageVolumeSol(coin) {
+  const raw = Math.max(0, safeNum(coin?.volumeSol ?? coin?.volume_sol, 0));
+  return isRunCoin(coin) ? raw * 10 : raw;
+}
+
 export function timeAgo(ts) {
   const n = Number(ts || 0);
   if (!Number.isFinite(n) || n <= 0) return "just now";

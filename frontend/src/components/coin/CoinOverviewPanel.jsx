@@ -1,5 +1,5 @@
 import React from "react";
-import { fmtSol, fmtUsd, getCoinAgeLabel } from "../../lib/coin-display.js";
+import { fmtSol, fmtUsd, getCoinAgeLabel, getCoinPageVolumeSol } from "../../lib/coin-display.js";
 
 function shortAddr(addr, emptyLabel = "—") {
   const s = String(addr || "");
@@ -39,18 +39,19 @@ export function CoinOverviewPanel({
   const stats = [
     { key: "marketCap", label: "Market Cap", value: fmtUsd(coin.mc || 0) },
     { key: "liquidity", label: "Liquidity", value: `${fmtSol(liquiditySol)} SOL` },
-    { key: "volume", label: "Volume", value: `${fmtSol(coin.volumeSol || 0)} SOL` },
+    { key: "volume", label: "Volume", value: `${fmtSol(getCoinPageVolumeSol(coin))} SOL` },
     { key: "holders", label: "Holders", value: holderCount.toLocaleString() },
     { key: "age", label: "Age", value: getCoinAgeLabel(coin) },
     { key: "rewards", label: "Creator Rewards", value: `${fmtSol(coin.creatorRewardsSol || 0)} SOL` },
   ];
 
   const mobileRows = [
-    { label: "Liquidity", value: `${fmtSol(liquiditySol)} SOL` },
     { label: "Creator Rewards", value: `${fmtSol(coin.creatorRewardsSol || 0)} SOL` },
     { label: "Mint Address", value: shortAddr(coin.mintAddress, "Pending…"), action: coin?.mintAddress ? onCopyMint : null, actionLabel: "Copy" },
     { label: "Creator", value: shortAddr(coin.creatorWallet), action: onOpenCreator, actionLabel: "View" },
   ];
+
+  const overviewCards = stats.slice(0, 4); // Market Cap / Liquidity / Volume / Holders
 
   if (mobile) {
     return (
@@ -68,6 +69,18 @@ export function CoinOverviewPanel({
             </p>
           </section>
         ) : null}
+
+        <div className="coinOverviewGrid coinOverviewGrid--mobile">
+          {overviewCards.map((item) => (
+            <div key={item.key} className="coinOverviewStatCard">
+              <div className="coinOverviewStatIcon" aria-hidden="true">
+                {STAT_ICONS[item.key]}
+              </div>
+              <div className="coinOverviewStatLabel">{item.label}</div>
+              <div className="coinOverviewStatValue">{item.value}</div>
+            </div>
+          ))}
+        </div>
 
         <div className="coinMobileInfoList">
           {mobileRows.map((row) => (
