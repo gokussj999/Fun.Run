@@ -174,8 +174,7 @@ export function PriceChart({ coin, height = 280, chartRange, setChartRange, relo
       scaleMargins: { top: 0.12, bottom: 0.28 },
     });
 
-        // Keep a usable price window so quiet wick-ticks stay small (not full-pane).
-        // Trade wicks remain readable.
+        // Pad around real trade range; quiet flats stay thin horizontal bodies.
         candleSeries.applyOptions({
           autoscaleInfoProvider: (original) => {
             const base = original();
@@ -184,14 +183,12 @@ export function PriceChart({ coin, height = 280, chartRange, setChartRange, relo
             const mid = (minValue + maxValue) / 2 || livePrice || 1;
             if (!(mid > 0)) return base;
             const span = Math.max(0, maxValue - minValue);
-            // ~±2% floor so 0.12% quiet ticks don't explode to full height
-            const minSpan = mid * 0.04;
-            const pad = Math.max(span * 0.2, (minSpan - span) / 2, mid * 0.004);
+            const pad = Math.max(span * 0.35, mid * 0.008);
             return {
               ...base,
               priceRange: {
-                minValue: Math.min(minValue, mid) - pad,
-                maxValue: Math.max(maxValue, mid) + pad,
+                minValue: minValue - pad,
+                maxValue: maxValue + pad,
               },
             };
           },

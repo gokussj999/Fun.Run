@@ -22,15 +22,17 @@ function cleanPxLoose(v, fallback) {
 }
 
 /**
- * Continuous OHLCV for every selected timeframe bucket.
- * Quiet buckets (no trades) are filled so 15m/1h/etc advance on the clock.
+ * Chart candles:
+ * - Real trade bars stay as normal green/red OHLC
+ * - After the last trade, empty TF buckets forward-fill as clean flat
+ *   "khali" candles (open=high=low=close) so the clock advances
+ * - Do NOT backfill the whole history with quiet dojis (that looked unprofessional)
  */
 export function normalizeCandleData(rawList, chartRange, coin, nowMs = Date.now()) {
   const list = Array.isArray(rawList) ? rawList : [];
   const cfg = getTimeframeCfg(chartRange);
   const bucketMs = cfg.ms;
-  // Enough bars to fill the visible day for 5m/15m/1h without drowning the chart
-  const maxBars = cfg.ms >= 60 * 60 * 1000 ? 72 : cfg.ms >= 15 * 60 * 1000 ? 96 : 96;
+  const maxBars = 120;
 
   const livePrice = Math.max(
     0.00000001,
@@ -38,12 +40,10 @@ export function normalizeCandleData(rawList, chartRange, coin, nowMs = Date.now(
   );
 
   const nowBucket = Math.floor(nowMs / bucketMs) * bucketMs;
-  const windowStart = nowBucket - (maxBars - 1) * bucketMs;
 
   const byBucket = new Map();
   for (const c of list) {
     let rawT = safeNum(c.time, 0);
-    // Guard: some feeds send seconds
     if (rawT > 0 && rawT < 1e12) rawT *= 1000;
     const time = Math.floor(rawT / bucketMs) * bucketMs;
     if (time <= 0) continue;
@@ -68,49 +68,80 @@ export function normalizeCandleData(rawList, chartRange, coin, nowMs = Date.now(
     }
   }
 
-  let carry = livePrice;
-  const earlier = [...byBucket.keys()].filter((t) => t < windowStart).sort((a, b) => a - b);
-  if (earlier.length) {
-    carry = byBucket.get(earlier[earlier.length - 1]).close;
-  } else {
-    const firstIn = [...byBucket.keys()].filter((t) => t >= windowStart).sort((a, b) => a - b);
-    if (firstIn.length) carry = byBucket.get(firstIn[0]).open || byBucket.get(firstIn[0]).close;
-  }
+  // Only keep buckets that had real activity (trades / move)
+  const activity = [...byBucket.values()]
+    .filter((r) => r.volume > 0 || r.trades > 0 || r.close !== r.open || r.high !== r.low)
+    .sort((a, b) => a.time - b.time);
 
-  const out = [];
-  for (let t = windowStart; t <= nowBucket; t += bucketMs) {
-    const row = byBucket.get(t);
-    const hasActivity =
-      row && (row.volume > 0 || row.trades > 0 || row.close !== row.open || row.high !== row.low);
-
-    if (hasActivity) {
-      const open = carry;
-      const close = row.close;
-      out.push({
-        time: t,
-        open,
-        high: Math.max(open, close, row.high),
-        low: Math.min(open, close, row.low),
-        close,
-        volume: row.volume || 0,
-        quiet: false,
-      });
-      carry = close;
-    } else {
-      out.push({
-        time: t,
-        open: carry,
-        high: carry,
-        low: carry,
-        close: carry,
+  if (!activity.length) {
+    return [
+      {
+        time: nowBucket,
+        open: livePrice,
+        high: livePrice,
+        low: livePrice,
+        close: livePrice,
         volume: 0,
         quiet: true,
-      });
-    }
+      },
+    ];
   }
 
-  if (out.length && livePrice > 0) {
-    const last = out[out.length - 1];
+  const windowStart = nowBucket - (maxBars - 1) * bucketMs;
+  const trades = activity.filter((r) => r.time >= windowStart);
+  const seed = trades.length ? trades : [activity[activity.length - 1]];
+
+  let carry = seed[0].open;
+  const chained = seed.map((row, idx) => {
+    if (idx === 0) {
+      carry = row.close;
+      return {
+        time: row.time,
+        open: row.open,
+        high: Math.max(row.open, row.close, row.high),
+        low: Math.min(row.open, row.close, row.low),
+        close: row.close,
+        volume: row.volume || 0,
+        quiet: false,
+      };
+    }
+    const open = carry;
+    const close = row.close;
+    const next = {
+      time: row.time,
+      open,
+      high: Math.max(open, close, row.high),
+      low: Math.min(open, close, row.low),
+      close,
+      volume: row.volume || 0,
+      quiet: false,
+    };
+    carry = close;
+    return next;
+  });
+
+  // Forward-fill ONLY after last trade → now: clean empty candles on the clock
+  const out = [...chained];
+  let cursor = out[out.length - 1].time + bucketMs;
+  let flat = out[out.length - 1].close;
+  while (cursor <= nowBucket) {
+    out.push({
+      time: cursor,
+      open: flat,
+      high: flat,
+      low: flat,
+      close: flat,
+      volume: 0,
+      quiet: true,
+    });
+    cursor += bucketMs;
+  }
+
+  const trimmed = out.slice(-maxBars);
+
+  // Live stitch active bucket — only if price actually moved
+  if (trimmed.length && livePrice > 0) {
+    const last = trimmed[trimmed.length - 1];
     if (last.time === nowBucket) {
       const moved = Math.abs(livePrice - last.open) / Math.max(last.open, 1e-12) > 1e-8;
       if (moved || last.volume > 0) {
@@ -118,23 +149,16 @@ export function normalizeCandleData(rawList, chartRange, coin, nowMs = Date.now(
         last.high = Math.max(last.open, last.high, livePrice);
         last.low = Math.min(last.open, last.low, livePrice);
         last.quiet = false;
-      } else {
-        last.close = last.open;
-        last.high = last.open;
-        last.low = last.open;
-        last.quiet = true;
       }
     }
   }
 
-  return out;
+  return trimmed;
 }
 
-const QUIET_CANDLE = "#64748b";
-
 /**
- * Trade candles = green/red bodies.
- * Quiet TF fillers = gray wick ticks (MUST have high≠low or LWC paints nothing).
+ * Khali (quiet) candles: true flat OHLC → LWC draws a clean horizontal body.
+ * No fake wicks (those looked like unprofessional doji sticks).
  */
 export function toCandleSeriesPoints(candleData) {
   const unique = [];
@@ -150,37 +174,28 @@ export function toCandleSeriesPoints(candleData) {
       Number.isFinite(c.close)
     ) {
       seen.add(t);
-      let open = Number(c.open);
-      let close = Number(c.close);
+      const open = Number(c.open);
+      const close = Number(c.close);
       let high = Math.max(open, close, Number(c.high));
       let low = Math.min(open, close, Number(c.low));
-      const quiet = Boolean(c.quiet) || (!(high > low) && !(Number(c.volume) > 0));
+      const quiet = Boolean(c.quiet);
 
       if (quiet) {
-        // Equal OHLC is invisible in lightweight-charts → tiny gray wick so
-        // every 15m/1h slot is actually visible on the timeline.
-        const mid = Math.max(open, 1e-12);
-        const tick = Math.max(mid * 0.0012, 1e-12);
-        open = mid;
-        close = mid;
-        high = mid + tick;
-        low = Math.max(1e-12, mid - tick);
-      } else if (!(high > low)) {
-        const mid = Math.max(open, close, 1e-12);
-        const tick = Math.max(mid * 0.0004, 1e-12);
-        high = mid + tick;
-        low = Math.max(1e-12, mid - tick);
+        // Clean empty candle — flat body only
+        unique.push({
+          time: t,
+          open,
+          high: open,
+          low: open,
+          close: open,
+        });
+      } else {
+        if (!(high > low)) {
+          high = Math.max(open, close);
+          low = Math.min(open, close);
+        }
+        unique.push({ time: t, open, high, low, close });
       }
-
-      const point = { time: t, open, high, low, close };
-
-      if (quiet) {
-        point.color = QUIET_CANDLE;
-        point.borderColor = QUIET_CANDLE;
-        point.wickColor = QUIET_CANDLE;
-      }
-
-      unique.push(point);
     }
   }
 
