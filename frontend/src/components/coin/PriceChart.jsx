@@ -9,6 +9,17 @@ function formatCrosshairPrice(n) {
   return fmtUsd(Math.max(0.00000001, safeNum(n, 0)));
 }
 
+/** Keep minMove fine enough that tiny meme-price buys still move the candle. */
+function priceFormatFor(livePrice) {
+  const p = Math.max(1e-15, Number(livePrice) || 1e-15);
+  if (p >= 1) return { precision: 4, minMove: 0.0001 };
+  if (p >= 0.01) return { precision: 6, minMove: 0.000001 };
+  if (p >= 1e-4) return { precision: 8, minMove: 1e-8 };
+  if (p >= 1e-6) return { precision: 10, minMove: 1e-10 };
+  if (p >= 1e-8) return { precision: 12, minMove: 1e-12 };
+  return { precision: 14, minMove: 1e-14 };
+}
+
 export function PriceChart({ coin, height = 280, chartRange, setChartRange, reloadKey = 0, variant = "default", compact = false }) {
   const chartRef = useRef(null);
   const chartApiRef = useRef(null);
@@ -165,8 +176,7 @@ export function PriceChart({ coin, height = 280, chartRange, setChartRange, relo
       priceLineColor: up ? themeCfg.up : themeCfg.down,
       priceFormat: {
         type: "price",
-        precision: livePrice > 1 ? 4 : livePrice > 0.01 ? 6 : 8,
-        minMove: livePrice > 1 ? 0.0001 : livePrice > 0.01 ? 0.000001 : 0.00000001,
+        ...priceFormatFor(livePrice),
       },
     });
 

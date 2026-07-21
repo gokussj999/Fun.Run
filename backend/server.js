@@ -2148,15 +2148,26 @@ function recalcCoin(coin, opts = {}) {
   return fixed;
 }
 
-async function upsertCandlesForTrade(coinId, price, volumeSol) {
+/** Chart candles use fixed SOL_USD so live FX noise cannot paint a buy red. */
+function candlePriceUsdFromCoin(coin) {
+  const priceSol = Math.max(0, safeNum(coin?.priceSol, 0));
+  if (priceSol > 0) return Math.max(1e-12, priceSol * SOL_USD);
+  return Math.max(1e-12, safeNum(coin?.priceUsd || coin?.price, 1e-12));
+}
+
+/**
+ * Write OHLCV for a trade. Pass side for logging / future use; price must already
+ * be FX-stable (see candlePriceUsdFromCoin) so buys move close above open.
+ */
+async function upsertCandlesForTrade(coinId, price, volumeSol, _side = "") {
   await requireDb();
 
   const id = String(coinId || "").trim();
   if (!id) return;
 
   const now = Date.now();
-  const p = Math.max(0.00000001, safeNum(price, 0.00000001));
   const vol = Math.max(0, safeNum(volumeSol, 0));
+  const p = Math.max(1e-12, safeNum(price, 1e-12));
 
   const timeframes = [
     ["5m", 300_000],
@@ -2175,7 +2186,6 @@ async function upsertCandlesForTrade(coinId, price, volumeSol) {
       const bucket = Math.floor(now / ms) * ms;
 
       // Open = previous bucket close so a buy paints green+up and a sell red+down.
-      // high/low must always bracket open+close (never high=low=close alone).
       let openPrice = p;
       try {
         const prev = await sql`
@@ -2183,7 +2193,7 @@ async function upsertCandlesForTrade(coinId, price, volumeSol) {
           where coin_id = ${id} and timeframe = ${tf} and bucket_time < ${bucket}
           order by bucket_time desc limit 1
         `;
-        openPrice = Math.max(0.00000001, safeNum(prev?.[0]?.close, p));
+        openPrice = Math.max(1e-12, safeNum(prev?.[0]?.close, p));
       } catch {}
 
       const high = Math.max(openPrice, p);
@@ -2202,8 +2212,8 @@ async function upsertCandlesForTrade(coinId, price, volumeSol) {
         )
         on conflict (coin_id, timeframe, bucket_time)
         do update set
-          high = greatest(candles.high, excluded.high, excluded.close),
-          low = least(candles.low, excluded.low, excluded.close),
+          high = greatest(candles.high, candles.open, excluded.close),
+          low = least(candles.low, candles.open, excluded.close),
           close = excluded.close,
           volume_sol = candles.volume_sol + excluded.volume_sol,
           trades_count = candles.trades_count + 1,
@@ -3509,7 +3519,8 @@ app.get("/coin/:id/candles", async (req, res) => {
 
         const sol = Math.max(0, safeNum(tx.sol, 0));
         const tokens = Math.max(0, safeNum(tx.tokens, 0));
-        const execPx = tokens > 0 ? (sol / tokens) * currentSolUsd : 0;
+        // Stable FX for synthetic candles (same basis as upsertCandlesForTrade).
+        const execPx = tokens > 0 ? (sol / tokens) * SOL_USD : 0;
         const px = Math.max(0.00000001, execPx || fallbackPrice);
 
         const bucket = Math.floor(ts / bucketMs) * bucketMs;
@@ -3747,8 +3758,9 @@ app.post("/coin/create", createLimiter, async (req, res) => {
           }),
           upsertCandlesForTrade(
             latestCoin.id,
-            Math.max(0, safeNum(latestCoin?.priceUsd || latestCoin?.price || 0)),
-            Math.max(0, safeNum(initialSol, 0))
+            candlePriceUsdFromCoin(latestCoin),
+            Math.max(0, safeNum(initialSol, 0)),
+            "buy"
           ),
         ]);
 
@@ -4229,14 +4241,12 @@ async function doTrade(req, res, side, authWallet = null) {
       const pt = result._postTrade;
       const sideCoin = { ...result.coin };
       const coinId = result.coin.id;
-      const coinPriceUsd = Math.max(
-        0.00000001,
-        safeNum(result.coin?.priceUsd || result.coin?.price || 0, 0.00000001)
-      );
+      // Fixed SOL_USD — live FX must not turn a curve-up buy into a red candle.
+      const coinCandlePrice = candlePriceUsdFromCoin(result.coin);
       // Queue side-effects off the request path (bounded concurrency).
       tradeSideQueue.enqueue(`trade:${coinId}`, async () => {
         const sideEffects = await Promise.allSettled([
-          upsertCandlesForTrade(coinId, coinPriceUsd, pt.candleVolumeSol),
+          upsertCandlesForTrade(coinId, coinCandlePrice, pt.candleVolumeSol, pt.sideLower),
           distributeFeeDirect(sideCoin, pt.wallet, pt.tradeFeeSol),
           insertTransaction(pt.txPayload),
           writeAudit(
