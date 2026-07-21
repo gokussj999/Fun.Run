@@ -21,18 +21,18 @@ function cleanPxLoose(v, fallback) {
   return Math.max(0.00000001, safeNum(fallback, 0.00000001));
 }
 
-/** How many TF bars to keep on screen (covers multi-day 15m/5m history). */
+/** Visible history length per TF */
 export function maxBarsForTf(chartRange) {
   const key = String(chartRange || "5M").toUpperCase();
   switch (key) {
     case "5M":
-      return 288; // 24h
+      return 576; // 48h of 5m bars
     case "15M":
       return 384; // 4 days
     case "1H":
       return 168; // 7 days
     case "4H":
-      return 180; // 30 days
+      return 180;
     case "1D":
       return 90;
     case "1W":
@@ -45,10 +45,8 @@ export function maxBarsForTf(chartRange) {
 }
 
 /**
- * Continuous timeframe chart:
- * - Every bucket from start → now has a candle (15m = every 15 min, etc.)
- * - Trade buckets = real green/red OHLC
- * - Empty buckets = clean flat khali candle (no fake wicks / doji sticks)
+ * Continuous TF candles from first activity → now.
+ * Empty slots = flat khali candles (no fake live "pump" stitch).
  */
 export function normalizeCandleData(rawList, chartRange, coin, nowMs = Date.now()) {
   const list = Array.isArray(rawList) ? rawList : [];
@@ -62,10 +60,7 @@ export function normalizeCandleData(rawList, chartRange, coin, nowMs = Date.now(
   );
 
   const nowBucket = Math.floor(nowMs / bucketMs) * bucketMs;
-  const createdMs = Math.max(
-    0,
-    safeNum(coin?.createdAt || coin?.created_at, 0)
-  );
+  const createdMs = Math.max(0, safeNum(coin?.createdAt || coin?.created_at, 0));
   const createdBucket = createdMs > 0 ? Math.floor(createdMs / bucketMs) * bucketMs : 0;
 
   const byBucket = new Map();
@@ -98,16 +93,12 @@ export function normalizeCandleData(rawList, chartRange, coin, nowMs = Date.now(
   const times = [...byBucket.keys()].sort((a, b) => a - b);
   const firstTrade = times[0] || 0;
 
-  // Start from coin create / first trade / maxBars window — whichever is latest
+  // Window: last maxBars, but not before create / first trade
   let start = nowBucket - (maxBars - 1) * bucketMs;
   if (createdBucket > 0) start = Math.max(start, createdBucket);
-  if (firstTrade > 0) start = Math.max(start, Math.min(firstTrade, nowBucket));
-  // If first trade is inside window, still fill from firstTrade so we don't invent
-  // pre-launch empty candles — but DO fill every slot after first trade.
   if (firstTrade > 0) start = Math.max(start, firstTrade);
   start = Math.floor(start / bucketMs) * bucketMs;
 
-  // Seed carry price from nearest bar at/before start
   let carry = livePrice;
   if (times.length) {
     let seed = byBucket.get(times[0]);
@@ -138,7 +129,6 @@ export function normalizeCandleData(rawList, chartRange, coin, nowMs = Date.now(
       });
       carry = close;
     } else {
-      // Khali candle — flat, clean
       out.push({
         time: t,
         open: carry,
@@ -163,25 +153,12 @@ export function normalizeCandleData(rawList, chartRange, coin, nowMs = Date.now(
     });
   }
 
-  const trimmed = out.slice(-maxBars);
-
-  if (trimmed.length && livePrice > 0) {
-    const last = trimmed[trimmed.length - 1];
-    if (last.time === nowBucket) {
-      const moved = Math.abs(livePrice - last.open) / Math.max(last.open, 1e-12) > 1e-8;
-      if (moved || last.volume > 0) {
-        last.close = livePrice;
-        last.high = Math.max(last.open, last.high, livePrice);
-        last.low = Math.min(last.open, last.low, livePrice);
-        last.quiet = false;
-      }
-    }
-  }
-
-  return trimmed;
+  // IMPORTANT: do NOT live-stitch priceUsd into candles.
+  // That made empty 5m bars look like a "pump" with no buy.
+  return out.slice(-maxBars);
 }
 
-/** Quiet = flat khali body. No artificial wicks. */
+/** Quiet = flat khali body. Trade = real OHLC. */
 export function toCandleSeriesPoints(candleData) {
   const unique = [];
   const seen = new Set();

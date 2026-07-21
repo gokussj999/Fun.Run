@@ -118,8 +118,9 @@ export function PriceChart({ coin, height = 280, chartRange, setChartRange, relo
         timeVisible: true,
         secondsVisible: false,
         rightOffset: 6,
-        barSpacing: compact ? 10 : 8,
-        minBarSpacing: compact ? 4 : 3,
+        barSpacing: compact ? 11 : 9,
+        minBarSpacing: compact ? 5 : 4,
+
         rightBarStaysOnScroll: true,
       },
       crosshair: {

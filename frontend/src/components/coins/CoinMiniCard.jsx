@@ -39,7 +39,9 @@ export const CoinMiniCard = React.memo(function CoinMiniCard({
         <div className="coinText">
           <div className="coinName">
             <span className="coinNameText">{c?.name || c?.symbol || "—"}</span>
-            <span className={`coinMoveBadge ${isUp ? "up" : "down"}`}>{isUp ? "PUMP" : "DUMP"}</span>
+            {Math.abs(move24h) >= 12 ? (
+              <span className={`coinMoveBadge ${isUp ? "up" : "down"}`}>{isUp ? "PUMP" : "DUMP"}</span>
+            ) : null}
           </div>
           <div className="coinMeta">
             {subtitle ? (

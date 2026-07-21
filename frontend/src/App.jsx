@@ -967,7 +967,15 @@ function normalizeCoin(c = {}) {
           c && typeof c.holders === "object" && !Array.isArray(c.holders) ? c.holders : {}
         ).filter((v) => safeNum(v, 0) > 0.0000001).length
     ),
-    createdAt: safeNum(c.createdAt, c.created_at ? new Date(c.created_at).getTime() : Date.now()),
+    createdAt: (() => {
+      const fromNum = safeNum(c.createdAt, 0);
+      if (fromNum > 0) return fromNum;
+      if (c.created_at) {
+        const t = new Date(c.created_at).getTime();
+        if (Number.isFinite(t) && t > 0) return t;
+      }
+      return 0;
+    })(),
     lastTradeAt: safeNum(c.lastTradeAt, c.last_trade_at || 0),
     creatorRewardsSol: Math.max(0, safeNum(c.creatorRewardsSol, c.creator_rewards || 0)),
   };

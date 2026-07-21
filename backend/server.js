@@ -1144,7 +1144,9 @@ function coinToDbUpdate(coin = {}) {
     mint_address: coin.mintAddress || "",
     mint_signature: coin.mintSignature || "",
     creator_wallet: coin.creatorWallet || coin.owner || "",
-    created_at: new Date(coin.createdAt || Date.now()).toISOString(),
+    created_at: coin.createdAt
+      ? new Date(coin.createdAt).toISOString()
+      : new Date().toISOString(),
     total_supply: coin.totalSupply || TOTAL_SUPPLY,
     curve_supply:
       coin.curveSupply || saleSupplyFromTotal(coin.totalSupply || TOTAL_SUPPLY),
@@ -1942,7 +1944,7 @@ async function saveCoin(coin, _tx = null) {
       mint_address = excluded.mint_address,
       mint_signature = excluded.mint_signature,
       creator_wallet = excluded.creator_wallet,
-      created_at = excluded.created_at,
+      created_at = coins.created_at,
       total_supply = excluded.total_supply,
       curve_supply = excluded.curve_supply,
       curve_sold = excluded.curve_sold,
