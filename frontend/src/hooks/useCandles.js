@@ -114,7 +114,8 @@ export function useCandles(coin, chartRange, reloadKey = 0) {
 
   const candleData = useMemo(
     () => normalizeCandleData(rawCandles, chartRange, coin, nowTick),
-    [rawCandles, chartRange, coin?.priceUsd, coin?.lastPriceUsd, coin?.price, coin?.createdAt, nowTick]
+    // Do NOT depend on live priceUsd — that re-normalized opens against FX and painted buys red.
+    [rawCandles, chartRange, coin?.id, coin?.createdAt, nowTick]
   );
 
   return { candleData, loading };

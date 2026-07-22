@@ -18,7 +18,7 @@ export function chartRangeToApiTf(range) {
 function cleanPxLoose(v, fallback) {
   const x = safeNum(v, 0);
   if (x > 0 && Number.isFinite(x)) return x;
-  return Math.max(0.00000001, safeNum(fallback, 0.00000001));
+  return Math.max(1e-12, safeNum(fallback, 1e-12));
 }
 
 /** Visible history length per TF */
@@ -26,11 +26,11 @@ export function maxBarsForTf(chartRange) {
   const key = String(chartRange || "5M").toUpperCase();
   switch (key) {
     case "5M":
-      return 576; // 48h of 5m bars
+      return 576;
     case "15M":
-      return 384; // 4 days
+      return 384;
     case "1H":
-      return 168; // 7 days
+      return 168;
     case "4H":
       return 180;
     case "1D":
@@ -46,18 +46,14 @@ export function maxBarsForTf(chartRange) {
 
 /**
  * Continuous TF candles from first activity → now.
- * Empty slots = flat khali candles (no fake live "pump" stitch).
+ * NEVER mix coin.priceUsd / live FX into open/close — that painted buys red.
+ * Opens chain only from API candle closes.
  */
 export function normalizeCandleData(rawList, chartRange, coin, nowMs = Date.now()) {
   const list = Array.isArray(rawList) ? rawList : [];
   const cfg = getTimeframeCfg(chartRange);
   const bucketMs = cfg.ms;
   const maxBars = maxBarsForTf(chartRange);
-
-  const livePrice = Math.max(
-    0.00000001,
-    safeNum(coin?.priceUsd || coin?.lastPriceUsd || coin?.price || 0, 0.00000001)
-  );
 
   const nowBucket = Math.floor(nowMs / bucketMs) * bucketMs;
   const createdMs = Math.max(0, safeNum(coin?.createdAt || coin?.created_at, 0));
@@ -70,13 +66,13 @@ export function normalizeCandleData(rawList, chartRange, coin, nowMs = Date.now(
     const time = Math.floor(rawT / bucketMs) * bucketMs;
     if (time <= 0) continue;
 
-    const close = cleanPxLoose(c.close, livePrice);
+    const close = cleanPxLoose(c.close, 0);
+    if (!(close > 0)) continue;
     const open = cleanPxLoose(c.open, close);
     const high = Math.max(open, close, cleanPxLoose(c.high, close));
     const low = Math.min(open, close, cleanPxLoose(c.low, close));
     const volume = Math.max(0, safeNum(c.volume ?? c.vol ?? c.v ?? c.volumeSol, 0));
     const trades = Math.max(0, safeNum(c.tradesCount ?? c.trades_count, 0));
-    if (!(open > 0 && high > 0 && low > 0 && close > 0)) continue;
 
     const prev = byBucket.get(time);
     if (!prev) {
@@ -92,22 +88,20 @@ export function normalizeCandleData(rawList, chartRange, coin, nowMs = Date.now(
 
   const times = [...byBucket.keys()].sort((a, b) => a - b);
   const firstTrade = times[0] || 0;
+  if (!firstTrade) return [];
 
-  // Window: last maxBars, but not before create / first trade
   let start = nowBucket - (maxBars - 1) * bucketMs;
   if (createdBucket > 0) start = Math.max(start, createdBucket);
-  if (firstTrade > 0) start = Math.max(start, firstTrade);
+  start = Math.max(start, firstTrade);
   start = Math.floor(start / bucketMs) * bucketMs;
 
-  let carry = livePrice;
-  if (times.length) {
-    let seed = byBucket.get(times[0]);
-    for (const t of times) {
-      if (t <= start) seed = byBucket.get(t);
-      else break;
-    }
-    if (seed) carry = seed.close || seed.open || carry;
+  // Seed carry from candle history only — never live USD.
+  let carry = byBucket.get(firstTrade)?.open || byBucket.get(firstTrade)?.close;
+  for (const t of times) {
+    if (t < start) carry = byBucket.get(t)?.close || carry;
+    else break;
   }
+  if (!(carry > 0)) carry = byBucket.get(firstTrade)?.close;
 
   const out = [];
   for (let t = start; t <= nowBucket; t += bucketMs) {
@@ -141,20 +135,6 @@ export function normalizeCandleData(rawList, chartRange, coin, nowMs = Date.now(
     }
   }
 
-  if (!out.length) {
-    out.push({
-      time: nowBucket,
-      open: livePrice,
-      high: livePrice,
-      low: livePrice,
-      close: livePrice,
-      volume: 0,
-      quiet: true,
-    });
-  }
-
-  // IMPORTANT: do NOT live-stitch priceUsd into candles.
-  // That made empty 5m bars look like a "pump" with no buy.
   return out.slice(-maxBars);
 }
 
@@ -197,16 +177,12 @@ export function toVolumeSeriesPoints(candleData, upColor, downColor) {
   const points = [];
 
   for (const c of candleData || []) {
+    if (c?.quiet) continue;
     const t = Math.floor(Number(c.time) / 1000);
     const vol = Math.max(0, Number(c.volume || 0));
-    if (!Number.isFinite(t) || vol <= 0) continue;
-
+    if (!(t > 0) || !(vol > 0)) continue;
     const up = Number(c.close) >= Number(c.open);
-    points.push({
-      time: t,
-      value: vol,
-      color: up ? upColor : downColor,
-    });
+    points.push({ time: t, value: vol, color: up ? upColor : downColor });
   }
 
   return points;

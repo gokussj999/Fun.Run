@@ -2148,18 +2148,20 @@ function recalcCoin(coin, opts = {}) {
   return fixed;
 }
 
-/** Chart candles use fixed SOL_USD so live FX noise cannot paint a buy red. */
+/** Chart candles: bonding-curve spot × fixed SOL_USD (never live FX / exec avg). */
 function candlePriceUsdFromCoin(coin) {
   const priceSol = Math.max(0, safeNum(coin?.priceSol, 0));
   if (priceSol > 0) return Math.max(1e-12, priceSol * SOL_USD);
-  return Math.max(1e-12, safeNum(coin?.priceUsd || coin?.price, 1e-12));
+  const approxSol =
+    Math.max(0, safeNum(coin?.priceUsd || coin?.price, 0)) / Math.max(1e-9, currentSolUsd);
+  return Math.max(1e-12, approxSol * SOL_USD);
 }
 
 /**
- * Write OHLCV for a trade. Pass side for logging / future use; price must already
- * be FX-stable (see candlePriceUsdFromCoin) so buys move close above open.
+ * Write OHLCV from spot. side "buy"|"sell" heals legacy open/close scale mismatches
+ * on a NEW bucket so a buy never opens above post-buy spot (fake dump).
  */
-async function upsertCandlesForTrade(coinId, price, volumeSol, _side = "") {
+async function upsertCandlesForTrade(coinId, price, volumeSol, side = "") {
   await requireDb();
 
   const id = String(coinId || "").trim();
@@ -2168,6 +2170,7 @@ async function upsertCandlesForTrade(coinId, price, volumeSol, _side = "") {
   const now = Date.now();
   const vol = Math.max(0, safeNum(volumeSol, 0));
   const p = Math.max(1e-12, safeNum(price, 1e-12));
+  const sideNorm = String(side || "").trim().toLowerCase();
 
   const timeframes = [
     ["5m", 300_000],
@@ -2179,13 +2182,10 @@ async function upsertCandlesForTrade(coinId, price, volumeSol, _side = "") {
     ["1m", 2_592_000_000],
   ];
 
-  // One atomic UPSERT per TF — avoids read/modify/write races when buy+sell
-  // hit the same bucket in parallel (high/low were getting lost).
   await Promise.all(
     timeframes.map(async ([tf, ms]) => {
       const bucket = Math.floor(now / ms) * ms;
 
-      // Open = previous bucket close so a buy paints green+up and a sell red+down.
       let openPrice = p;
       try {
         const prev = await sql`
@@ -2195,6 +2195,10 @@ async function upsertCandlesForTrade(coinId, price, volumeSol, _side = "") {
         `;
         openPrice = Math.max(1e-12, safeNum(prev?.[0]?.close, p));
       } catch {}
+
+      // New bucket: if legacy prev-close is on a different scale, don't fake a crash/pump.
+      if (sideNorm === "buy" && p < openPrice) openPrice = p;
+      if (sideNorm === "sell" && p > openPrice) openPrice = p;
 
       const high = Math.max(openPrice, p);
       const low = Math.min(openPrice, p);
@@ -3487,18 +3491,14 @@ app.get("/coin/:id/candles", async (req, res) => {
         .filter((c) => c.time > 0 && c.open > 0 && c.high > 0 && c.low > 0 && c.close > 0)
       : [];
 
-    const fallbackPrice =
-      Math.max(
-        0.00000001,
-        safeNum(coinApi.priceUsd, 0),
-        safeNum(coinApi.lastPriceUsd, 0),
-        safeNum(coin.market_cap, 0) > 0
-          ? safeNum(coin.market_cap, 0) / Math.max(1, safeNum(coin.total_supply, TOTAL_SUPPLY))
-          : 0,
-        Array.isArray(coin.chart) && coin.chart.length
-          ? safeNum(coin.chart[coin.chart.length - 1], 0)
-          : 0.000001
-      ) || 0.000001;
+    // Chart series must use the SAME FX as upsertCandlesForTrade (fixed SOL_USD).
+    const fallbackPrice = Math.max(
+      1e-12,
+      candlePriceUsdFromCoin({
+        priceSol: safeNum(coinApi.priceSol, 0),
+        priceUsd: safeNum(coinApi.priceUsd, 0),
+      })
+    );
 
     if (!candles.length) {
       const txRows = await sql`
@@ -3513,15 +3513,47 @@ app.get("/coin/:id/candles", async (req, res) => {
       const map = new Map();
       let carryClose = null;
 
+      // Replay AMM with spot closes — never (sol/tokens) exec average (that paints buys red).
+      let simSol = 0;
+      let simTok = Math.max(1, safeNum(coin.curve_supply, saleSupplyFromTotal(coin.total_supply)));
+      const simVSol = Math.max(1e-9, safeNum(coin.v_sol, VIRTUAL_SOL));
+      const simVTok = calcVirtualTokens(
+        safeNum(coin.total_supply, TOTAL_SUPPLY),
+        simTok,
+        coin.v_tokens
+      );
+
       for (const tx of list) {
         const ts = new Date(tx.created_at).getTime();
         if (!Number.isFinite(ts) || ts <= 0) continue;
 
         const sol = Math.max(0, safeNum(tx.sol, 0));
         const tokens = Math.max(0, safeNum(tx.tokens, 0));
-        // Stable FX for synthetic candles (same basis as upsertCandlesForTrade).
-        const execPx = tokens > 0 ? (sol / tokens) * SOL_USD : 0;
-        const px = Math.max(0.00000001, execPx || fallbackPrice);
+        const side = String(tx.type || "").toUpperCase();
+        const x = simSol + simVSol;
+        const y = simTok + simVTok;
+        const k = x * y;
+
+        if (side === "BUY") {
+          const net = Math.max(0, sol * (1 - FEE_PCT / 100));
+          if (net > 0) {
+            const newX = x + net;
+            const newY = k / newX;
+            simSol += net;
+            simTok = Math.max(1, simTok - Math.max(0, y - newY));
+          }
+        } else if (tokens > 0) {
+          const newY = y + tokens;
+          const newX = k / newY;
+          const gross = Math.max(0, x - newX);
+          simSol = Math.max(0, simSol - gross);
+          simTok += tokens;
+        }
+
+        const px = Math.max(
+          1e-12,
+          ((simSol + simVSol) / (simTok + simVTok)) * SOL_USD
+        );
 
         const bucket = Math.floor(ts / bucketMs) * bucketMs;
         const prev = map.get(bucket);
