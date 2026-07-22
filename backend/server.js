@@ -1812,7 +1812,11 @@ async function enrichChange24h(coins) {
 
     for (const c of list) {
       const start = byId.get(String(c.id));
-      const end = Math.max(0.00000001, safeNum(c.priceUsd || c.price, 0));
+      // IMPORTANT: candles close values are computed with fixed SOL_USD basis
+      // (see upsertCandlesForTrade + /coin/:id/candles fallback).
+      // So end must use the SAME basis, otherwise 24h move sign can flip.
+      const endFixedUsd = Math.max(0.00000001, safeNum(c.priceSol, 0) * SOL_USD);
+      const end = endFixedUsd;
       if (start > 0 && end > 0) {
         const pct = ((end - start) / start) * 100;
         if (Number.isFinite(pct)) {
