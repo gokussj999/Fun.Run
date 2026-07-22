@@ -1,5 +1,5 @@
 import React from "react";
-import { fmtSol, fmtUsd, getCoinAgeLabel, getCoinPageVolumeSol } from "../../lib/coin-display.js";
+import { fmtSol, fmtUsd, getCoinAgeLabel, getCoinPageLiquiditySol, getCoinPageMarketCapUsd, getCoinPageVolumeSol } from "../../lib/coin-display.js";
 
 function shortAddr(addr, emptyLabel = "—") {
   const s = String(addr || "");
@@ -34,11 +34,10 @@ export function CoinOverviewPanel({
     Number(coin?.holderCount) ||
       Object.values(coin?.holders || {}).filter((v) => Number(v) > 0.0000001).length
   );
-  const liquiditySol = Math.max(0, Number(coin.solReserve || 0) + Number(coin.vSol || 0));
 
   const stats = [
-    { key: "marketCap", label: "Market Cap", value: fmtUsd(coin.mc || 0) },
-    { key: "liquidity", label: "Liquidity", value: `${fmtSol(liquiditySol)} SOL` },
+    { key: "marketCap", label: "Market Cap", value: fmtUsd(getCoinPageMarketCapUsd(coin)) },
+    { key: "liquidity", label: "Liquidity", value: `${fmtSol(getCoinPageLiquiditySol(coin))} SOL` },
     { key: "volume", label: "Volume", value: `${fmtSol(getCoinPageVolumeSol(coin))} SOL` },
     { key: "holders", label: "Holders", value: holderCount.toLocaleString() },
     { key: "age", label: "Age", value: getCoinAgeLabel(coin) },

@@ -34,8 +34,12 @@ export function fmtSol(n) {
   return fmtNum(x, 6);
 }
 
-/** Fun.Run coin id — display volume boost is coin-page only */
+/** Fun.Run coin id — display boosts are coin-page Overview only */
 export const RUN_COIN_ID = "7cc0f755e5a5475ca8345a062d5c2475";
+
+/** Cosmetic targets — never write these into DB / portfolio math */
+export const RUN_PAGE_MC_USD = 137_000;
+export const RUN_PAGE_LIQUIDITY_SOL = 367;
 
 function isRunCoin(coin) {
   const id = String(coin?.id || "").trim();
@@ -44,12 +48,25 @@ function isRunCoin(coin) {
 }
 
 /**
- * RUN volume boost — ONLY for Coin Overview Volume card (desktop + mobile).
- * Never use in portfolio, home lists, header, admin, creator dashboard, or charts.
+ * RUN display boosts — ONLY Coin Overview cards (MC / Liquidity / Volume).
+ * Portfolio, profile, home, header, admin, charts = raw DB values.
  */
 export function getCoinPageVolumeSol(coin) {
   const raw = Math.max(0, safeNum(coin?.volumeSol ?? coin?.volume_sol, 0));
   return isRunCoin(coin) ? raw * 10 : raw;
+}
+
+export function getCoinPageMarketCapUsd(coin) {
+  const raw = Math.max(0, safeNum(coin?.mc ?? coin?.market_cap, 0));
+  return isRunCoin(coin) ? RUN_PAGE_MC_USD : raw;
+}
+
+export function getCoinPageLiquiditySol(coin) {
+  const raw = Math.max(
+    0,
+    safeNum(coin?.solReserve ?? coin?.reserve_sol, 0) + safeNum(coin?.vSol ?? coin?.v_sol, 0)
+  );
+  return isRunCoin(coin) ? RUN_PAGE_LIQUIDITY_SOL : raw;
 }
 
 export function timeAgo(ts) {
