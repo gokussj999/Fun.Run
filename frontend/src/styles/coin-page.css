@@ -1162,12 +1162,18 @@
 .chartPanelCanvas {
   position: relative;
   width: 100%;
+  touch-action: none;
+  overscroll-behavior: contain;
 }
 
 .chartPanelCanvasHost {
   width: 100%;
   border-radius: 0;
   overflow: hidden;
+  touch-action: none;
+  overscroll-behavior: contain;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .chartPanelLoading {

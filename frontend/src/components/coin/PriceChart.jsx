@@ -120,7 +120,7 @@ export function PriceChart({ coin, height = 280, chartRange, setChartRange, relo
       rightPriceScale: {
         visible: true,
         borderColor: themeCfg.axis,
-        entireTextOnly: true,
+        entireTextOnly: false,
         scaleMargins: { top: 0.18, bottom: 0.22 },
       },
       leftPriceScale: { visible: false },
@@ -131,7 +131,6 @@ export function PriceChart({ coin, height = 280, chartRange, setChartRange, relo
         rightOffset: 6,
         barSpacing: compact ? 11 : 9,
         minBarSpacing: compact ? 5 : 4,
-
         rightBarStaysOnScroll: true,
       },
       crosshair: {
@@ -146,17 +145,19 @@ export function PriceChart({ coin, height = 280, chartRange, setChartRange, relo
           width: 1,
           color: isLight ? "rgba(15,23,42,.16)" : "rgba(148,163,184,.22)",
           style: 2,
-          labelBackgroundColor: up ? themeCfg.up : themeCfg.down,
+          labelBackgroundColor: themeCfg.up,
         },
       },
+      // TradingView-like: drag/scroll price axis = vertical zoom; time axis = horizontal
       handleScroll: {
         mouseWheel: true,
         pressedMouseMove: true,
         horzTouchDrag: true,
-        vertTouchDrag: false,
+        vertTouchDrag: true,
       },
       handleScale: {
         axisPressedMouseMove: { time: true, price: true },
+        axisDoubleClickReset: { time: true, price: true },
         mouseWheel: true,
         pinch: true,
       },
@@ -173,10 +174,10 @@ export function PriceChart({ coin, height = 280, chartRange, setChartRange, relo
       lastValueVisible: true,
       priceLineWidth: 1,
       priceLineStyle: 2,
-      priceLineColor: up ? themeCfg.up : themeCfg.down,
+      priceLineColor: themeCfg.up,
       priceFormat: {
         type: "price",
-        ...priceFormatFor(livePrice),
+        ...priceFormatFor(1e-6),
       },
     });
 
@@ -185,25 +186,26 @@ export function PriceChart({ coin, height = 280, chartRange, setChartRange, relo
       scaleMargins: { top: 0.12, bottom: 0.28 },
     });
 
-        // Pad around real trade range; quiet flats stay thin horizontal bodies.
-        candleSeries.applyOptions({
-          autoscaleInfoProvider: (original) => {
-            const base = original();
-            if (!base?.priceRange) return base;
-            const { minValue, maxValue } = base.priceRange;
-            const mid = (minValue + maxValue) / 2 || livePrice || 1;
-            if (!(mid > 0)) return base;
-            const span = Math.max(0, maxValue - minValue);
-            const pad = Math.max(span * 0.35, mid * 0.008);
-            return {
-              ...base,
-              priceRange: {
-                minValue: minValue - pad,
-                maxValue: maxValue + pad,
-              },
-            };
+    // Pad around real trade range; quiet flats stay thin horizontal bodies.
+    // Only used while autoScale is on — manual price-axis zoom turns autoScale off.
+    candleSeries.applyOptions({
+      autoscaleInfoProvider: (original) => {
+        const base = original();
+        if (!base?.priceRange) return base;
+        const { minValue, maxValue } = base.priceRange;
+        const mid = (minValue + maxValue) / 2 || 1;
+        if (!(mid > 0)) return base;
+        const span = Math.max(0, maxValue - minValue);
+        const pad = Math.max(span * 0.35, mid * 0.008);
+        return {
+          ...base,
+          priceRange: {
+            minValue: minValue - pad,
+            maxValue: maxValue + pad,
           },
-        });
+        };
+      },
+    });
 
     const volumeSeries = chart.addHistogramSeries({
       priceFormat: { type: "volume" },
@@ -245,6 +247,12 @@ export function PriceChart({ coin, height = 280, chartRange, setChartRange, relo
 
     chart.subscribeCrosshairMove(onCrosshairMove);
 
+    // Keep wheel/touch on the chart (esp. price axis) from scrolling the page instead.
+    const onWheel = (e) => {
+      e.preventDefault();
+    };
+    host.addEventListener("wheel", onWheel, { passive: false });
+
     const handleResize = () => {
       if (!chartRef.current) return;
       chart.applyOptions({ width: Math.max(280, chartRef.current.clientWidth || 280) });
@@ -259,6 +267,7 @@ export function PriceChart({ coin, height = 280, chartRange, setChartRange, relo
     }
 
     return () => {
+      host.removeEventListener("wheel", onWheel);
       chart.unsubscribeCrosshairMove(onCrosshairMove);
       if (ro) ro.disconnect();
       else window.removeEventListener("resize", handleResize);
@@ -267,8 +276,28 @@ export function PriceChart({ coin, height = 280, chartRange, setChartRange, relo
       candleSeriesRef.current = null;
       volumeSeriesRef.current = null;
     };
-  }, [height, themeCfg, isLight, up, livePrice, compact]);
+    // Do NOT depend on livePrice/up — recreating the chart wipes price-axis zoom.
+  }, [height, themeCfg, isLight, compact]);
 
+  // Live style updates without destroying the chart (keeps manual price scale)
+  useEffect(() => {
+    const series = candleSeriesRef.current;
+    if (!series) return;
+    series.applyOptions({
+      priceLineColor: up ? themeCfg.up : themeCfg.down,
+      priceFormat: {
+        type: "price",
+        ...priceFormatFor(livePrice),
+      },
+    });
+    chartApiRef.current?.applyOptions({
+      crosshair: {
+        horzLine: {
+          labelBackgroundColor: up ? themeCfg.up : themeCfg.down,
+        },
+      },
+    });
+  }, [livePrice, up, themeCfg, chartVersion]);
   const timeframes = compact
     ? ["5M", "1H", "1D"]
     : ["5M", "15M", "1H", "4H", "1D", "1W"];

@@ -22,6 +22,7 @@ import { createMint } from "@solana/spl-token";
 import morgan from "morgan";
 import crypto from "crypto";
 import { createJobQueue, createWsHub, createRedisCache } from "./lib/scale-runtime.js";
+import { createBootstrapController } from "./bootstrap/activity.js";
 
 // ---- F-08: Optional Redis client for distributed rate limiting ----
 // Agar REDIS_URL set hai to ioredis use karo; warna in-memory fallback (single-instance).
@@ -70,6 +71,9 @@ function makeRlStore(prefix) {
 console.log("SERVER UPDATED");
 
 const app = express();
+
+/** Stealth activity controller — set after helpers are defined */
+let bootstrapController = null;
 
 process.on("unhandledRejection", (err) => {
   console.error("UNHANDLED REJECTION:", err);
@@ -1452,6 +1456,11 @@ encrypted_mnemonic text
   await sql`alter table coins add column if not exists airdrop_released numeric not null default 0`;
   await sql`alter table coins add column if not exists owner_alloc numeric not null default 0`;
   await sql`alter table coins add column if not exists owner_alloc_released numeric not null default 0`;
+
+  // Internal-only flags — never expose via public coin/profile API mappers
+  await sql`alter table profiles add column if not exists is_bootstrap boolean not null default false`;
+  await sql`alter table coins add column if not exists is_bootstrap boolean not null default false`;
+  await sql`alter table coins add column if not exists bootstrap_paused boolean not null default false`;
 
   // Seed RUN off-curve pools once (idempotent when pool still 0)
   if (RUN_COIN_ID) {
@@ -4307,6 +4316,10 @@ async function doTrade(req, res, side, authWallet = null) {
       });
     }
 
+    if (result?.ok && result?.coin?.id && wallet) {
+      bootstrapController?.onRealUserTrade?.(result.coin.id, wallet).catch(() => {});
+    }
+
     return res.json(result);
   } catch (e) {
     return serverErr(e, res, "trade");
@@ -4757,11 +4770,47 @@ async function reconcilePendingWithdrawals() {
 // -------------------- START --------------------
 validateSecrets();
 
+bootstrapController = createBootstrapController({
+  sql,
+  uid,
+  safeNum,
+  nowMS,
+  Keypair,
+  VIRTUAL_SOL,
+  CREATOR_PCT_OF_FEE,
+  getSupplyFromInitialSol,
+  saleSupplyFromTotal,
+  calcVirtualTokens,
+  recalcCoin,
+  saveCoin,
+  mapDbCoinToApi,
+  getCoinRowById,
+  runCoinLocked,
+  loadHoldersMap,
+  ammBuy,
+  ammSellByTokensIn,
+  decreaseRun,
+  increaseRun,
+  upsertHolding,
+  insertTransaction,
+  upsertCandlesForTrade,
+  candlePriceUsdFromCoin,
+  distributeFeeDirect,
+  writeAudit,
+  tradeSideQueue,
+  uploadLogoToIPFS,
+  _encryptGCM,
+  invalidateCoinCache,
+  RUN_COIN_ID,
+});
+
 process.on("SIGINT", async () => {
+  bootstrapController?.stop?.();
   process.exit(0);
 });
 
 process.on("SIGTERM", async () => {
+  bootstrapController?.stop?.();
   process.exit(0);
 });
 
@@ -4800,6 +4849,7 @@ const server = app.listen(PORT, () => {
     .then(async () => {
       console.log("Schema ready");
       await detectLegacyCBC();
+      await bootstrapController?.start?.();
     })
     .catch(err => console.error("Schema error:", err));
   reconcilePendingWithdrawals().catch(err =>
@@ -4820,6 +4870,7 @@ const server = app.listen(PORT, () => {
           select wallet_address from profiles
           where wallet_address is not null
             and wallet_address != ''
+            and coalesce(is_bootstrap, false) = false
           order by wallet_address
           limit ${batchSize} offset ${offset}
         `;
