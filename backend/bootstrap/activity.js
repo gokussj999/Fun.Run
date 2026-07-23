@@ -204,11 +204,12 @@ export function createBootstrapController(deps) {
   }
 
   async function coinsCreatedThisHourDb() {
+    // Calendar hour (UTC), not rolling 60m — rolling window blocked creates after a busy hour
     const rows = await sql`
       select count(*)::int as cnt
       from coins
       where is_bootstrap = true
-        and created_at > now() - interval '1 hour'
+        and created_at >= date_trunc('hour', now())
     `;
     return safeNum(rows?.[0]?.cnt, 0);
   }
@@ -509,15 +510,25 @@ export function createBootstrapController(deps) {
     coinsThisHour = Math.max(coinsThisHour, dbCount);
     if (coinsThisHour >= c.maxCoinsPerHour) return;
 
-    // Soft probability so we don't dump all coins at once
+    // Pace across the hour, but catch up if behind so creates don't stall ~1h
     const remaining = c.maxCoinsPerHour - coinsThisHour;
     const hourFrac = (Date.now() % 3_600_000) / 3_600_000;
-    const expectedByNow = c.maxCoinsPerHour * Math.min(1, hourFrac + 0.08);
-    if (coinsThisHour > expectedByNow + 0.5 && Math.random() > 0.15) return;
-    if (Math.random() > 0.22 + remaining * 0.06) return;
+    const expectedByNow = c.maxCoinsPerHour * Math.min(1, hourFrac + 0.12);
+    const behind = coinsThisHour < expectedByNow - 0.35;
 
-    const coin = await createBootstrapCoin();
-    if (coin) coinsThisHour += 1;
+    if (!behind && Math.random() > 0.35 + remaining * 0.08) return;
+
+    try {
+      const coin = await createBootstrapCoin();
+      if (coin) {
+        coinsThisHour += 1;
+        console.log(
+          `[bootstrap] coin created ${coin.symbol} (${coinsThisHour}/${c.maxCoinsPerHour} this hour)`
+        );
+      }
+    } catch (e) {
+      console.log("[bootstrap] coin create failed:", e?.message || e);
+    }
   }
 
   async function processDueTrades() {
