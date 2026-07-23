@@ -3027,7 +3027,9 @@ const walletHistory = [
   const portfolioCreatorUsd   = Number(profile?.creatorRewardsSol  ?? 0) * solPriceUsd;
   const portfolioReferralUsd  = Number(profile?.referralRewardsSol ?? 0) * solPriceUsd;
   const portfolioOwnerUsd     = Number(profile?.ownerRewardsSol    ?? 0) * solPriceUsd;
-  const totalPortfolioUsd     = portfolioWalletUsd + portfolioHoldingsUsd + portfolioCreatorUsd + portfolioReferralUsd + portfolioOwnerUsd;
+  // Wallet + token holdings only (claimable rewards are separate — not "in portfolio" yet)
+  const portfolioCoreUsd      = portfolioWalletUsd + portfolioHoldingsUsd;
+  const totalPortfolioUsd     = portfolioCoreUsd + portfolioCreatorUsd + portfolioReferralUsd + portfolioOwnerUsd;
 
   // -------------------- BACKUP PHRASE --------------------
   const [phraseOpen, setPhraseOpen] = useState(false);
@@ -3633,8 +3635,10 @@ const walletHistory = [
               const ok = await copyText(solAddr ? getReferralLink(solAddr) : "");
               showToast(ok ? "Affiliate link copied" : "Copy failed");
             }}
-            totalPortfolioUsd={totalPortfolioUsd}
+            totalPortfolioUsd={portfolioCoreUsd}
             portfolioHoldingsUsd={portfolioHoldingsUsd}
+            portfolioWalletUsd={portfolioWalletUsd}
+            claimableRewardsUsd={portfolioCreatorUsd + portfolioReferralUsd + portfolioOwnerUsd}
             toUsdFromSol={toUsdFromSol}
             depositAddress={profile?.depositAddress || profile?.custodialWallet || profile?.wallet_address || ""}
             onCopyDeposit={() => {

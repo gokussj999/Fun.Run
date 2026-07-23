@@ -121,6 +121,8 @@ export function ProfilePage({
   onCopyAffiliateLink,
   totalPortfolioUsd = 0,
   portfolioHoldingsUsd = 0,
+  portfolioWalletUsd = 0,
+  claimableRewardsUsd = 0,
   toUsdFromSol,
   depositAddress = "",
   onCopyWallet,
@@ -216,7 +218,14 @@ export function ProfilePage({
                   <div className="profilePortfolioBlock">
                     <div className="statLabel">Portfolio Value</div>
                     <div className="profilePortfolioValue">{fmtUsd(totalPortfolioUsd)}</div>
-                    <div className="profilePortfolioSol">≈ {fmtSol(profile?.runBalance ?? 0)} SOL in wallet</div>
+                    <div className="profilePortfolioSol">
+                      Holdings {fmtUsd(portfolioHoldingsUsd)} · Wallet {fmtSol(profile?.runBalance ?? 0)} SOL
+                    </div>
+                    {safeNum(claimableRewardsUsd, 0) > 0.005 ? (
+                      <div className="profilePortfolioSol" style={{ marginTop: 2 }}>
+                        Claimable rewards {fmtUsd(claimableRewardsUsd)} (not in wallet yet)
+                      </div>
+                    ) : null}
                   </div>
 
                   <div className="profileWalletBalanceBlock">
