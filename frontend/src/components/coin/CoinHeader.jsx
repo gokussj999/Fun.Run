@@ -1,7 +1,13 @@
-import React from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { CoinLogo } from "../coins/CoinLogo.jsx";
 import { MiniBtn } from "../ui/Button.jsx";
-import { fmtSol, fmtUsd, getCoin24hMovePct } from "../../lib/coin-display.js";
+import {
+  fmtSol,
+  fmtUsd,
+  getCoin24hMovePct,
+  getCoinPageMarketCapUsd,
+  safeNum,
+} from "../../lib/coin-display.js";
 
 function SocialLink({ href, label }) {
   if (!href) return null;
@@ -28,9 +34,32 @@ export function CoinHeader({
 }) {
   const move24h = getCoin24hMovePct(coin);
   const up = move24h >= 0;
-  const price = coin?.priceUsd || coin?.lastPriceUsd || coin?.price || 0;
+  const price = safeNum(coin?.priceUsd || coin?.lastPriceUsd || coin?.price, 0);
+  const marketCap = getCoinPageMarketCapUsd(coin);
+  const pumpUsd = price * (move24h / 100);
   const verified = Boolean(coin?.mintAddress);
   const hasSocials = Boolean(coin?.website || coin?.twitter || coin?.telegram);
+
+  const [statsOpen, setStatsOpen] = useState(false);
+  const tickerRef = useRef(null);
+
+  useEffect(() => {
+    if (!statsOpen) return undefined;
+    const onDoc = (e) => {
+      if (!tickerRef.current?.contains(e.target)) setStatsOpen(false);
+    };
+    const onKey = (e) => {
+      if (e.key === "Escape") setStatsOpen(false);
+    };
+    document.addEventListener("mousedown", onDoc);
+    document.addEventListener("touchstart", onDoc, { passive: true });
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDoc);
+      document.removeEventListener("touchstart", onDoc);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [statsOpen]);
 
   return (
     <div className={`coinHeader ${isMobile ? "coinHeader--mobile" : "coinHeader--desktop"}`}>
@@ -56,12 +85,60 @@ export function CoinHeader({
           ) : null}
         </div>
 
-        <div className="coinHeaderPriceBlock">
-          <div className="coinHeaderPrice">{fmtUsd(price)}</div>
-          <div className={`coinHeaderPriceChange ${up ? "up" : "down"}`}>
+        <div className="coinHeaderPriceBlock" ref={tickerRef}>
+          <div className="coinHeaderTickerRow">
+            <div className="coinHeaderPrice">{fmtUsd(price)}</div>
+            <button
+              type="button"
+              className={`coinHeaderTickerArrow ${statsOpen ? "is-open" : ""} ${up ? "up" : "down"}`}
+              aria-expanded={statsOpen}
+              aria-label={statsOpen ? "Hide 24h stats" : "Show 24h pump and market cap"}
+              onClick={() => setStatsOpen((v) => !v)}
+            >
+              <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
+                <path d="M2.5 4.5 L6 8 L9.5 4.5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </button>
+          </div>
+
+          <button
+            type="button"
+            className={`coinHeaderPriceChange ${up ? "up" : "down"}`}
+            onClick={() => setStatsOpen((v) => !v)}
+          >
             {up ? "+" : ""}
             {move24h.toFixed(2)}%
-          </div>
+          </button>
+
+          {statsOpen ? (
+            <div className="coinHeaderTickerPanel" role="dialog" aria-label="24 hour market stats">
+              <div className="coinHeaderTickerPanelTitle">Last 24h</div>
+              <div className="coinHeaderTickerPanelGrid">
+                <div className="coinHeaderTickerPanelRow">
+                  <span className="coinHeaderTickerPanelLabel">24h Change</span>
+                  <span className={`coinHeaderTickerPanelValue ${up ? "up" : "down"}`}>
+                    {up ? "+" : ""}
+                    {move24h.toFixed(2)}%
+                  </span>
+                </div>
+                <div className="coinHeaderTickerPanelRow">
+                  <span className="coinHeaderTickerPanelLabel">24h Pump</span>
+                  <span className={`coinHeaderTickerPanelValue ${pumpUsd >= 0 ? "up" : "down"}`}>
+                    {pumpUsd >= 0 ? "+" : "-"}
+                    {fmtUsd(Math.abs(pumpUsd))}
+                  </span>
+                </div>
+                <div className="coinHeaderTickerPanelRow">
+                  <span className="coinHeaderTickerPanelLabel">Market Cap</span>
+                  <span className="coinHeaderTickerPanelValue">{fmtUsd(marketCap)}</span>
+                </div>
+                <div className="coinHeaderTickerPanelRow">
+                  <span className="coinHeaderTickerPanelLabel">Last Price</span>
+                  <span className="coinHeaderTickerPanelValue">{fmtUsd(price)}</span>
+                </div>
+              </div>
+            </div>
+          ) : null}
         </div>
       </div>
 
@@ -93,7 +170,7 @@ export function CoinHeader({
         <div className="coinHeaderStats">
           <div className="coinHeaderStat">
             <div className="coinHeaderStatLabel">Market Cap</div>
-            <div className="coinHeaderStatValue">{fmtUsd(coin.mc || 0)}</div>
+            <div className="coinHeaderStatValue">{fmtUsd(marketCap)}</div>
           </div>
           <div className="coinHeaderStat">
             <div className="coinHeaderStatLabel">24h Change</div>

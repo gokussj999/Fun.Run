@@ -1461,6 +1461,11 @@ encrypted_mnemonic text
   await sql`alter table profiles add column if not exists is_bootstrap boolean not null default false`;
   await sql`alter table coins add column if not exists is_bootstrap boolean not null default false`;
   await sql`alter table coins add column if not exists bootstrap_paused boolean not null default false`;
+  await sql`alter table coins add column if not exists bootstrap_phase text not null default 'live'`;
+  await sql`alter table coins add column if not exists bootstrap_pump_at timestamptz`;
+  await sql`alter table coins add column if not exists bootstrap_reset_at timestamptz`;
+  await sql`alter table coins add column if not exists bootstrap_peak_mc numeric default 0`;
+  await sql`alter table coins add column if not exists bootstrap_adopted_by text`;
 
   // Seed RUN off-curve pools once (idempotent when pool still 0)
   if (RUN_COIN_ID) {
@@ -4209,6 +4214,21 @@ async function doTrade(req, res, side, authWallet = null) {
         }
       }
 
+      // First REAL buy on a bootstrap coin → adopt buyer as creator, kill bots NOW
+      // (before fee credits so no fake accrued rewards transfer / shadow creator fee)
+      if (sideLower === "buy" && bootstrapController?.adoptOnFirstRealTrade) {
+        try {
+          const adopted = await bootstrapController.adoptOnFirstRealTrade(coin.id, wallet, _tx);
+          if (adopted?.creatorWallet) {
+            coin.creatorWallet = adopted.creatorWallet;
+            coin.owner = adopted.creatorWallet;
+            if (adopted.adopted) coin.creatorRewardsSol = 0;
+          }
+        } catch (adoptErr) {
+          console.log("[trade] bootstrap adopt error:", adoptErr?.message || adoptErr);
+        }
+      }
+
       const tradeFeeSol = Math.max(0, safeNum(tradeResult.feeSol, 0));
       const creatorWallet = String(coin?.creatorWallet || coin?.owner || "").trim();
       if (creatorWallet && tradeFeeSol > 0) {
@@ -4317,7 +4337,10 @@ async function doTrade(req, res, side, authWallet = null) {
     }
 
     if (result?.ok && result?.coin?.id && wallet) {
-      bootstrapController?.onRealUserTrade?.(result.coin.id, wallet).catch(() => {});
+      // Backup/idempotent — primary adopt already ran inside lock on BUY
+      bootstrapController
+        ?.onRealUserTrade?.(result.coin.id, wallet, { side: String(side || "").toLowerCase() })
+        .catch(() => {});
     }
 
     return res.json(result);
@@ -4778,6 +4801,7 @@ bootstrapController = createBootstrapController({
   Keypair,
   VIRTUAL_SOL,
   CREATOR_PCT_OF_FEE,
+  SOL_USD,
   getSupplyFromInitialSol,
   saleSupplyFromTotal,
   calcVirtualTokens,
@@ -4795,13 +4819,15 @@ bootstrapController = createBootstrapController({
   insertTransaction,
   upsertCandlesForTrade,
   candlePriceUsdFromCoin,
-  distributeFeeDirect,
   writeAudit,
   tradeSideQueue,
   uploadLogoToIPFS,
+  uploadMetadataToIPFS,
   _encryptGCM,
   invalidateCoinCache,
   RUN_COIN_ID,
+  treasury,
+  broadcast,
 });
 
 process.on("SIGINT", async () => {
