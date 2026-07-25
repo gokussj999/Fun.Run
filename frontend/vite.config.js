@@ -16,6 +16,7 @@ export default defineConfig({
       includeAssets: ["logo.png"],
       manifest: false,
       workbox: {
+        cacheId: "funrun-v20260725b",
         globPatterns: ["**/*.{js,css,html,ico,png,svg}"],
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
         skipWaiting: true,
