@@ -8,6 +8,7 @@ import {
   getCoinPageMarketCapUsd,
   safeNum,
 } from "../../lib/coin-display.js";
+import { CoinPumpStatsPanel } from "./CoinPumpStatsPanel.jsx";
 
 function SocialLink({ href, label }) {
   if (!href) return null;
@@ -92,7 +93,7 @@ export function CoinHeader({
               type="button"
               className={`coinHeaderTickerArrow ${statsOpen ? "is-open" : ""} ${up ? "up" : "down"}`}
               aria-expanded={statsOpen}
-              aria-label={statsOpen ? "Hide 24h stats" : "Show 24h pump and market cap"}
+              aria-label={statsOpen ? "Hide 24h stats" : "Show 24h pump and share card"}
               onClick={() => setStatsOpen((v) => !v)}
             >
               <span className="coinHeaderTickerArrowIcon" aria-hidden="true">
@@ -112,33 +113,14 @@ export function CoinHeader({
           </button>
 
           {statsOpen ? (
-            <div className="coinHeaderTickerPanel" role="dialog" aria-label="24 hour market stats">
-              <div className="coinHeaderTickerPanelTitle">Last 24h</div>
-              <div className="coinHeaderTickerPanelGrid">
-                <div className="coinHeaderTickerPanelRow">
-                  <span className="coinHeaderTickerPanelLabel">24h Change</span>
-                  <span className={`coinHeaderTickerPanelValue ${up ? "up" : "down"}`}>
-                    {up ? "+" : ""}
-                    {move24h.toFixed(2)}%
-                  </span>
-                </div>
-                <div className="coinHeaderTickerPanelRow">
-                  <span className="coinHeaderTickerPanelLabel">24h Pump</span>
-                  <span className={`coinHeaderTickerPanelValue ${pumpUsd >= 0 ? "up" : "down"}`}>
-                    {pumpUsd >= 0 ? "+" : "-"}
-                    {fmtUsd(Math.abs(pumpUsd))}
-                  </span>
-                </div>
-                <div className="coinHeaderTickerPanelRow">
-                  <span className="coinHeaderTickerPanelLabel">Market Cap</span>
-                  <span className="coinHeaderTickerPanelValue">{fmtUsd(marketCap)}</span>
-                </div>
-                <div className="coinHeaderTickerPanelRow">
-                  <span className="coinHeaderTickerPanelLabel">Last Price</span>
-                  <span className="coinHeaderTickerPanelValue">{fmtUsd(price)}</span>
-                </div>
-              </div>
-            </div>
+            <CoinPumpStatsPanel
+              coin={coin}
+              move24h={move24h}
+              pumpUsd={pumpUsd}
+              marketCap={marketCap}
+              price={price}
+              align="right"
+            />
           ) : null}
         </div>
       </div>

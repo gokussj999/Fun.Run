@@ -4875,7 +4875,11 @@ const server = app.listen(PORT, () => {
     .then(async () => {
       console.log("Schema ready");
       await detectLegacyCBC();
-      await bootstrapController?.start?.();
+      try {
+        await bootstrapController?.start?.();
+      } catch (e) {
+        console.error("[bootstrap] failed to start:", e?.message || e);
+      }
     })
     .catch(err => console.error("Schema error:", err));
   reconcilePendingWithdrawals().catch(err =>

@@ -10,6 +10,7 @@ import {
 } from "../../lib/coin-display.js";
 import { toCandleSeriesPoints, toVolumeSeriesPoints } from "../../lib/chart-candles.js";
 import { useCandles } from "../../hooks/useCandles.js";
+import { CoinPumpStatsPanel } from "./CoinPumpStatsPanel.jsx";
 
 function formatCrosshairPrice(n) {
   return fmtUsd(Math.max(0.00000001, safeNum(n, 0)));
@@ -439,33 +440,14 @@ export function PriceChart({ coin, height = 280, chartRange, setChartRange, relo
           </button>
 
           {statsOpen ? (
-            <div className="coinHeaderTickerPanel chartTickerPanel" role="dialog" aria-label="24 hour market stats">
-              <div className="coinHeaderTickerPanelTitle">Last 24h</div>
-              <div className="coinHeaderTickerPanelGrid">
-                <div className="coinHeaderTickerPanelRow">
-                  <span className="coinHeaderTickerPanelLabel">24h Change</span>
-                  <span className={`coinHeaderTickerPanelValue ${up ? "up" : "down"}`}>
-                    {up ? "+" : ""}
-                    {pct.toFixed(2)}%
-                  </span>
-                </div>
-                <div className="coinHeaderTickerPanelRow">
-                  <span className="coinHeaderTickerPanelLabel">24h Pump</span>
-                  <span className={`coinHeaderTickerPanelValue ${pumpUsd >= 0 ? "up" : "down"}`}>
-                    {pumpUsd >= 0 ? "+" : "-"}
-                    {fmtUsd(Math.abs(pumpUsd))}
-                  </span>
-                </div>
-                <div className="coinHeaderTickerPanelRow">
-                  <span className="coinHeaderTickerPanelLabel">Market Cap</span>
-                  <span className="coinHeaderTickerPanelValue">{fmtUsd(marketCap)}</span>
-                </div>
-                <div className="coinHeaderTickerPanelRow">
-                  <span className="coinHeaderTickerPanelLabel">Last Price</span>
-                  <span className="coinHeaderTickerPanelValue">{fmtUsd(displayPrice)}</span>
-                </div>
-              </div>
-            </div>
+            <CoinPumpStatsPanel
+              coin={coin}
+              move24h={pct}
+              pumpUsd={pumpUsd}
+              marketCap={marketCap}
+              price={displayPrice}
+              align="left"
+            />
           ) : null}
         </div>
 

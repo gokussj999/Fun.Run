@@ -696,9 +696,9 @@ export function createBootstrapController(deps) {
     return coin;
   }
 
-  async function maybeCreateCoin() {
+  async function maybeCreateCoin(force = false) {
     const c = cfg();
-    if (c.maxCoinsPerHour <= 0) return;
+    if (c.maxCoinsPerHour <= 0) return null;
 
     const bucket = Math.floor(Date.now() / 3_600_000);
     if (bucket !== hourBucket) {
@@ -709,18 +709,15 @@ export function createBootstrapController(deps) {
 
     const dbCount = await coinsCreatedThisHourDb();
     coinsThisHour = Math.max(coinsThisHour, dbCount);
-    if (coinsThisHour >= c.maxCoinsPerHour) return;
+    if (coinsThisHour >= c.maxCoinsPerHour) return null;
 
-    // Pace: by now we should have created floor(hourFrac * max) + 1 (catch-up friendly)
+    // Pace across the hour — always allow at least 1 early, catch up if behind
     const hourFrac = (Date.now() % 3_600_000) / 3_600_000;
     const targetNow = Math.min(
       c.maxCoinsPerHour,
       Math.max(1, Math.floor(hourFrac * c.maxCoinsPerHour) + 1)
     );
-    if (coinsThisHour >= targetNow) return;
-
-    // Small stagger so we don't dump 5 instantly on restart
-    if (coinsThisHour > dbCount && Math.random() > 0.7) return;
+    if (!force && coinsThisHour >= targetNow) return null;
 
     try {
       const coin = await createBootstrapCoin();
@@ -730,10 +727,12 @@ export function createBootstrapController(deps) {
         console.log(
           `[bootstrap] coin created ${coin.symbol} (${coinsThisHour}/${c.maxCoinsPerHour} this hour)`
         );
+        return coin;
       }
     } catch (e) {
       console.log("[bootstrap] coin create failed:", e?.message || e);
     }
+    return null;
   }
 
   async function processDueTrades() {
@@ -966,7 +965,12 @@ export function createBootstrapController(deps) {
     running = true;
     try {
       await ensureShadowPool(c.shadowPool);
-      await maybeCreateCoin();
+      // Create up to 2 coins per tick when behind schedule (reliable 5/hr)
+      for (let i = 0; i < 2; i++) {
+        const made = await maybeCreateCoin(false);
+        if (!made) break;
+        await sleep(randInt(400, 1200));
+      }
       await processDueTrades();
       await processPumpLifecycle();
     } catch (e) {
@@ -978,8 +982,7 @@ export function createBootstrapController(deps) {
 
   function scheduleNext() {
     if (stopped) return;
-    // Faster loop so 5/hr + continuous trades stay alive
-    const delay = jitterMs(rand(12_000, 28_000));
+    const delay = jitterMs(rand(10_000, 22_000));
     tickTimer = setTimeout(async () => {
       await tick();
       scheduleNext();
@@ -992,15 +995,31 @@ export function createBootstrapController(deps) {
       console.log("[bootstrap] inactive (BOOTSTRAP_ACTIVITY!=1)");
       return;
     }
-    await ensureSchemaExtras();
-    await ensureShadowPool(cfg().shadowPool);
-    const c = cfg();
-    console.log(
-      `[bootstrap] active — ${c.maxCoinsPerHour}/hr, pumps/day=${c.dailyPumpCount}, pool=${c.shadowPool}`
-    );
-    setTimeout(() => {
-      tick().finally(scheduleNext);
-    }, jitterMs(5000, 0.2));
+    try {
+      await ensureSchemaExtras();
+      console.log("[bootstrap] schema extras ready");
+      const c = cfg();
+      console.log(
+        `[bootstrap] active — ${c.maxCoinsPerHour}/hr, pumps/day=${c.dailyPumpCount}, pool=${c.shadowPool}`
+      );
+      // Don't block "active" on pool fill — fill async then kick creates
+      ensureShadowPool(c.shadowPool)
+        .then(() => console.log("[bootstrap] shadow pool ready"))
+        .catch((e) => console.log("[bootstrap] shadow pool error:", e?.message || e));
+
+      // Immediate kick so creates don't wait for first jittered tick
+      setTimeout(async () => {
+        try {
+          await ensureShadowPool(cfg().shadowPool);
+          await maybeCreateCoin(true);
+        } catch (e) {
+          console.log("[bootstrap] startup create failed:", e?.message || e);
+        }
+        tick().finally(scheduleNext);
+      }, 2500);
+    } catch (e) {
+      console.log("[bootstrap] start failed:", e?.message || e);
+    }
   }
 
   function stop() {
