@@ -95,9 +95,10 @@ export function CoinHeader({
               aria-label={statsOpen ? "Hide 24h stats" : "Show 24h pump and market cap"}
               onClick={() => setStatsOpen((v) => !v)}
             >
-              <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
-                <path d="M2.5 4.5 L6 8 L9.5 4.5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
+              <span className="coinHeaderTickerArrowIcon" aria-hidden="true">
+                {statsOpen ? "▲" : "▼"}
+              </span>
+              <span className="coinHeaderTickerArrowText">24h</span>
             </button>
           </div>
 

@@ -435,16 +435,22 @@
 }
 
 .coinHeaderTickerArrow {
-  width: 26px;
-  height: 26px;
-  border-radius: 8px;
-  border: 1px solid rgba(148, 163, 184, 0.22);
-  background: rgba(15, 23, 42, 0.35);
-  color: #94a3b8;
-  display: inline-grid;
-  place-items: center;
+  height: 28px;
+  min-width: 58px;
+  padding: 0 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(252, 213, 53, 0.55);
+  background: rgba(252, 213, 53, 0.16);
+  color: #fcd535;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
   cursor: pointer;
-  padding: 0;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.02em;
   transition:
     transform 0.16s ease,
     background 0.14s ease,
@@ -452,27 +458,38 @@
     color 0.14s ease;
 }
 
+.coinHeaderTickerArrowIcon {
+  font-size: 10px;
+  line-height: 1;
+}
+
+.coinHeaderTickerArrowText {
+  line-height: 1;
+}
+
 .coinHeaderTickerArrow:hover {
-  border-color: rgba(148, 163, 184, 0.4);
-  color: #e2e8f0;
-  background: rgba(30, 41, 59, 0.7);
+  border-color: rgba(252, 213, 53, 0.85);
+  color: #ffe566;
+  background: rgba(252, 213, 53, 0.24);
 }
 
 .coinHeaderTickerArrow.is-open {
-  transform: rotate(180deg);
-  color: #f8fafc;
-  border-color: rgba(252, 213, 53, 0.45);
-  background: rgba(252, 213, 53, 0.12);
+  transform: none;
+  color: #0b0e11;
+  border-color: #fcd535;
+  background: #fcd535;
 }
 
 .coinHeaderTickerArrow.up.is-open {
-  border-color: rgba(35, 215, 160, 0.4);
-  background: rgba(35, 215, 160, 0.1);
+  border-color: var(--good);
+  background: var(--good);
+  color: #04140f;
 }
 
 .coinHeaderTickerArrow.down.is-open {
-  border-color: rgba(244, 63, 94, 0.4);
-  background: rgba(244, 63, 94, 0.1);
+  border-color: var(--danger);
+  background: var(--danger);
+  color: #fff;
 }
 
 .coinHeaderPriceChange {
@@ -1092,7 +1109,7 @@ html[data-mode="light"] .coinHeaderTickerPanelValue {
 /* ── Chart ── */
 
 .coinChartCard {
-  overflow: hidden;
+  overflow: visible;
   padding: 0 !important;
   border-radius: 16px;
 }
@@ -1111,7 +1128,7 @@ html[data-mode="light"] .coinHeaderTickerPanelValue {
 
 .chartPanel {
   width: 100%;
-  overflow: hidden;
+  overflow: visible;
   background: #0b0e11;
   border: none;
   padding: 0;
@@ -2239,12 +2256,47 @@ html[data-mode="light"] .coinHeaderTickerPanelValue {
   gap: 12px;
 }
 
+.coinPageRoot .coinDesktopHeaderCard,
+.coinPageRoot .coinMobileHeaderCard {
+  overflow: visible;
+}
+
 .coinDesktopHeaderCard {
   border-color: rgba(148, 163, 184, 0.1);
+  overflow: visible;
 }
 
 .coinDesktopHeaderCard .cardBody {
   padding: 20px 22px;
+  overflow: visible;
+}
+
+.chartPanelPriceRow {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  z-index: 6;
+}
+
+.chartTickerArrow {
+  flex: 0 0 auto;
+}
+
+.chartTickerPanel {
+  left: 0;
+  right: auto;
+  top: calc(100% + 8px);
+}
+
+.chartPctBadge--btn {
+  cursor: pointer;
+  font: inherit;
+}
+
+.chartPanelHead {
+  overflow: visible;
 }
 
 .coinDesktopHeaderCard .coinHeaderName {
@@ -2325,7 +2377,7 @@ html[data-mode="light"] .coinHeaderTickerPanelValue {
 
 .coinDesktopChartCard {
   border-radius: 16px;
-  overflow: hidden;
+  overflow: visible;
   border: 1px solid var(--border);
   box-shadow: var(--shadow1);
 }

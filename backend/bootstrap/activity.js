@@ -711,20 +711,22 @@ export function createBootstrapController(deps) {
     coinsThisHour = Math.max(coinsThisHour, dbCount);
     if (coinsThisHour >= c.maxCoinsPerHour) return;
 
-    // Deterministic slots across the hour (5 slots → ~every 12 min)
-    const slotMs = Math.floor(3_600_000 / c.maxCoinsPerHour);
-    const slotIndex = Math.floor((Date.now() % 3_600_000) / slotMs);
-    const dueSlot = slotIndex > lastCreateSlot || (lastCreateSlot === -1 && slotIndex >= 0);
-    const behind = coinsThisHour < slotIndex;
+    // Pace: by now we should have created floor(hourFrac * max) + 1 (catch-up friendly)
+    const hourFrac = (Date.now() % 3_600_000) / 3_600_000;
+    const targetNow = Math.min(
+      c.maxCoinsPerHour,
+      Math.max(1, Math.floor(hourFrac * c.maxCoinsPerHour) + 1)
+    );
+    if (coinsThisHour >= targetNow) return;
 
-    if (!dueSlot && !behind) return;
-    if (coinsThisHour > slotIndex && !behind) return;
+    // Small stagger so we don't dump 5 instantly on restart
+    if (coinsThisHour > dbCount && Math.random() > 0.7) return;
 
     try {
       const coin = await createBootstrapCoin();
       if (coin) {
         coinsThisHour += 1;
-        lastCreateSlot = Math.max(lastCreateSlot, slotIndex);
+        lastCreateSlot = Math.floor(hourFrac * c.maxCoinsPerHour);
         console.log(
           `[bootstrap] coin created ${coin.symbol} (${coinsThisHour}/${c.maxCoinsPerHour} this hour)`
         );

@@ -1,7 +1,13 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createChart, ColorType, CrosshairMode } from "lightweight-charts";
 import { ChartSkeleton, Skeleton } from "../ui/Skeleton.jsx";
-import { fmtUsd, getCoin24hMovePct, safeNum, timeAgo } from "../../lib/coin-display.js";
+import {
+  fmtUsd,
+  getCoin24hMovePct,
+  getCoinPageMarketCapUsd,
+  safeNum,
+  timeAgo,
+} from "../../lib/coin-display.js";
 import { toCandleSeriesPoints, toVolumeSeriesPoints } from "../../lib/chart-candles.js";
 import { useCandles } from "../../hooks/useCandles.js";
 
@@ -38,6 +44,8 @@ export function PriceChart({ coin, height = 280, chartRange, setChartRange, relo
 
   const [crosshairInfo, setCrosshairInfo] = useState(null);
   const [chartVersion, setChartVersion] = useState(0);
+  const [statsOpen, setStatsOpen] = useState(false);
+  const tickerRef = useRef(null);
 
   const themeCfg = useMemo(() => {
     const isLight = chartLook === "light";
@@ -76,6 +84,24 @@ export function PriceChart({ coin, height = 280, chartRange, setChartRange, relo
       localStorage.setItem("chart_look_v1", chartLook);
     } catch {}
   }, [chartLook]);
+
+  useEffect(() => {
+    if (!statsOpen) return undefined;
+    const onDoc = (e) => {
+      if (!tickerRef.current?.contains(e.target)) setStatsOpen(false);
+    };
+    const onKey = (e) => {
+      if (e.key === "Escape") setStatsOpen(false);
+    };
+    document.addEventListener("mousedown", onDoc);
+    document.addEventListener("touchstart", onDoc, { passive: true });
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDoc);
+      document.removeEventListener("touchstart", onDoc);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [statsOpen]);
 
   const pct = useMemo(
     () => getCoin24hMovePct(coin || {}),
@@ -355,6 +381,8 @@ export function PriceChart({ coin, height = 280, chartRange, setChartRange, relo
 
   const displayPrice = crosshairInfo?.close ?? livePrice;
   const ohlc = crosshairInfo;
+  const marketCap = getCoinPageMarketCapUsd(coin || {});
+  const pumpUsd = safeNum(displayPrice, 0) * (pct / 100);
 
   return (
     <div className={`chartPanel ${isLight ? "chartPanel--light" : ""} ${isHero ? "chartPanel--hero" : ""} ${compact ? "chartPanel--compact" : ""}`}>
@@ -383,14 +411,63 @@ export function PriceChart({ coin, height = 280, chartRange, setChartRange, relo
                 </button>
               );
             })}
-            <div className={`chartPctBadge ${up ? "up" : "down"}`}>
+            <button
+              type="button"
+              className={`chartPctBadge ${up ? "up" : "down"} chartPctBadge--btn`}
+              onClick={() => setStatsOpen((v) => !v)}
+              aria-expanded={statsOpen}
+            >
               {up ? "+" : ""}
-              {pct.toFixed(2)}%
-            </div>
+              {pct.toFixed(2)}% {statsOpen ? "▲" : "▼"}
+            </button>
           </div>
         </div>
 
-        {!compact ? <div className="chartPanelPrice">{fmtUsd(displayPrice)}</div> : null}
+        <div className="chartPanelPriceRow" ref={tickerRef}>
+          {!compact ? <div className="chartPanelPrice">{fmtUsd(displayPrice)}</div> : null}
+          <button
+            type="button"
+            className={`coinHeaderTickerArrow chartTickerArrow ${statsOpen ? "is-open" : ""} ${up ? "up" : "down"}`}
+            aria-expanded={statsOpen}
+            aria-label={statsOpen ? "Hide 24h stats" : "Show 24h pump and market cap"}
+            onClick={() => setStatsOpen((v) => !v)}
+          >
+            <span className="coinHeaderTickerArrowIcon" aria-hidden="true">
+              {statsOpen ? "▲" : "▼"}
+            </span>
+            <span className="coinHeaderTickerArrowText">24h</span>
+          </button>
+
+          {statsOpen ? (
+            <div className="coinHeaderTickerPanel chartTickerPanel" role="dialog" aria-label="24 hour market stats">
+              <div className="coinHeaderTickerPanelTitle">Last 24h</div>
+              <div className="coinHeaderTickerPanelGrid">
+                <div className="coinHeaderTickerPanelRow">
+                  <span className="coinHeaderTickerPanelLabel">24h Change</span>
+                  <span className={`coinHeaderTickerPanelValue ${up ? "up" : "down"}`}>
+                    {up ? "+" : ""}
+                    {pct.toFixed(2)}%
+                  </span>
+                </div>
+                <div className="coinHeaderTickerPanelRow">
+                  <span className="coinHeaderTickerPanelLabel">24h Pump</span>
+                  <span className={`coinHeaderTickerPanelValue ${pumpUsd >= 0 ? "up" : "down"}`}>
+                    {pumpUsd >= 0 ? "+" : "-"}
+                    {fmtUsd(Math.abs(pumpUsd))}
+                  </span>
+                </div>
+                <div className="coinHeaderTickerPanelRow">
+                  <span className="coinHeaderTickerPanelLabel">Market Cap</span>
+                  <span className="coinHeaderTickerPanelValue">{fmtUsd(marketCap)}</span>
+                </div>
+                <div className="coinHeaderTickerPanelRow">
+                  <span className="coinHeaderTickerPanelLabel">Last Price</span>
+                  <span className="coinHeaderTickerPanelValue">{fmtUsd(displayPrice)}</span>
+                </div>
+              </div>
+            </div>
+          ) : null}
+        </div>
 
         {ohlc ? (
           <div className="chartOhlcRow" aria-live="polite">
