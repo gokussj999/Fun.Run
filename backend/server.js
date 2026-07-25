@@ -80,7 +80,12 @@ process.on("unhandledRejection", (err) => {
 });
 
 process.on("uncaughtException", (err) => {
-  console.error("UNCAUGHT EXCEPTION:", err);
+  // Neon pool can throw late "write" errors after CONNECTION_CLOSED — log, don't crash loop.
+  console.error("UNCAUGHT EXCEPTION:", err?.message || err);
+});
+
+process.on("unhandledRejection", (err) => {
+  console.error("UNHANDLED REJECTION:", err?.message || err);
 });
 
 const coinCache = new NodeCache({

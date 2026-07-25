@@ -3011,7 +3011,8 @@ const walletHistory = [
 
   const toUsdFromSol = (sol) => fmtUsd(Number(sol || 0) * solPriceUsd);
 
-  const portfolioWalletUsd = Number(profile?.runBalance ?? walletSolBalance ?? 0) * solPriceUsd;
+  const portfolioWalletUsd =
+    Math.max(safeNum(profile?.runBalance, 0), safeNum(walletSolBalance, 0)) * solPriceUsd;
 
   const portfolioHoldingsUsd = profileHoldings.reduce((sum, h) => {
   const coin =
@@ -3638,6 +3639,7 @@ const walletHistory = [
             totalPortfolioUsd={portfolioCoreUsd}
             portfolioHoldingsUsd={portfolioHoldingsUsd}
             portfolioWalletUsd={portfolioWalletUsd}
+            walletSolBalance={walletSolBalance}
             claimableRewardsUsd={portfolioCreatorUsd + portfolioReferralUsd + portfolioOwnerUsd}
             toUsdFromSol={toUsdFromSol}
             depositAddress={profile?.depositAddress || profile?.custodialWallet || profile?.wallet_address || ""}

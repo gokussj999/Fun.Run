@@ -89,7 +89,9 @@ export function PriceChart({ coin, height = 280, chartRange, setChartRange, relo
   useEffect(() => {
     if (!statsOpen) return undefined;
     const onDoc = (e) => {
-      if (!tickerRef.current?.contains(e.target)) setStatsOpen(false);
+      if (tickerRef.current?.contains(e.target)) return;
+      if (e.target?.closest?.(".coinHeaderTickerPanel--portal")) return;
+      setStatsOpen(false);
     };
     const onKey = (e) => {
       if (e.key === "Escape") setStatsOpen(false);
@@ -447,6 +449,8 @@ export function PriceChart({ coin, height = 280, chartRange, setChartRange, relo
               marketCap={marketCap}
               price={displayPrice}
               align="left"
+              anchorRef={tickerRef}
+              onClose={() => setStatsOpen(false)}
             />
           ) : null}
         </div>

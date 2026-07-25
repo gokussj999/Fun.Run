@@ -47,7 +47,9 @@ export function CoinHeader({
   useEffect(() => {
     if (!statsOpen) return undefined;
     const onDoc = (e) => {
-      if (!tickerRef.current?.contains(e.target)) setStatsOpen(false);
+      if (tickerRef.current?.contains(e.target)) return;
+      if (e.target?.closest?.(".coinHeaderTickerPanel--portal")) return;
+      setStatsOpen(false);
     };
     const onKey = (e) => {
       if (e.key === "Escape") setStatsOpen(false);
@@ -120,6 +122,8 @@ export function CoinHeader({
               marketCap={marketCap}
               price={price}
               align="right"
+              anchorRef={tickerRef}
+              onClose={() => setStatsOpen(false)}
             />
           ) : null}
         </div>

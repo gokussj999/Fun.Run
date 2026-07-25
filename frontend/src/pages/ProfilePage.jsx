@@ -122,6 +122,7 @@ export function ProfilePage({
   totalPortfolioUsd = 0,
   portfolioHoldingsUsd = 0,
   portfolioWalletUsd = 0,
+  walletSolBalance = 0,
   claimableRewardsUsd = 0,
   toUsdFromSol,
   depositAddress = "",
@@ -219,7 +220,8 @@ export function ProfilePage({
                     <div className="statLabel">Portfolio Value</div>
                     <div className="profilePortfolioValue">{fmtUsd(totalPortfolioUsd)}</div>
                     <div className="profilePortfolioSol">
-                      Holdings {fmtUsd(portfolioHoldingsUsd)} · Wallet {fmtSol(profile?.runBalance ?? 0)} SOL
+                      Holdings {fmtUsd(portfolioHoldingsUsd)} · Wallet{" "}
+                      {fmtSol(Math.max(safeNum(profile?.runBalance, 0), safeNum(walletSolBalance, 0)))} SOL
                     </div>
                     {safeNum(claimableRewardsUsd, 0) > 0.005 ? (
                       <div className="profilePortfolioSol" style={{ marginTop: 2 }}>
@@ -230,7 +232,12 @@ export function ProfilePage({
 
                   <div className="profileWalletBalanceBlock">
                     <div className="statLabel">Main Wallet</div>
-                    <div className="profileWalletBalance">{fmtSol(profile?.runBalance ?? 0)} SOL</div>
+                    <div className="profileWalletBalance">
+                      {fmtSol(Math.max(safeNum(profile?.runBalance, 0), safeNum(walletSolBalance, 0)))} SOL
+                    </div>
+                    <div className="profilePortfolioSol" style={{ marginTop: 2 }}>
+                      ≈ {fmtUsd(portfolioWalletUsd)} spendable
+                    </div>
                   </div>
 
                   <div className="profileWalletAddrField">

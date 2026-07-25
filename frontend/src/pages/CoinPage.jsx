@@ -115,7 +115,7 @@ export function CoinPage({
       <CoinStatsStrip coin={coin} variant="key" />
 
       <div className="coinChartCard coinMobileChartCard">
-        <Card bleed style={{ overflow: "hidden", padding: 0 }}>
+        <Card bleed style={{ overflow: "visible", padding: 0 }}>
           <CoinChartSection
             coin={coin}
             height={chartHeight}
