@@ -1112,7 +1112,7 @@ function InlineAffiliateBar({ wallet, onCopy }) {
 }
 
 export default function App() {
-  const { login, authenticated, user, ready, logout, getAccessToken, connectWallet } = usePrivy();
+  const { login, authenticated, user, ready, logout, getAccessToken, connectWallet, linkWallet } = usePrivy();
   const { createWallet: createSolanaWallet } = useCreateSolanaWallet();
   const { wallets } = useWallets();
 
@@ -1526,25 +1526,37 @@ const [connectingPhantom, setConnectingPhantom] = useState(false);
     try {
       setConnectingPhantom(true);
 
-      // Prefer Privy wallet login / link so JWT auth works for trades + profile
-      if (!authenticated) {
+      // Already on Google (or any Privy session): LINK Phantom — no logout
+      if (authenticated) {
+        try {
+          if (typeof linkWallet === "function") {
+            await linkWallet();
+            showToast("Phantom link opened — Google login same rahega");
+            return;
+          }
+        } catch (e) {
+          console.log("Privy linkWallet fallback:", e?.message || e);
+        }
+        try {
+          if (typeof connectWallet === "function") {
+            await connectWallet({
+              walletList: ["phantom", "solflare", "backpack", "detected_solana_wallets"],
+              walletChainType: "solana-only",
+            });
+            showToast("Phantom connect opened — Google login same rahega");
+            return;
+          }
+        } catch (e) {
+          console.log("Privy connectWallet fallback:", e?.message || e);
+        }
+      } else {
+        // Not logged in: wallet login creates Privy session
         try {
           await login?.({ loginMethods: ["wallet"] });
           showToast("Phantom / wallet login opened");
           return;
         } catch (e) {
           console.log("Privy wallet login fallback:", e?.message || e);
-        }
-      } else if (typeof connectWallet === "function") {
-        try {
-          await connectWallet({
-            walletList: ["phantom", "solflare", "backpack", "detected_solana_wallets"],
-            walletChainType: "solana-only",
-          });
-          showToast("Link Solana wallet opened");
-          return;
-        } catch (e) {
-          console.log("Privy connectWallet fallback:", e?.message || e);
         }
       }
 
@@ -1560,7 +1572,11 @@ const [connectingPhantom, setConnectingPhantom] = useState(false);
       if (!address) throw new Error("Phantom address not found");
 
       setPhantomWallet(address);
-      showToast(`Phantom connected: ${shortWallet(address)}`);
+      showToast(
+        authenticated
+          ? `Phantom linked (Google same): ${shortWallet(address)}`
+          : `Phantom connected: ${shortWallet(address)}`
+      );
     } catch (err) {
       console.error("Phantom connect error:", err);
       showToast(err?.message || "Phantom connect failed");
@@ -1568,6 +1584,12 @@ const [connectingPhantom, setConnectingPhantom] = useState(false);
       setConnectingPhantom(false);
     }
   };
+
+  function openDexScreenerFromSettings() {
+    // DexScreener has no account "connect" API — charts site; open Solana explorer
+    window.open("https://dexscreener.com/solana", "_blank", "noopener,noreferrer");
+    showToast("DexScreener opened — Google login same rahega");
+  }
 
   async function loginWithPhantom() {
     try {
@@ -3968,6 +3990,7 @@ const walletHistory = [
             onConnectPhantom={connectPhantom}
             onDisconnectPhantom={disconnectPhantom}
             connectingPhantom={connectingPhantom}
+            onOpenDexScreener={openDexScreenerFromSettings}
             onCopyWallet={async () => {
               const addr = profile?.custodialWallet || profile?.depositAddress || "";
               if (!addr) {
@@ -4022,6 +4045,20 @@ const walletHistory = [
               <div className="settingsDivider" />
 
               <div className="settingsActions">
+                {authenticated && !phantomWallet ? (
+                  <MiniBtn tone="good" onClick={connectPhantom} disabled={connectingPhantom}>
+                    {connectingPhantom ? "Connecting…" : "Connect Phantom"}
+                  </MiniBtn>
+                ) : null}
+                {phantomWallet ? (
+                  <MiniBtn tone="good">
+                    Phantom linked · {shortWallet(phantomWallet)}
+                  </MiniBtn>
+                ) : null}
+                <MiniBtn tone="good" onClick={openDexScreenerFromSettings}>
+                  Open DexScreener
+                </MiniBtn>
+
                 <MiniBtn
                   onClick={async () => {
                     const addr = profile?.custodialWallet || profile?.depositAddress || "";
@@ -4045,6 +4082,12 @@ const walletHistory = [
                 >
                   Copy Referral Link
                 </MiniBtn>
+
+                {phantomWallet ? (
+                  <MiniBtn tone="danger" onClick={disconnectPhantom}>
+                    Disconnect Phantom
+                  </MiniBtn>
+                ) : null}
 
                 {!authenticated ? (
                   <MiniBtn
@@ -4075,16 +4118,6 @@ const walletHistory = [
                     }}
                   >
                     Google Logout
-                  </MiniBtn>
-                )}
-
-                {phantomWallet ? (
-                  <MiniBtn tone="danger" onClick={disconnectPhantom}>
-                    Disconnect Phantom
-                  </MiniBtn>
-                ) : (
-                  <MiniBtn tone="good" onClick={connectPhantom} disabled={connectingPhantom}>
-                    {connectingPhantom ? "Connecting" : "Connect Phantom"}
                   </MiniBtn>
                 )}
               </div>

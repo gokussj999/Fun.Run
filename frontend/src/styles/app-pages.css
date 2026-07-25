@@ -212,6 +212,14 @@
   margin-bottom: 2px;
 }
 
+.settingsAccountHint {
+  margin: 0 0 10px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--muted);
+  max-width: 36rem;
+}
+
 .settingsDivider {
   height: 1px;
   background: var(--border);

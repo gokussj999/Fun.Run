@@ -31,6 +31,7 @@ export function SettingsPage({
   onConnectPhantom,
   onDisconnectPhantom,
   connectingPhantom = false,
+  onOpenDexScreener,
   onCopyWallet,
   onCopyReferral,
   onExportWallet,
@@ -74,6 +75,9 @@ export function SettingsPage({
 
           <div>
             <div className="settingsSectionLabel">Account</div>
+            <p className="settingsAccountHint">
+              Google login rehne do — Phantom yahan link ho sakta hai. DexScreener wallet nahi, charts site hai (Open se open hota hai).
+            </p>
             <div className="settingsActions">
               {!authenticated ? (
                 <>
@@ -81,20 +85,26 @@ export function SettingsPage({
                     Google Login
                   </MiniBtn>
                   <MiniBtn tone="good" onClick={onConnectPhantom} disabled={connectingPhantom}>
-                    {connectingPhantom ? "Opening Phantom…" : "Phantom Login"}
+                    {connectingPhantom ? "Opening Phantom…" : "Continue with Phantom"}
                   </MiniBtn>
                 </>
               ) : null}
 
               {authenticated && !phantomWallet ? (
                 <MiniBtn tone="good" onClick={onConnectPhantom} disabled={connectingPhantom}>
-                  {connectingPhantom ? "Check Phantom..." : "Link Phantom Wallet"}
+                  {connectingPhantom ? "Connecting…" : "Connect Phantom"}
                 </MiniBtn>
               ) : null}
 
               {phantomWallet ? (
-                <MiniBtn>Phantom: {shortWallet?.(phantomWallet) || phantomWallet}</MiniBtn>
+                <MiniBtn tone="good">
+                  Phantom linked · {shortWallet?.(phantomWallet) || phantomWallet}
+                </MiniBtn>
               ) : null}
+
+              <MiniBtn tone="good" onClick={onOpenDexScreener}>
+                Open DexScreener
+              </MiniBtn>
 
               <MiniBtn onClick={onCopyWallet}>Copy Wallet Address</MiniBtn>
               <MiniBtn onClick={onCopyReferral}>Copy Referral Link</MiniBtn>
