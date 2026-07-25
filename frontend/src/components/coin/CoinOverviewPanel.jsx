@@ -1,5 +1,6 @@
 import React from "react";
 import { fmtSol, fmtUsd, getCoinAgeLabel, getCoinPageLiquiditySol, getCoinPageMarketCapUsd, getCoinPageVolumeSol } from "../../lib/coin-display.js";
+import { birdeyeUrl, dexscreenerUrl, jupiterSwapUrl, openExternal } from "../../lib/external-links.js";
 
 function shortAddr(addr, emptyLabel = "—") {
   const s = String(addr || "");
@@ -17,6 +18,7 @@ const STAT_ICONS = {
   rewards: "🎁",
   mint: "⛓",
   creator: "👤",
+  chart: "📈",
 };
 
 export function CoinOverviewPanel({
@@ -47,6 +49,18 @@ export function CoinOverviewPanel({
   const mobileRows = [
     { label: "Creator Rewards", value: `${fmtSol(coin.creatorRewardsSol || 0)} SOL` },
     { label: "Mint Address", value: shortAddr(coin.mintAddress, "Pending…"), action: coin?.mintAddress ? onCopyMint : null, actionLabel: "Copy" },
+    {
+      label: "DexScreener",
+      value: coin?.mintAddress ? "Open chart" : "Mint pending",
+      action: coin?.mintAddress ? () => openExternal(dexscreenerUrl(coin.mintAddress)) : null,
+      actionLabel: "Open",
+    },
+    {
+      label: "Jupiter",
+      value: coin?.mintAddress ? "Swap token" : "Mint pending",
+      action: coin?.mintAddress ? () => openExternal(jupiterSwapUrl(coin.mintAddress)) : null,
+      actionLabel: "Swap",
+    },
     { label: "Creator", value: shortAddr(coin.creatorWallet), action: onOpenCreator, actionLabel: "View" },
   ];
 
@@ -139,6 +153,44 @@ export function CoinOverviewPanel({
             </button>
           ) : null}
         </div>
+
+        {coin?.mintAddress ? (
+          <>
+            <button
+              type="button"
+              className="coinOverviewStatCard coinOverviewStatCard--action"
+              onClick={() => openExternal(dexscreenerUrl(coin.mintAddress))}
+            >
+              <div className="coinOverviewStatIcon" aria-hidden="true">
+                {STAT_ICONS.chart}
+              </div>
+              <div className="coinOverviewStatLabel">DexScreener</div>
+              <div className="coinOverviewStatValue">Open chart ↗</div>
+            </button>
+            <button
+              type="button"
+              className="coinOverviewStatCard coinOverviewStatCard--action"
+              onClick={() => openExternal(jupiterSwapUrl(coin.mintAddress))}
+            >
+              <div className="coinOverviewStatIcon" aria-hidden="true">
+                🪐
+              </div>
+              <div className="coinOverviewStatLabel">Jupiter</div>
+              <div className="coinOverviewStatValue">Swap ↗</div>
+            </button>
+            <button
+              type="button"
+              className="coinOverviewStatCard coinOverviewStatCard--action"
+              onClick={() => openExternal(birdeyeUrl(coin.mintAddress))}
+            >
+              <div className="coinOverviewStatIcon" aria-hidden="true">
+                👁
+              </div>
+              <div className="coinOverviewStatLabel">Birdeye</div>
+              <div className="coinOverviewStatValue">Analytics ↗</div>
+            </button>
+          </>
+        ) : null}
 
         <button
           type="button"

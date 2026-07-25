@@ -146,6 +146,30 @@ export function CoinHeader({
         >
           {isMobile ? "📋" : coin?.mintAddress ? "Copy Mint" : "Not minted"}
         </MiniBtn>
+        {coin?.mintAddress ? (
+          <MiniBtn
+            className="coinHeaderActionBtn coinHeaderActionBtn--icon"
+            onClick={() => {
+              const url = `https://dexscreener.com/solana/${coin.mintAddress}`;
+              window.open(url, "_blank", "noopener,noreferrer");
+            }}
+            aria-label="Open on DexScreener"
+          >
+            {isMobile ? "📈 DS" : "DexScreener"}
+          </MiniBtn>
+        ) : null}
+        {coin?.mintAddress ? (
+          <MiniBtn
+            className="coinHeaderActionBtn coinHeaderActionBtn--icon"
+            onClick={() => {
+              const url = `https://jup.ag/swap/SOL-${coin.mintAddress}`;
+              window.open(url, "_blank", "noopener,noreferrer");
+            }}
+            aria-label="Swap on Jupiter"
+          >
+            {isMobile ? "🪐 Jup" : "Jupiter"}
+          </MiniBtn>
+        ) : null}
         {isCreator ? (
           <MiniBtn className="coinHeaderActionBtn coinHeaderActionBtn--icon" tone="good" onClick={onOpenDex} aria-label="Launch on DEX">
             {isMobile ? "🚀 DEX" : "Launch DEX"}

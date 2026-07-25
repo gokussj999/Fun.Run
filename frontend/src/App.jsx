@@ -1,6 +1,7 @@
 import IntroSplash from "./IntroSplash";
 import React, { memo, useEffect, useMemo, useRef, useState } from "react";
 import { env } from "./lib/env.js";
+import { birdeyeUrl, dexscreenerUrl, jupiterSwapUrl, openExternal } from "./lib/external-links.js";
 import { tokens } from "./lib/design-tokens.js";
 import {
   Badge,
@@ -70,9 +71,10 @@ const LS_PROFILE_AVATAR = "profile_avatar_v1";
 const APP_OWNER_WALLET = "CZ9bps8dTtK69bRaQc8A4hUR8ZmUbfbYbTWfvaHpqSyn";
 const DEX_LAUNCH_MC_USD = 5_000_000;
 const DEX_OPTIONS = [
+  { id: "dexscreener", name: "DexScreener", sub: "Live charts, liquidity & trades for this mint." },
+  { id: "jupiter", name: "Jupiter", sub: "Best-route swap SOL ↔ this token." },
+  { id: "birdeye", name: "Birdeye", sub: "Token analytics and market data." },
   { id: "raydium", name: "Raydium", sub: "Most popular Solana liquidity pool option." },
-  { id: "orca", name: "Orca", sub: "Clean Solana DEX with concentrated liquidity." },
-  { id: "meteora", name: "Meteora", sub: "Advanced pools and dynamic liquidity tools." },
 ];
 const FUNRUN_NATIVE_ADS = [
   "Fun.Run — Start your crypto journey today",
@@ -1110,7 +1112,7 @@ function InlineAffiliateBar({ wallet, onCopy }) {
 }
 
 export default function App() {
-  const { login, authenticated, user, ready, logout, getAccessToken } = usePrivy();
+  const { login, authenticated, user, ready, logout, getAccessToken, connectWallet } = usePrivy();
   const { createWallet: createSolanaWallet } = useCreateSolanaWallet();
   const { wallets } = useWallets();
 
@@ -1523,10 +1525,33 @@ const [connectingPhantom, setConnectingPhantom] = useState(false);
   const connectPhantom = async () => {
     try {
       setConnectingPhantom(true);
+
+      // Prefer Privy wallet login / link so JWT auth works for trades + profile
+      if (!authenticated) {
+        try {
+          await login?.({ loginMethods: ["wallet"] });
+          showToast("Phantom / wallet login opened");
+          return;
+        } catch (e) {
+          console.log("Privy wallet login fallback:", e?.message || e);
+        }
+      } else if (typeof connectWallet === "function") {
+        try {
+          await connectWallet({
+            walletList: ["phantom", "solflare", "backpack", "detected_solana_wallets"],
+            walletChainType: "solana-only",
+          });
+          showToast("Link Solana wallet opened");
+          return;
+        } catch (e) {
+          console.log("Privy connectWallet fallback:", e?.message || e);
+        }
+      }
+
       const provider = getPhantomProvider();
       if (!provider) {
-        alert("Phantom wallet not found. Install Phantom extension/app first.");
-        window.open("https://phantom.app/", "_blank");
+        showToast("Phantom wallet not found — install Phantom first");
+        window.open("https://phantom.app/", "_blank", "noopener,noreferrer");
         return;
       }
 
@@ -1543,6 +1568,60 @@ const [connectingPhantom, setConnectingPhantom] = useState(false);
       setConnectingPhantom(false);
     }
   };
+
+  async function loginWithPhantom() {
+    try {
+      setConnectingPhantom(true);
+      await login?.({ loginMethods: ["wallet"] });
+      showToast("Phantom / wallet login opened");
+    } catch (err) {
+      console.error("Phantom login error:", err);
+      showToast(err?.message || "Phantom login failed — install Phantom extension");
+      window.open("https://phantom.app/", "_blank", "noopener,noreferrer");
+    } finally {
+      setConnectingPhantom(false);
+    }
+  }
+
+  // Keep local phantom label in sync with Privy Solana wallets
+  useEffect(() => {
+    const external = (wallets || []).find((w) => {
+      const addr = String(w?.address || w?.addr || "");
+      const std = String(w?.standard || w?.walletClientType || w?.connectorType || "").toLowerCase();
+      return addr.length > 30 && (std.includes("phantom") || std.includes("solana"));
+    });
+    const addr = String(external?.address || external?.addr || "").trim();
+    if (addr) setPhantomWallet(addr);
+  }, [wallets]);
+
+  // Trusted reconnect for injected Phantom (extension already approved)
+  useEffect(() => {
+    const provider = getPhantomProvider();
+    if (!provider) return undefined;
+    provider
+      .connect({ onlyIfTrusted: true })
+      .then((resp) => {
+        const addr = String(resp?.publicKey?.toString?.() || provider?.publicKey?.toString?.() || "").trim();
+        if (addr) setPhantomWallet(addr);
+      })
+      .catch(() => {});
+
+    const onAccount = (pubkey) => {
+      const addr = String(pubkey?.toString?.() || "").trim();
+      setPhantomWallet(addr || "");
+    };
+    const onDisconnect = () => setPhantomWallet("");
+    try {
+      provider.on?.("accountChanged", onAccount);
+      provider.on?.("disconnect", onDisconnect);
+    } catch {}
+    return () => {
+      try {
+        provider.off?.("accountChanged", onAccount);
+        provider.off?.("disconnect", onDisconnect);
+      } catch {}
+    };
+  }, []);
 
   async function disconnectPhantom() {
     try {
@@ -3130,7 +3209,7 @@ const walletHistory = [
         <div style={{
           minHeight: "100dvh", display: "flex", flexDirection: "column",
           alignItems: "center", justifyContent: "center",
-          background: "var(--bg)", gap: 24, padding: 32,
+          background: "var(--bg)", gap: 16, padding: 32,
         }}>
           <div style={{ fontSize: 36, fontWeight: 900, color: "var(--primary)", letterSpacing: -1 }}>
             Fun.Run
@@ -3147,12 +3226,26 @@ const walletHistory = [
               borderRadius: 14, padding: "14px 36px", fontSize: 16,
               fontWeight: 700, cursor: "pointer", letterSpacing: 0.2,
               boxShadow: "0 4px 20px rgba(0,0,0,.32)",
+              width: "min(280px, 100%)",
             }}
           >
             Continue with Google
           </button>
-          <div style={{ color: "var(--muted2)", fontSize: 12, textAlign: "center", maxWidth: 260 }}>
-            New here? Your account and wallet are created automatically.
+          <button
+            onClick={() => loginWithPhantom()}
+            disabled={connectingPhantom}
+            style={{
+              background: "transparent", color: "var(--text)",
+              border: "1px solid var(--border)",
+              borderRadius: 14, padding: "14px 36px", fontSize: 16,
+              fontWeight: 700, cursor: connectingPhantom ? "wait" : "pointer",
+              width: "min(280px, 100%)",
+            }}
+          >
+            {connectingPhantom ? "Opening Phantom…" : "Continue with Phantom"}
+          </button>
+          <div style={{ color: "var(--muted2)", fontSize: 12, textAlign: "center", maxWidth: 280 }}>
+            Google or Phantom — same Fun.Run account flow. Phantom needs the extension/app installed.
           </div>
         </div>
       </>
@@ -3324,14 +3417,47 @@ const walletHistory = [
                     key={dex.id}
                     type="button"
                     className="dexOptionBtn"
-                    onClick={() => showToast(dexLaunchReady ? `${dex.name} launch Phase 4 me aayega` : "DEX launch unlocks at $5M MC")}
+                    onClick={() => {
+                      const mint = String(selectedCoin?.mintAddress || "").trim();
+                      if (!mint && (dex.id === "dexscreener" || dex.id === "jupiter" || dex.id === "birdeye")) {
+                        showToast("Mint pending — coin still launching on-chain");
+                        return;
+                      }
+                      if (dex.id === "dexscreener") {
+                        openExternal(dexscreenerUrl(mint));
+                        return;
+                      }
+                      if (dex.id === "jupiter") {
+                        openExternal(jupiterSwapUrl(mint));
+                        return;
+                      }
+                      if (dex.id === "birdeye") {
+                        openExternal(birdeyeUrl(mint));
+                        return;
+                      }
+                      if (dex.id === "raydium") {
+                        if (mint) {
+                          openExternal(`https://raydium.io/swap/?inputMint=sol&outputMint=${mint}`);
+                          return;
+                        }
+                        showToast(dexLaunchReady ? "Raydium pool launch Phase 4 me aayega" : "DEX launch unlocks at $5M MC");
+                        return;
+                      }
+                      showToast(dexLaunchReady ? `${dex.name} launch Phase 4 me aayega` : "DEX launch unlocks at $5M MC");
+                    }}
                   >
                     <div className="dexOptionRow">
                       <div>
                         <div className="dexOptionName">{dex.name}</div>
                         <div className="dexOptionSub">{dex.sub}</div>
                       </div>
-                      <Pill>{dexLaunchReady ? "Select" : "Phase 2"}</Pill>
+                      <Pill>
+                        {dex.id === "dexscreener" || dex.id === "jupiter" || dex.id === "birdeye" || dex.id === "raydium"
+                          ? "Open"
+                          : dexLaunchReady
+                            ? "Select"
+                            : "Phase 2"}
+                      </Pill>
                     </div>
                   </button>
                 ))}

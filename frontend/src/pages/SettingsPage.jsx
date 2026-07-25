@@ -76,18 +76,25 @@ export function SettingsPage({
             <div className="settingsSectionLabel">Account</div>
             <div className="settingsActions">
               {!authenticated ? (
-                <MiniBtn tone="good" onClick={onLogin}>
-                  Google Login
+                <>
+                  <MiniBtn tone="good" onClick={onLogin}>
+                    Google Login
+                  </MiniBtn>
+                  <MiniBtn tone="good" onClick={onConnectPhantom} disabled={connectingPhantom}>
+                    {connectingPhantom ? "Opening Phantom…" : "Phantom Login"}
+                  </MiniBtn>
+                </>
+              ) : null}
+
+              {authenticated && !phantomWallet ? (
+                <MiniBtn tone="good" onClick={onConnectPhantom} disabled={connectingPhantom}>
+                  {connectingPhantom ? "Check Phantom..." : "Link Phantom Wallet"}
                 </MiniBtn>
               ) : null}
 
-              {!phantomWallet ? (
-                <MiniBtn tone="good" onClick={onConnectPhantom} disabled={connectingPhantom}>
-                  {connectingPhantom ? "Check Phantom..." : "Connect Phantom"}
-                </MiniBtn>
-              ) : (
+              {phantomWallet ? (
                 <MiniBtn>Phantom: {shortWallet?.(phantomWallet) || phantomWallet}</MiniBtn>
-              )}
+              ) : null}
 
               <MiniBtn onClick={onCopyWallet}>Copy Wallet Address</MiniBtn>
               <MiniBtn onClick={onCopyReferral}>Copy Referral Link</MiniBtn>
