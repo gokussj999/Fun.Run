@@ -148,7 +148,7 @@ export function CoinPumpStatsPanel({
           Save PNG
         </button>
       </div>
-      <div className="coinShareCardHint">MEXC jaisa PNG — X / FB pe seedha post</div>
+      <div className="coinShareCardHint">Shareable PNG for X / Facebook</div>
       {typeof onClose === "function" ? (
         <button type="button" className="coinShareCardClose" onClick={onClose} aria-label="Close">
           Close

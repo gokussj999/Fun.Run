@@ -4,7 +4,6 @@ import { Card } from "../components/ui/Card.jsx";
 import { MiniBtn } from "../components/ui/Button.jsx";
 import { Pill } from "../components/ui/Pill.jsx";
 import { CoinFeed, HotCoinsBar, TrendingVolumeRow } from "../components/coins";
-import { ViralGrowthStrip } from "../components/ViralGrowthStrip.jsx";
 import { getCoin24hMovePct } from "../lib/coin-display.js";
 
 function SectionHeader({ title, sub, right, className = "" }) {
@@ -46,7 +45,7 @@ export function HomePage({
         <div className="heroGlow" />
         <div className="heroTitle">Create. Trade. Share. Earn.</div>
         <div className="heroText">
-          Meme coins seconds mein launch. Bonding curve pe trade. Share card post karo — invite pe 50,000 RUN.
+          Launch meme coins in seconds, trade on the bonding curve, share your pump card, and earn 50,000 RUN per invite.
         </div>
 
         <div className="heroActions">
@@ -61,12 +60,6 @@ export function HomePage({
           </MiniBtn>
         </div>
       </Card>
-
-      <ViralGrowthStrip
-        variant="home"
-        onCreate={() => onNavigate?.("CREATE")}
-        onInvite={() => onCopyInvite?.()}
-      />
 
       {adSlot}
 

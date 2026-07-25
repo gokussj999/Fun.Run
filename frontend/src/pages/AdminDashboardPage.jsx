@@ -286,7 +286,7 @@ export function AdminDashboardPage({
             </div>
             {!runControl.unlockReady ? (
               <div className="miniMuted" style={{ marginTop: 10 }}>
-                Airdrop unlock = profile date (01 Jan 2027). Owner 2B abhi release ho sakta hai.
+                Airdrop unlock = profile date (01 Jan 2027). Owner 2B can be released now.
               </div>
             ) : null}
           </div>

@@ -11,7 +11,6 @@ import {
   HoldersActivityPanel,
   TradePanel,
 } from "../components/coin";
-import { ViralGrowthStrip } from "../components/ViralGrowthStrip.jsx";
 import { useMobileLayout } from "../hooks/useMobileLayout.js";
 
 const MOBILE_TABS = [
@@ -66,8 +65,6 @@ export function CoinPage({
   onToggleFavorite,
   onCopyMint,
   onOpenDex,
-  onShareCoin,
-  onCopyInvite,
   onExplore,
   onBack,
 }) {
@@ -114,12 +111,6 @@ export function CoinPage({
           onOpenDex={onOpenDex}
         />
       </Card>
-
-      <ViralGrowthStrip
-        variant="coin"
-        onShare={onShareCoin}
-        onInvite={onCopyInvite}
-      />
 
       <CoinStatsStrip coin={coin} variant="key" />
 
@@ -268,8 +259,6 @@ export function CoinPage({
               onToggleFavorite={onToggleFavorite}
               onCopyMint={onCopyMint}
               onOpenDex={onOpenDex}
-              onShareCoin={onShareCoin}
-              onCopyInvite={onCopyInvite}
             />
           </div>
         )}

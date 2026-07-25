@@ -220,52 +220,6 @@
   max-width: 36rem;
 }
 
-.viralStrip {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 14px 16px;
-  border-radius: 14px;
-  border: 1px solid rgba(252, 213, 53, 0.35);
-  background: linear-gradient(135deg, rgba(252, 213, 53, 0.14), rgba(252, 213, 53, 0.04));
-}
-
-.viralStrip--home {
-  margin: 0 0 4px;
-}
-
-.viralStripTitle {
-  font-size: 15px;
-  font-weight: 900;
-  color: var(--text);
-  letter-spacing: -0.02em;
-}
-
-.viralStripSub {
-  margin-top: 4px;
-  font-size: 12px;
-  line-height: 1.45;
-  color: var(--muted);
-  max-width: 34rem;
-}
-
-.viralStripSub b {
-  color: var(--primary);
-  font-weight: 900;
-}
-
-.viralStripActions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.viralStripBtn {
-  min-height: 40px;
-}
-
 .settingsDivider {
   height: 1px;
   background: var(--border);

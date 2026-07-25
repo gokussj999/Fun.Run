@@ -1530,7 +1530,7 @@ const [connectingPhantom, setConnectingPhantom] = useState(false);
         try {
           if (typeof linkWallet === "function") {
             await linkWallet();
-            showToast("Phantom link opened — Google login same rahega");
+            showToast("Phantom link opened — Google stays signed in");
             return;
           }
         } catch (e) {
@@ -1542,7 +1542,7 @@ const [connectingPhantom, setConnectingPhantom] = useState(false);
               walletList: ["phantom", "solflare", "backpack", "detected_solana_wallets"],
               walletChainType: "solana-only",
             });
-            showToast("Phantom connect opened — Google login same rahega");
+            showToast("Phantom connect opened — Google stays signed in");
             return;
           }
         } catch (e) {
@@ -3287,7 +3287,7 @@ const walletHistory = [
           />
           <ModalBody>
               <div className="modalWarnBanner">
-                Ye 12 words kisi ko mat dikhana. Agar kho gayi to wallet recover nahi hoga.
+                Never share these 12 words. If you lose them, the wallet cannot be recovered.
               </div>
               <div className="phraseGrid">
                 {phraseWords.map((w, i) => (
@@ -3435,8 +3435,8 @@ const walletHistory = [
                     onClick={() =>
                       showToast(
                         dexLaunchReady
-                          ? `${dex.name} launch Phase 4 me aayega`
-                          : "DEX launch unlocks at $5M MC — abhi Fun.Run pe trade + share karo"
+                          ? `${dex.name} launch coming in a later phase`
+                          : "DEX launch unlocks at $5M MC — trade and share on Fun.Run for now"
                       )
                     }
                   >
@@ -3479,11 +3479,11 @@ const walletHistory = [
             onOpenCoin={openCoin}
             onCopyInvite={async () => {
               if (!solAddr) {
-                showToast("Login first — phir invite link milega");
+                showToast("Log in first to get your invite link");
                 return;
               }
               const ok = await copyText(getReferralLink(solAddr));
-              showToast(ok ? "Invite copied — har bind pe 50,000 RUN" : "Copy failed");
+              showToast(ok ? "Invite copied — 50,000 RUN per referral" : "Copy failed");
             }}
             coins={coins}
             hotCoins={hot15m}
@@ -3714,7 +3714,7 @@ const walletHistory = [
               } catch (e) {
                 const url = typeof window !== "undefined" ? window.location.href : "";
                 const ok = await copyText(url);
-                showToast(ok ? "Coin link copied — X pe post karo" : e?.message || "Share failed");
+                showToast(ok ? "Coin link copied — post it on X" : e?.message || "Share failed");
               }
             }}
             onCopyInvite={async () => {
@@ -3723,7 +3723,7 @@ const walletHistory = [
                 return;
               }
               const ok = await copyText(getReferralLink(solAddr));
-              showToast(ok ? "Invite copied — 50,000 RUN per bind" : "Copy failed");
+              showToast(ok ? "Invite copied — 50,000 RUN per referral" : "Copy failed");
             }}
             onExplore={() => goScreen("SEARCH")}
             onBack={goBack}
@@ -4067,7 +4067,7 @@ const walletHistory = [
                       return;
                     }
                     const ok = await copyText(getReferralLink(solAddr));
-                    showToast(ok ? "Invite link copied — 50,000 RUN per bind" : "Copy failed");
+                    showToast(ok ? "Invite link copied — 50,000 RUN per referral" : "Copy failed");
                   }}
                 >
                   Copy invite link (50k RUN)

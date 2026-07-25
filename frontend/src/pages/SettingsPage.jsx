@@ -75,7 +75,7 @@ export function SettingsPage({
           <div>
             <div className="settingsSectionLabel">Grow Fun.Run</div>
             <p className="settingsAccountHint">
-              Invite link share karo — har bind pe referrer ko 50,000 RUN. Google logout ki zaroorat nahi; Phantom yahan link ho sakta hai.
+              Share your invite link to earn 50,000 RUN per successful referral. You can link Phantom without logging out of Google.
             </p>
             <div className="settingsActions">
               <MiniBtn tone="good" onClick={onCopyReferral}>
