@@ -6,6 +6,7 @@ import { CoinChartSection } from "./CoinChartSection.jsx";
 import { CoinDetailTabs } from "./CoinDetailTabs.jsx";
 import { HoldersActivityPanel } from "./HoldersActivityPanel.jsx";
 import { TradePanel } from "./TradePanel.jsx";
+import { ViralGrowthStrip } from "../ViralGrowthStrip.jsx";
 
 export function CoinDesktopLayout({
   coin,
@@ -30,6 +31,8 @@ export function CoinDesktopLayout({
   onToggleFavorite,
   onCopyMint,
   onOpenDex,
+  onShareCoin,
+  onCopyInvite,
 }) {
   return (
     <div className="coinDesktopLayout">
@@ -46,6 +49,8 @@ export function CoinDesktopLayout({
           onOpenDex={onOpenDex}
         />
       </Card>
+
+      <ViralGrowthStrip variant="coin" onShare={onShareCoin} onInvite={onCopyInvite} />
 
       <Card className="coinDesktopStatsCard">
         <CoinStatsStrip coin={coin} />

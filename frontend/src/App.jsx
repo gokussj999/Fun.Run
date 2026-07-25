@@ -1,7 +1,6 @@
 import IntroSplash from "./IntroSplash";
 import React, { memo, useEffect, useMemo, useRef, useState } from "react";
 import { env } from "./lib/env.js";
-import { birdeyeUrl, dexscreenerUrl, jupiterSwapUrl, openExternal } from "./lib/external-links.js";
 import { tokens } from "./lib/design-tokens.js";
 import {
   Badge,
@@ -48,6 +47,7 @@ import {
   fmtSol,
   timeAgo,
   getCoin24hMovePct,
+  getCoinPageMarketCapUsd,
 } from "./lib/coin-display.js";
 import { CoinPage } from "./pages/CoinPage.jsx";
 import { api } from "./services/api.js";
@@ -71,10 +71,9 @@ const LS_PROFILE_AVATAR = "profile_avatar_v1";
 const APP_OWNER_WALLET = "CZ9bps8dTtK69bRaQc8A4hUR8ZmUbfbYbTWfvaHpqSyn";
 const DEX_LAUNCH_MC_USD = 5_000_000;
 const DEX_OPTIONS = [
-  { id: "dexscreener", name: "DexScreener", sub: "Live charts, liquidity & trades for this mint." },
-  { id: "jupiter", name: "Jupiter", sub: "Best-route swap SOL ↔ this token." },
-  { id: "birdeye", name: "Birdeye", sub: "Token analytics and market data." },
   { id: "raydium", name: "Raydium", sub: "Most popular Solana liquidity pool option." },
+  { id: "orca", name: "Orca", sub: "Clean Solana DEX with concentrated liquidity." },
+  { id: "meteora", name: "Meteora", sub: "Advanced pools and dynamic liquidity tools." },
 ];
 const FUNRUN_NATIVE_ADS = [
   "Fun.Run — Start your crypto journey today",
@@ -1584,12 +1583,6 @@ const [connectingPhantom, setConnectingPhantom] = useState(false);
       setConnectingPhantom(false);
     }
   };
-
-  function openDexScreenerFromSettings() {
-    // DexScreener has no account "connect" API — charts site; open Solana explorer
-    window.open("https://dexscreener.com/solana", "_blank", "noopener,noreferrer");
-    showToast("DexScreener opened — Google login same rahega");
-  }
 
   async function loginWithPhantom() {
     try {
@@ -3439,47 +3432,20 @@ const walletHistory = [
                     key={dex.id}
                     type="button"
                     className="dexOptionBtn"
-                    onClick={() => {
-                      const mint = String(selectedCoin?.mintAddress || "").trim();
-                      if (!mint && (dex.id === "dexscreener" || dex.id === "jupiter" || dex.id === "birdeye")) {
-                        showToast("Mint pending — coin still launching on-chain");
-                        return;
-                      }
-                      if (dex.id === "dexscreener") {
-                        openExternal(dexscreenerUrl(mint));
-                        return;
-                      }
-                      if (dex.id === "jupiter") {
-                        openExternal(jupiterSwapUrl(mint));
-                        return;
-                      }
-                      if (dex.id === "birdeye") {
-                        openExternal(birdeyeUrl(mint));
-                        return;
-                      }
-                      if (dex.id === "raydium") {
-                        if (mint) {
-                          openExternal(`https://raydium.io/swap/?inputMint=sol&outputMint=${mint}`);
-                          return;
-                        }
-                        showToast(dexLaunchReady ? "Raydium pool launch Phase 4 me aayega" : "DEX launch unlocks at $5M MC");
-                        return;
-                      }
-                      showToast(dexLaunchReady ? `${dex.name} launch Phase 4 me aayega` : "DEX launch unlocks at $5M MC");
-                    }}
+                    onClick={() =>
+                      showToast(
+                        dexLaunchReady
+                          ? `${dex.name} launch Phase 4 me aayega`
+                          : "DEX launch unlocks at $5M MC — abhi Fun.Run pe trade + share karo"
+                      )
+                    }
                   >
                     <div className="dexOptionRow">
                       <div>
                         <div className="dexOptionName">{dex.name}</div>
                         <div className="dexOptionSub">{dex.sub}</div>
                       </div>
-                      <Pill>
-                        {dex.id === "dexscreener" || dex.id === "jupiter" || dex.id === "birdeye" || dex.id === "raydium"
-                          ? "Open"
-                          : dexLaunchReady
-                            ? "Select"
-                            : "Phase 2"}
-                      </Pill>
+                      <Pill>{dexLaunchReady ? "Select" : "Phase 2"}</Pill>
                     </div>
                   </button>
                 ))}
@@ -3511,6 +3477,14 @@ const walletHistory = [
             adSlot={<NativeFunRunAd />}
             onNavigate={goScreen}
             onOpenCoin={openCoin}
+            onCopyInvite={async () => {
+              if (!solAddr) {
+                showToast("Login first — phir invite link milega");
+                return;
+              }
+              const ok = await copyText(getReferralLink(solAddr));
+              showToast(ok ? "Invite copied — har bind pe 50,000 RUN" : "Copy failed");
+            }}
             coins={coins}
             hotCoins={hot15m}
             latestCoins={latestCoins}
@@ -3720,6 +3694,37 @@ const walletHistory = [
               showToast(ok ? "Mint address copied" : "Copy failed");
             }}
             onOpenDex={() => setDexModalOpen(true)}
+            onShareCoin={async () => {
+              if (!selectedCoin) return;
+              try {
+                const { sharePumpShareCard } = await import("./lib/share-pump-card.js");
+                const move24h = getCoin24hMovePct(selectedCoin);
+                const price = safeNum(
+                  selectedCoin?.priceUsd || selectedCoin?.lastPriceUsd || selectedCoin?.price,
+                  0
+                );
+                await sharePumpShareCard({
+                  coin: selectedCoin,
+                  move24h,
+                  marketCap: getCoinPageMarketCapUsd(selectedCoin),
+                  price,
+                  chartPoints: Array.isArray(selectedCoin.chart) ? selectedCoin.chart : [],
+                  shareUrl: typeof window !== "undefined" ? window.location.href : "",
+                });
+              } catch (e) {
+                const url = typeof window !== "undefined" ? window.location.href : "";
+                const ok = await copyText(url);
+                showToast(ok ? "Coin link copied — X pe post karo" : e?.message || "Share failed");
+              }
+            }}
+            onCopyInvite={async () => {
+              if (!solAddr) {
+                showToast("Login first");
+                return;
+              }
+              const ok = await copyText(getReferralLink(solAddr));
+              showToast(ok ? "Invite copied — 50,000 RUN per bind" : "Copy failed");
+            }}
             onExplore={() => goScreen("SEARCH")}
             onBack={goBack}
           />
@@ -3990,7 +3995,6 @@ const walletHistory = [
             onConnectPhantom={connectPhantom}
             onDisconnectPhantom={disconnectPhantom}
             connectingPhantom={connectingPhantom}
-            onOpenDexScreener={openDexScreenerFromSettings}
             onCopyWallet={async () => {
               const addr = profile?.custodialWallet || profile?.depositAddress || "";
               if (!addr) {
@@ -4055,8 +4059,18 @@ const walletHistory = [
                     Phantom linked · {shortWallet(phantomWallet)}
                   </MiniBtn>
                 ) : null}
-                <MiniBtn tone="good" onClick={openDexScreenerFromSettings}>
-                  Open DexScreener
+                <MiniBtn
+                  tone="good"
+                  onClick={async () => {
+                    if (!solAddr) {
+                      showToast("No wallet connected");
+                      return;
+                    }
+                    const ok = await copyText(getReferralLink(solAddr));
+                    showToast(ok ? "Invite link copied — 50,000 RUN per bind" : "Copy failed");
+                  }}
+                >
+                  Copy invite link (50k RUN)
                 </MiniBtn>
 
                 <MiniBtn

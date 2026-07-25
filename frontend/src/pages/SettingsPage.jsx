@@ -31,7 +31,6 @@ export function SettingsPage({
   onConnectPhantom,
   onDisconnectPhantom,
   connectingPhantom = false,
-  onOpenDexScreener,
   onCopyWallet,
   onCopyReferral,
   onExportWallet,
@@ -74,10 +73,21 @@ export function SettingsPage({
           <div className="settingsDivider" />
 
           <div>
-            <div className="settingsSectionLabel">Account</div>
+            <div className="settingsSectionLabel">Grow Fun.Run</div>
             <p className="settingsAccountHint">
-              Google login rehne do — Phantom yahan link ho sakta hai. DexScreener wallet nahi, charts site hai (Open se open hota hai).
+              Invite link share karo — har bind pe referrer ko 50,000 RUN. Google logout ki zaroorat nahi; Phantom yahan link ho sakta hai.
             </p>
+            <div className="settingsActions">
+              <MiniBtn tone="good" onClick={onCopyReferral}>
+                Copy invite link (50k RUN)
+              </MiniBtn>
+            </div>
+          </div>
+
+          <div className="settingsDivider" />
+
+          <div>
+            <div className="settingsSectionLabel">Account</div>
             <div className="settingsActions">
               {!authenticated ? (
                 <>
@@ -101,10 +111,6 @@ export function SettingsPage({
                   Phantom linked · {shortWallet?.(phantomWallet) || phantomWallet}
                 </MiniBtn>
               ) : null}
-
-              <MiniBtn tone="good" onClick={onOpenDexScreener}>
-                Open DexScreener
-              </MiniBtn>
 
               <MiniBtn onClick={onCopyWallet}>Copy Wallet Address</MiniBtn>
               <MiniBtn onClick={onCopyReferral}>Copy Referral Link</MiniBtn>

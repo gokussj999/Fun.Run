@@ -4,6 +4,7 @@ import { Card } from "../components/ui/Card.jsx";
 import { MiniBtn } from "../components/ui/Button.jsx";
 import { Pill } from "../components/ui/Pill.jsx";
 import { CoinFeed, HotCoinsBar, TrendingVolumeRow } from "../components/coins";
+import { ViralGrowthStrip } from "../components/ViralGrowthStrip.jsx";
 import { getCoin24hMovePct } from "../lib/coin-display.js";
 
 function SectionHeader({ title, sub, right, className = "" }) {
@@ -22,6 +23,7 @@ export function HomePage({
   adSlot,
   onNavigate,
   onOpenCoin,
+  onCopyInvite,
   coins = [],
   hotCoins = [],
   latestCoins = [],
@@ -42,9 +44,9 @@ export function HomePage({
     <ScreenShell>
       <Card className="homeHeroCard" style={{ position: "relative", overflow: "hidden" }}>
         <div className="heroGlow" />
-        <div className="heroTitle">Launch fast. Trade smooth. Earn rewards.</div>
+        <div className="heroTitle">Create. Trade. Share. Earn.</div>
         <div className="heroText">
-          Discover trending memes, track hot movers, and trade instantly on Solana bonding curves.
+          Meme coins seconds mein launch. Bonding curve pe trade. Share card post karo — invite pe 50,000 RUN.
         </div>
 
         <div className="heroActions">
@@ -54,11 +56,17 @@ export function HomePage({
           <MiniBtn className="homeHeroGhostBtn" onClick={() => onNavigate?.("SEARCH")}>
             Explore Coins
           </MiniBtn>
-          <button type="button" className="ghostBtn homeHeroGhostBtn" onClick={() => onNavigate?.("INFO")}>
-            Why Fun.Run
-          </button>
+          <MiniBtn className="homeHeroGhostBtn" onClick={() => onCopyInvite?.()}>
+            Copy invite
+          </MiniBtn>
         </div>
       </Card>
+
+      <ViralGrowthStrip
+        variant="home"
+        onCreate={() => onNavigate?.("CREATE")}
+        onInvite={() => onCopyInvite?.()}
+      />
 
       {adSlot}
 
