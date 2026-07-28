@@ -1,8 +1,9 @@
 /**
  * Stealth bootstrap activity
- * - ~5 coins/hour (≤120/day)
- * - Continuous synthetic buy/sell
- * - Exactly 3 coins/day pump to 400–500k MC, reset to ~5k after 48h
+ * - 1 coin every ~3 hours (BOOTSTRAP_CREATE_INTERVAL_HOURS)
+ * - Continuous synthetic buy/sell on live bootstrap coins
+ * - Every Nth coin (default 8) pumps to ~400–500k MC, then bleeds
+ *   gradually over ~48h down to ~5–6k MC
  * - First real buy adopts creator + real on-chain mint (same name/logo)
  * Public APIs must never expose bootstrap flags.
  */
@@ -80,31 +81,42 @@ export function createBootstrapController(deps) {
   let stopped = false;
   let tickTimer = null;
   let running = false;
+  let runningSince = 0;
   const usedSymbols = new Set();
   /** @type {Map<string, number>} */
   const tradeSchedule = new Map();
-  let hourBucket = Math.floor(Date.now() / 3_600_000);
-  let coinsThisHour = 0;
-  let lastCreateSlot = -1;
   /** @type {Set<string>} coins currently being pumped/reset */
   const busyCoins = new Set();
 
   const cfg = () => ({
     enabled: envFlag("BOOTSTRAP_ACTIVITY", false),
-    maxCoinsPerHour: envNum("BOOTSTRAP_MAX_COINS_PER_HOUR", 5, 0, 30),
+    // Prefer interval cadence (1 / 3h). Legacy hourly cap still honored if set > 0
+    // and interval is disabled via BOOTSTRAP_CREATE_INTERVAL_HOURS=0.
+    createIntervalHours: envNum("BOOTSTRAP_CREATE_INTERVAL_HOURS", 3, 0, 168),
+    maxCoinsPerHour: envNum("BOOTSTRAP_MAX_COINS_PER_HOUR", 0, 0, 30),
     shadowPool: envNum("BOOTSTRAP_SHADOW_POOL", 96, 8, 400),
     walletSol: envNum("BOOTSTRAP_WALLET_SOL", 3, 0.05, 50),
     minTradeSol: envNum("BOOTSTRAP_MIN_TRADE_SOL", 0.004, 0.0005, 5),
     maxTradeSol: envNum("BOOTSTRAP_MAX_TRADE_SOL", 0.085, 0.002, 10),
     seedBuyMinSol: envNum("BOOTSTRAP_SEED_BUY_MIN_SOL", 5, 1, 100),
     seedBuyMaxSol: envNum("BOOTSTRAP_SEED_BUY_MAX_SOL", 25, 2, 200),
-    dailyPumpCount: envNum("BOOTSTRAP_DAILY_PUMPS", 3, 0, 20),
+    pumpEveryN: envNum("BOOTSTRAP_PUMP_EVERY_N", 8, 1, 200),
     pumpMcMin: envNum("BOOTSTRAP_PUMP_MC_MIN", 400_000, 50_000, 5_000_000),
     pumpMcMax: envNum("BOOTSTRAP_PUMP_MC_MAX", 500_000, 50_000, 5_000_000),
-    resetMc: envNum("BOOTSTRAP_RESET_MC", 5_000, 500, 100_000),
+    resetMcMin: envNum("BOOTSTRAP_RESET_MC_MIN", 5_000, 500, 100_000),
+    resetMcMax: envNum("BOOTSTRAP_RESET_MC_MAX", 6_000, 500, 100_000),
+    // legacy single floor (used if min/max not differentiating)
+    resetMc: envNum("BOOTSTRAP_RESET_MC", 5_500, 500, 100_000),
     pumpResetHours: envNum("BOOTSTRAP_PUMP_RESET_HOURS", 48, 1, 168),
-    pumpChunkSol: envNum("BOOTSTRAP_PUMP_CHUNK_SOL", 120, 10, 2000),
+    pumpChunkSol: envNum("BOOTSTRAP_PUMP_CHUNK_SOL", 80, 10, 2000),
   });
+
+  function floorMcTarget(c = cfg()) {
+    const lo = Math.min(c.resetMcMin, c.resetMcMax);
+    const hi = Math.max(c.resetMcMin, c.resetMcMax);
+    if (hi > lo) return Number(rand(lo, hi).toFixed(0));
+    return Math.max(500, safeNum(c.resetMc, 5500));
+  }
 
   function fx() {
     return Math.max(1, safeNum(SOL_USD, 80));
@@ -118,6 +130,7 @@ export function createBootstrapController(deps) {
     await sql`alter table coins add column if not exists bootstrap_pump_at timestamptz`;
     await sql`alter table coins add column if not exists bootstrap_reset_at timestamptz`;
     await sql`alter table coins add column if not exists bootstrap_peak_mc numeric default 0`;
+    await sql`alter table coins add column if not exists bootstrap_floor_mc numeric default 0`;
     await sql`alter table coins add column if not exists bootstrap_adopted_by text`;
     await sql`
       create table if not exists bootstrap_events (
@@ -206,11 +219,30 @@ export function createBootstrapController(deps) {
     return safeNum(rows?.[0]?.cnt, 0);
   }
 
-  async function pumpsTodayDb() {
+  async function msSinceLastBootstrapCreate() {
     const rows = await sql`
-      select count(*)::int as cnt from coins
-      where bootstrap_pump_at is not null
-        and bootstrap_pump_at >= date_trunc('day', now())
+      select extract(epoch from (now() - max(created_at))) * 1000 as ms
+      from bootstrap_events
+      where kind = 'coin_create'
+    `;
+    const raw = rows?.[0]?.ms;
+    if (raw == null || raw === "") {
+      const fallback = await sql`
+        select extract(epoch from (now() - max(created_at))) * 1000 as ms
+        from coins where is_bootstrap = true
+      `;
+      const fb = fallback?.[0]?.ms;
+      if (fb == null || fb === "") return Number.POSITIVE_INFINITY;
+      const n = Number(fb);
+      return Number.isFinite(n) ? Math.max(0, n) : Number.POSITIVE_INFINITY;
+    }
+    const n = Number(raw);
+    return Number.isFinite(n) ? Math.max(0, n) : Number.POSITIVE_INFINITY;
+  }
+
+  async function bootstrapCreateCount() {
+    const rows = await sql`
+      select count(*)::int as cnt from bootstrap_events where kind = 'coin_create'
     `;
     return safeNum(rows?.[0]?.cnt, 0);
   }
@@ -488,6 +520,7 @@ export function createBootstrapController(deps) {
     if (!id || busyCoins.has(id)) return;
     const c = cfg();
     const peak = Number(rand(c.pumpMcMin, c.pumpMcMax).toFixed(0));
+    const floor = floorMcTarget(c);
     busyCoins.add(id);
     try {
       await sql`
@@ -495,17 +528,22 @@ export function createBootstrapController(deps) {
           bootstrap_phase = 'pumping',
           bootstrap_pump_at = coalesce(bootstrap_pump_at, now()),
           bootstrap_peak_mc = ${peak},
+          bootstrap_floor_mc = ${floor},
           bootstrap_reset_at = now() + (${c.pumpResetHours} || ' hours')::interval
         where id = ${id} and is_bootstrap = true
       `;
-      console.log(`[bootstrap] pump start ${id} → MC $${peak}`);
+      console.log(`[bootstrap] pump start ${id} → MC $${peak} (floor $${floor} over ${c.pumpResetHours}h)`);
       const r = await driveMcTo(id, peak, "pump");
+      // Restart 48h bleed clock from peak (not from queue time)
       await sql`
-        update coins set bootstrap_phase = 'pumped'
+        update coins set
+          bootstrap_phase = 'bleeding',
+          bootstrap_pump_at = now(),
+          bootstrap_reset_at = now() + (${c.pumpResetHours} || ' hours')::interval
         where id = ${id} and bootstrap_phase = 'pumping'
       `;
-      await logEvent("pump_done", id, null, { peak, mc: r.mc });
-      console.log(`[bootstrap] pump done ${id} mc=${Math.round(r.mc)}`);
+      await logEvent("pump_done", id, null, { peak, floor, mc: r.mc });
+      console.log(`[bootstrap] pump done ${id} mc=${Math.round(r.mc)} — bleeding starts`);
     } catch (e) {
       console.log("[bootstrap] pump error:", e?.message || e);
     } finally {
@@ -513,43 +551,94 @@ export function createBootstrapController(deps) {
     }
   }
 
-  async function resetPumpedCoin(coinId) {
-    const id = String(coinId || "").trim();
+  /** Gradual MC bleed toward floor over pumpResetHours (not an instant dump). */
+  async function bleedStep(coinRow) {
+    const id = String(coinRow?.id || "").trim();
     if (!id || busyCoins.has(id)) return;
+    if (!(await botsStillAllowed(id))) return;
+
     const c = cfg();
+    const peak = Math.max(safeNum(coinRow.bootstrap_peak_mc, 0), c.pumpMcMin);
+    const floor = Math.max(
+      500,
+      safeNum(coinRow.bootstrap_floor_mc, 0) || floorMcTarget(c)
+    );
+    const resetAt = coinRow.bootstrap_reset_at
+      ? new Date(coinRow.bootstrap_reset_at).getTime()
+      : 0;
+    const pumpAt = coinRow.bootstrap_pump_at
+      ? new Date(coinRow.bootstrap_pump_at).getTime()
+      : Date.now();
+    const endAt = resetAt || pumpAt + c.pumpResetHours * 3_600_000;
+    const startAt = pumpAt;
+    const span = Math.max(60_000, endAt - startAt);
+    const progress = Math.min(1, Math.max(0, (Date.now() - startAt) / span));
+    // Ease-in so early hours hold higher, later hours drop faster
+    const eased = progress * progress;
+    const target = peak + (floor - peak) * eased;
+    // Small noise so chart isn't a perfect line
+    const noisyTarget = target * (0.96 + Math.random() * 0.08);
+
+    const row = await getCoinRowById(id);
+    if (!row) return;
+    let coin = mapDbCoinToApi(row);
+    coin = recalcCoin(coin, { appendChart: false });
+    const mc = safeNum(coin.mc, 0);
+
+    if (progress >= 0.995 || mc <= floor * 1.12) {
+      busyCoins.add(id);
+      try {
+        await driveMcTo(id, floor, "reset");
+        await sql`
+          update coins set bootstrap_phase = 'live', bootstrap_reset_at = null
+          where id = ${id}
+        `;
+        await logEvent("bleed_done", id, null, { floor, mc: floor });
+        console.log(`[bootstrap] bleed done ${id} → ~$${floor}`);
+      } finally {
+        busyCoins.delete(id);
+      }
+      return;
+    }
+
+    if (mc <= noisyTarget * 1.05) {
+      // Already at/below schedule — light random trade only
+      return;
+    }
+
+    // Nudge down with a few sells (non-blocking short burst)
     busyCoins.add(id);
     try {
-      await sql`update coins set bootstrap_phase = 'resetting' where id = ${id}`;
-      console.log(`[bootstrap] reset start ${id} → MC ~$${c.resetMc}`);
-      const r = await driveMcTo(id, c.resetMc, "reset");
-      await sql`
-        update coins set bootstrap_phase = 'live', bootstrap_reset_at = null
-        where id = ${id}
-      `;
-      await logEvent("reset_done", id, null, { target: c.resetMc, mc: r.mc });
-      console.log(`[bootstrap] reset done ${id} mc=${Math.round(r.mc)}`);
-    } catch (e) {
-      console.log("[bootstrap] reset error:", e?.message || e);
+      for (let i = 0; i < randInt(1, 3); i++) {
+        if (!(await botsStillAllowed(id))) break;
+        const latest = await getCoinRowById(id);
+        if (!latest) break;
+        let cur = recalcCoin(mapDbCoinToApi(latest), { appendChart: false });
+        if (safeNum(cur.mc, 0) <= noisyTarget) break;
+
+        const holders = await sql`
+          select wallet, tokens::float as tokens from holdings
+          where coin_id = ${id} and tokens > 1
+          order by tokens desc limit 6
+        `;
+        if (!holders?.length) {
+          await driveMcTo(id, Math.max(noisyTarget, floor), "reset");
+          break;
+        }
+        const h = holders[i % holders.length];
+        await executeSyntheticTrade(id, {
+          wallet: String(h.wallet),
+          side: "sell",
+          tokenFrac: rand(0.12, 0.4),
+        });
+        await sleep(randInt(60, 180));
+      }
     } finally {
       busyCoins.delete(id);
     }
   }
 
   async function processPumpLifecycle() {
-    // Due resets
-    const due = await sql`
-      select id from coins
-      where is_bootstrap = true
-        and bootstrap_phase = 'pumped'
-        and bootstrap_reset_at is not null
-        and bootstrap_reset_at <= now()
-        and coalesce(bootstrap_paused, false) = false
-      limit 2
-    `;
-    for (const row of due || []) {
-      resetPumpedCoin(row.id).catch(() => {});
-    }
-
     // Pending pumps (marked at create)
     const pending = await sql`
       select id from coins
@@ -562,24 +651,28 @@ export function createBootstrapController(deps) {
     if (pending?.[0]?.id) {
       startPump(pending[0].id).catch(() => {});
     }
+
+    // Gradual bleed for pumped coins (and legacy 'pumped' phase)
+    const bleeding = await sql`
+      select id, bootstrap_peak_mc, bootstrap_floor_mc, bootstrap_pump_at, bootstrap_reset_at
+      from coins
+      where is_bootstrap = true
+        and bootstrap_phase in ('bleeding', 'pumped')
+        and coalesce(bootstrap_paused, false) = false
+      order by bootstrap_pump_at asc nulls last
+      limit 3
+    `;
+    for (const row of bleeding || []) {
+      bleedStep(row).catch((e) => console.log("[bootstrap] bleed error:", e?.message || e));
+    }
   }
 
   async function maybeMarkPumpCandidate(coinId) {
     const c = cfg();
-    if (c.dailyPumpCount <= 0) return false;
-    const used = await pumpsTodayDb();
-    if (used >= c.dailyPumpCount) return false;
-
-    // Spread 3 pumps across the day: ~every 40 coins of 120, with luck
-    const createdToday = await sql`
-      select count(*)::int as cnt from coins
-      where is_bootstrap = true and created_at >= date_trunc('day', now())
-    `;
-    const n = safeNum(createdToday?.[0]?.cnt, 1);
-    const remainingCoins = Math.max(1, 120 - n);
-    const remainingPumps = c.dailyPumpCount - used;
-    const p = remainingPumps / remainingCoins;
-    if (Math.random() > Math.min(0.45, p * 1.8) && used > 0 && n % 35 !== 0) return false;
+    const every = Math.max(1, Math.floor(c.pumpEveryN));
+    // Count includes this coin (already logged as coin_create before this call)
+    const n = await bootstrapCreateCount();
+    if (n <= 0 || n % every !== 0) return false;
 
     await sql`
       update coins set
@@ -587,7 +680,8 @@ export function createBootstrapController(deps) {
         bootstrap_pump_at = now()
       where id = ${coinId}
     `;
-    await logEvent("pump_queued", coinId, null, { pumpsToday: used + 1 });
+    await logEvent("pump_queued", coinId, null, { createIndex: n, every });
+    console.log(`[bootstrap] pump queued for coin #${n} (every ${every})`);
     return true;
   }
 
@@ -698,35 +792,37 @@ export function createBootstrapController(deps) {
 
   async function maybeCreateCoin(force = false) {
     const c = cfg();
-    if (c.maxCoinsPerHour <= 0) return null;
+    const intervalMs = Math.max(0, c.createIntervalHours) * 3_600_000;
 
-    const bucket = Math.floor(Date.now() / 3_600_000);
-    if (bucket !== hourBucket) {
-      hourBucket = bucket;
-      coinsThisHour = 0;
-      lastCreateSlot = -1;
+    // Interval mode (default): 1 coin every N hours — resilient across restarts
+    if (intervalMs > 0) {
+      if (!force) {
+        const since = await msSinceLastBootstrapCreate();
+        if (since < intervalMs) return null;
+      }
+    } else {
+      // Legacy hourly cap mode when interval disabled
+      if (c.maxCoinsPerHour <= 0) return null;
+      const dbCount = await coinsCreatedThisHourDb();
+      if (dbCount >= c.maxCoinsPerHour) return null;
+      if (!force) {
+        const hourFrac = (Date.now() % 3_600_000) / 3_600_000;
+        const targetNow = Math.min(
+          c.maxCoinsPerHour,
+          Math.max(1, Math.floor(hourFrac * c.maxCoinsPerHour) + 1)
+        );
+        if (dbCount >= targetNow) return null;
+      }
     }
-
-    const dbCount = await coinsCreatedThisHourDb();
-    coinsThisHour = Math.max(coinsThisHour, dbCount);
-    if (coinsThisHour >= c.maxCoinsPerHour) return null;
-
-    // Pace across the hour — always allow at least 1 early, catch up if behind
-    const hourFrac = (Date.now() % 3_600_000) / 3_600_000;
-    const targetNow = Math.min(
-      c.maxCoinsPerHour,
-      Math.max(1, Math.floor(hourFrac * c.maxCoinsPerHour) + 1)
-    );
-    if (!force && coinsThisHour >= targetNow) return null;
 
     try {
       const coin = await createBootstrapCoin();
       if (coin) {
-        coinsThisHour += 1;
-        lastCreateSlot = Math.floor(hourFrac * c.maxCoinsPerHour);
-        console.log(
-          `[bootstrap] coin created ${coin.symbol} (${coinsThisHour}/${c.maxCoinsPerHour} this hour)`
-        );
+        const label =
+          intervalMs > 0
+            ? `next in ~${c.createIntervalHours}h`
+            : `hourly cap ${c.maxCoinsPerHour}`;
+        console.log(`[bootstrap] coin created ${coin.symbol} (${label})`);
         return coin;
       }
     } catch (e) {
@@ -958,33 +1054,41 @@ export function createBootstrapController(deps) {
   }
 
   async function tick() {
-    if (stopped || running) return;
+    if (stopped) return;
+    // Watchdog: if a previous tick hung, allow a new one after 3 minutes
+    if (running) {
+      if (runningSince && Date.now() - runningSince < 180_000) return;
+      console.log("[bootstrap] tick watchdog — forcing unlock after stall");
+      running = false;
+    }
     const c = cfg();
     if (!c.enabled) return;
 
     running = true;
+    runningSince = Date.now();
     try {
       await ensureShadowPool(c.shadowPool);
-      // Create up to 2 coins per tick when behind schedule (reliable 5/hr)
-      for (let i = 0; i < 2; i++) {
-        const made = await maybeCreateCoin(false);
-        if (!made) break;
-        await sleep(randInt(400, 1200));
-      }
+      // One create attempt per tick when due (interval-paced)
+      await maybeCreateCoin(false);
       await processDueTrades();
       await processPumpLifecycle();
     } catch (e) {
       console.log("[bootstrap] tick error:", e?.message || e);
     } finally {
       running = false;
+      runningSince = 0;
     }
   }
 
   function scheduleNext() {
     if (stopped) return;
-    const delay = jitterMs(rand(10_000, 22_000));
+    const delay = jitterMs(rand(12_000, 28_000));
     tickTimer = setTimeout(async () => {
-      await tick();
+      try {
+        await tick();
+      } catch (e) {
+        console.log("[bootstrap] schedule tick error:", e?.message || e);
+      }
       scheduleNext();
     }, delay);
     if (typeof tickTimer.unref === "function") tickTimer.unref();
@@ -999,8 +1103,13 @@ export function createBootstrapController(deps) {
       await ensureSchemaExtras();
       console.log("[bootstrap] schema extras ready");
       const c = cfg();
+      const cadence =
+        c.createIntervalHours > 0
+          ? `1 coin / ${c.createIntervalHours}h`
+          : `${c.maxCoinsPerHour}/hr`;
       console.log(
-        `[bootstrap] active — ${c.maxCoinsPerHour}/hr, pumps/day=${c.dailyPumpCount}, pool=${c.shadowPool}`
+        `[bootstrap] active — ${cadence}, pump every ${c.pumpEveryN} coins, ` +
+          `bleed ${c.pumpResetHours}h → $${c.resetMcMin}–$${c.resetMcMax}, pool=${c.shadowPool}`
       );
       // Don't block "active" on pool fill — fill async then kick creates
       ensureShadowPool(c.shadowPool)
@@ -1011,7 +1120,15 @@ export function createBootstrapController(deps) {
       setTimeout(async () => {
         try {
           await ensureShadowPool(cfg().shadowPool);
-          await maybeCreateCoin(true);
+          const since = await msSinceLastBootstrapCreate();
+          const intervalMs = Math.max(0, cfg().createIntervalHours) * 3_600_000;
+          // Only force-create if none yet or interval already elapsed
+          if (!Number.isFinite(since) || since === Number.POSITIVE_INFINITY || since >= intervalMs) {
+            await maybeCreateCoin(true);
+          } else {
+            const hrsLeft = ((intervalMs - since) / 3_600_000).toFixed(2);
+            console.log(`[bootstrap] create skip on boot — next in ~${hrsLeft}h`);
+          }
         } catch (e) {
           console.log("[bootstrap] startup create failed:", e?.message || e);
         }
