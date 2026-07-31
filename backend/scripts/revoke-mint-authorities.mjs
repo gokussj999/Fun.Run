@@ -4,16 +4,53 @@
  *
  * Dry-run by default. Pass --live to revoke on-chain and update DB flags.
  *
+ * If mints were created with a different key than TREASURY_PRIVATE_KEY, set:
+ *   MINT_AUTHORITY_PRIVATE_KEY=<base58 or json array>
+ *
  *   node --env-file=backend/.env backend/scripts/revoke-mint-authorities.mjs
  *   node --env-file=backend/.env backend/scripts/revoke-mint-authorities.mjs --live
  */
 import "dotenv/config";
 import postgres from "postgres";
-import { Connection, PublicKey } from "@solana/web3.js";
+import { Connection, Keypair, PublicKey } from "@solana/web3.js";
 import treasury from "../solana/treasury.js";
 import { revokeMintAuthorities } from "../solana/create-token.js";
 
 const LIVE = process.argv.includes("--live");
+
+const B58 = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+function decodeBase58(str) {
+  const bytes = [0];
+  for (const ch of str) {
+    const val = B58.indexOf(ch);
+    if (val < 0) throw new Error("Invalid base58");
+    let carry = val;
+    for (let i = 0; i < bytes.length; i++) {
+      carry += bytes[i] * 58;
+      bytes[i] = carry & 0xff;
+      carry >>= 8;
+    }
+    while (carry > 0) {
+      bytes.push(carry & 0xff);
+      carry >>= 8;
+    }
+  }
+  for (let k = 0; k < str.length && str[k] === "1"; k++) bytes.push(0);
+  return Uint8Array.from(bytes.reverse());
+}
+
+function loadKeypairFromEnv(raw, label) {
+  const cleaned = String(raw || "").trim().replace(/^["']|["']$/g, "");
+  if (!cleaned) return null;
+  let secret;
+  if (cleaned.startsWith("[")) secret = Uint8Array.from(JSON.parse(cleaned));
+  else if (/^[1-9A-HJ-NP-Za-km-z]+$/.test(cleaned)) secret = decodeBase58(cleaned);
+  else secret = Uint8Array.from(Buffer.from(cleaned, "base64"));
+  if (secret.length !== 64) {
+    throw new Error(`${label} length ${secret.length} (need 64)`);
+  }
+  return Keypair.fromSecretKey(secret);
+}
 
 function getRpc() {
   return (
@@ -28,9 +65,13 @@ if (!process.env.DATABASE_URL) {
   process.exit(1);
 }
 
+const authority =
+  loadKeypairFromEnv(process.env.MINT_AUTHORITY_PRIVATE_KEY, "MINT_AUTHORITY_PRIVATE_KEY") ||
+  treasury;
+
 const sql = postgres(process.env.DATABASE_URL, { ssl: "require", max: 1 });
 const connection = new Connection(getRpc(), "confirmed");
-const treasuryPk = treasury.publicKey.toBase58();
+const authorityPk = authority.publicKey.toBase58();
 
 await sql`
   alter table coins
@@ -51,7 +92,11 @@ const coins = await sql`
 `;
 
 console.log(`Mode: ${LIVE ? "LIVE" : "DRY-RUN"}`);
-console.log(`Treasury: ${treasuryPk}`);
+console.log(
+  `Authority: ${authorityPk}${
+    process.env.MINT_AUTHORITY_PRIVATE_KEY ? " (MINT_AUTHORITY_PRIVATE_KEY)" : " (treasury)"
+  }`
+);
 console.log(`RPC: ${getRpc()}`);
 console.log(`Coins with mint_address: ${coins.length}\n`);
 
@@ -102,28 +147,27 @@ for (const coin of coins) {
       continue;
     }
 
-    // Non-treasury authority — cannot revoke
-    if (mintAuth && mintAuth !== treasuryPk) {
-      console.log(`SKIP  ${label} — mint auth is ${mintAuth} (not treasury)`);
+    if (mintAuth && mintAuth !== authorityPk) {
+      console.log(`SKIP  ${label} — mint auth is ${mintAuth} (not authority)`);
       skippedOther++;
       continue;
     }
-    if (freezeAuth && freezeAuth !== treasuryPk) {
-      console.log(`SKIP  ${label} — freeze auth is ${freezeAuth} (not treasury)`);
+    if (freezeAuth && freezeAuth !== authorityPk) {
+      console.log(`SKIP  ${label} — freeze auth is ${freezeAuth} (not authority)`);
       skippedOther++;
       continue;
     }
 
-    const needMint = mintAuth === treasuryPk;
-    const needFreeze = freezeAuth === treasuryPk;
+    const needMint = mintAuth === authorityPk;
+    const needFreeze = freezeAuth === authorityPk;
     console.log(
-      `${LIVE ? "REVOK" : "DRY  "} ${label} — mint=${needMint ? "treasury→null" : "ok"} freeze=${needFreeze ? "treasury→null" : "ok"}`
+      `${LIVE ? "REVOK" : "DRY  "} ${label} — mint=${needMint ? "auth→null" : "ok"} freeze=${needFreeze ? "auth→null" : "ok"}`
     );
     wouldRevoke++;
 
     if (!LIVE) continue;
 
-    const result = await revokeMintAuthorities(connection, treasury, mintAddress);
+    const result = await revokeMintAuthorities(connection, authority, mintAddress);
     await sql`
       update coins
       set mint_authority_revoked = ${Boolean(result.mintAuthorityRevoked)},
@@ -131,7 +175,9 @@ for (const coin of coins) {
       where id = ${coin.id}
     `;
     revoked++;
-    console.log(`  done mintRevoked=${result.mintAuthorityRevoked} freezeRevoked=${result.freezeAuthorityRevoked}`);
+    console.log(
+      `  done mintRevoked=${result.mintAuthorityRevoked} freezeRevoked=${result.freezeAuthorityRevoked}`
+    );
   } catch (e) {
     errors++;
     console.error(`ERR   ${label}:`, e?.message || e);
@@ -147,6 +193,11 @@ console.log(`skipped other:  ${skippedOther}`);
 console.log(`errors:         ${errors}`);
 if (!LIVE && wouldRevoke > 0) {
   console.log("\nRe-run with --live to apply on-chain revoke + DB updates.");
+}
+if (skippedOther > 0 && wouldRevoke === 0) {
+  console.log(
+    "\nTip: if SKIP says another pubkey, set MINT_AUTHORITY_PRIVATE_KEY to that mint authority keypair and re-run."
+  );
 }
 
 await sql.end();
