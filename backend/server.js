@@ -181,9 +181,17 @@ const VIRTUAL_TOKEN_PCT = clampNum(Number(process.env.VIRTUAL_TOKEN_PCT || 30), 
 const SALE_SUPPLY_PCT = clampNum(Number(process.env.SALE_SUPPLY_PCT || 80), 1, 100);
 
 const TOTAL_SUPPLY = Math.max(1, Number(process.env.TOTAL_SUPPLY || 1_000_000_000));
-/** New coins use funrun_v2 when ONCHAIN_CURVE=1 (mainnet production). */
-const ONCHAIN_CURVE_ENABLED =
-  process.env.ONCHAIN_CURVE === "1" || process.env.ONCHAIN_CURVE === "true";
+/** New coins use funrun_v2 when ONCHAIN_CURVE=1, or by default on mainnet RPC. */
+const ONCHAIN_CURVE_ENABLED = (() => {
+  const v = String(process.env.ONCHAIN_CURVE || "").trim().toLowerCase();
+  if (v === "0" || v === "false" || v === "off") return false;
+  if (v === "1" || v === "true" || v === "on") return true;
+  const rpc = String(process.env.SOLANA_RPC || process.env.SOLANA_PROGRAM_RPC || "");
+  return /mainnet/i.test(rpc);
+})();
+console.log(
+  `[config] ONCHAIN_CURVE_ENABLED=${ONCHAIN_CURVE_ENABLED} (env=${process.env.ONCHAIN_CURVE || "unset"})`
+);
 const FUNRUN_V2_TOTAL_SUPPLY = 1_000_000_000;
 const FUNRUN_V2_CURVE_SUPPLY = 800_000_000;
 const MAX_CHART_POINTS = 140;
