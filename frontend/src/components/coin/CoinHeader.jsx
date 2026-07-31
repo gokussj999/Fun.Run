@@ -51,7 +51,8 @@ export function CoinHeader({
   const hasMint = Boolean(coin?.mintAddress);
   const authoritiesRevoked =
     Boolean(coin?.mintAuthorityRevoked) && Boolean(coin?.freezeAuthorityRevoked);
-  const fullyVerified = hasMint && authoritiesRevoked;
+  const onchainCurve = Boolean(coin?.onchainCurve);
+  const fullyVerified = hasMint && (onchainCurve || authoritiesRevoked);
   const hasSocials = Boolean(coin?.website || coin?.twitter || coin?.telegram);
   const caShort = hasMint ? shortCa(coin.mintAddress) : "";
   const explorerLinks = hasMint ? getExplorerLinks(coin.mintAddress) : [];
@@ -88,7 +89,14 @@ export function CoinHeader({
           <div className="coinHeaderTitleRow">
             <h1 className="coinHeaderName">{coin.name}</h1>
             {fullyVerified ? (
-              <span className="coinHeaderVerified" title="Verified — mint & freeze authority disabled">
+              <span
+                className="coinHeaderVerified"
+                title={
+                  onchainCurve
+                    ? "On-chain bonding curve — Solscan pe real supply & trades"
+                    : "Verified — mint & freeze authority disabled"
+                }
+              >
                 ✓
               </span>
             ) : hasMint ? (
@@ -103,6 +111,11 @@ export function CoinHeader({
           <div className="coinHeaderSymbolRow">
             <span className="coinHeaderSymbol">{coin.symbol}</span>
             <span className="coinHeaderChain">/ SOL</span>
+            {onchainCurve ? (
+              <span className="coinHeaderOnchain" title="funrun_v2 on-chain bonding curve">
+                On-chain
+              </span>
+            ) : null}
           </div>
 
           {caShort ? (

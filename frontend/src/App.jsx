@@ -945,6 +945,8 @@ function normalizeCoin(c = {}) {
     freezeAuthorityRevoked: Boolean(
       c.freezeAuthorityRevoked ?? c.freeze_authority_revoked ?? false
     ),
+    onchainCurve: Boolean(c.onchainCurve ?? c.onchain_curve ?? false),
+    bondingCurvePda: String(c.bondingCurvePda || c.bonding_curve_pda || ""),
     creatorWallet: String(c.creatorWallet || c.creator_wallet || c.owner || ""),
     totalSupply,
     curveSupply,

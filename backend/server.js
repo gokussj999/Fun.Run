@@ -181,6 +181,11 @@ const VIRTUAL_TOKEN_PCT = clampNum(Number(process.env.VIRTUAL_TOKEN_PCT || 30), 
 const SALE_SUPPLY_PCT = clampNum(Number(process.env.SALE_SUPPLY_PCT || 80), 1, 100);
 
 const TOTAL_SUPPLY = Math.max(1, Number(process.env.TOTAL_SUPPLY || 1_000_000_000));
+/** New coins use funrun_v2 when ONCHAIN_CURVE=1 (mainnet production). */
+const ONCHAIN_CURVE_ENABLED =
+  process.env.ONCHAIN_CURVE === "1" || process.env.ONCHAIN_CURVE === "true";
+const FUNRUN_V2_TOTAL_SUPPLY = 1_000_000_000;
+const FUNRUN_V2_CURVE_SUPPLY = 800_000_000;
 const MAX_CHART_POINTS = 140;
 const PROFILE_TX_LIMIT = 120;
 const PROFILE_HOLDING_TX_SCAN = 500;
@@ -1133,6 +1138,8 @@ function mapDbCoinToApi(row = {}) {
     mintAddress: String(row.mint_address || ""),
     mintAuthorityRevoked: Boolean(row.mint_authority_revoked),
     freezeAuthorityRevoked: Boolean(row.freeze_authority_revoked),
+    onchainCurve: Boolean(row.onchain_curve),
+    bondingCurvePda: String(row.bonding_curve_pda || ""),
     migrated: Boolean(row.migrated),
     reserveWalletAddress: String(row.reserve_wallet_address || ""),
   };
@@ -1181,6 +1188,8 @@ function coinToDbUpdate(coin = {}) {
     reserve_wallet_encrypted: coin.reserveWalletEncrypted || null,
     mint_authority_revoked: Boolean(coin.mintAuthorityRevoked),
     freeze_authority_revoked: Boolean(coin.freezeAuthorityRevoked),
+    onchain_curve: Boolean(coin.onchainCurve),
+    bonding_curve_pda: coin.bondingCurvePda || "",
   };
 }
 
@@ -1325,6 +1334,16 @@ await sql`
 await sql`
   alter table coins
   add column if not exists freeze_authority_revoked boolean default false
+`;
+
+await sql`
+  alter table coins
+  add column if not exists onchain_curve boolean not null default false
+`;
+
+await sql`
+  alter table coins
+  add column if not exists bonding_curve_pda text
 `;
 
   await sql`
@@ -1981,7 +2000,8 @@ async function saveCoin(coin, _tx = null) {
       reserve_sol, reserve_token, market_cap, last_price, ath_market_cap,
       volume_sol, last_trade_at, creator_rewards, chart, holders,
       reserve_wallet_address, reserve_wallet_encrypted,
-      mint_authority_revoked, freeze_authority_revoked
+      mint_authority_revoked, freeze_authority_revoked,
+      onchain_curve, bonding_curve_pda
     )
     values (
       ${payload.id}, ${payload.name}, ${payload.symbol}, ${payload.story},
@@ -1995,7 +2015,8 @@ async function saveCoin(coin, _tx = null) {
       ${payload.volume_sol}, ${payload.last_trade_at},
       ${payload.creator_rewards}, ${payload.chart || []}, ${payload.holders || {}},
       ${payload.reserve_wallet_address}, ${payload.reserve_wallet_encrypted},
-      ${payload.mint_authority_revoked}, ${payload.freeze_authority_revoked}
+      ${payload.mint_authority_revoked}, ${payload.freeze_authority_revoked},
+      ${payload.onchain_curve}, ${payload.bonding_curve_pda || null}
     )
     on conflict (id) do update set
       name = excluded.name,
@@ -2025,7 +2046,9 @@ async function saveCoin(coin, _tx = null) {
       reserve_wallet_address = excluded.reserve_wallet_address,
       reserve_wallet_encrypted = coalesce(nullif(excluded.reserve_wallet_encrypted, ''), coins.reserve_wallet_encrypted),
       mint_authority_revoked = excluded.mint_authority_revoked,
-      freeze_authority_revoked = excluded.freeze_authority_revoked
+      freeze_authority_revoked = excluded.freeze_authority_revoked,
+      onchain_curve = excluded.onchain_curve,
+      bonding_curve_pda = coalesce(nullif(excluded.bonding_curve_pda, ''), coins.bonding_curve_pda)
     returning *`;
 
   coinCache.set(payload.id, rows[0]);
@@ -2129,20 +2152,45 @@ function buildChartTrail(prevChart, nextPoint, sideHint = "") {
   return next.filter((x) => x.t >= cutoff).slice(-MAX_CHART_POINTS);
 }
 
+/** Sync DB coin fields from funrun_v2 bonding-curve account. */
+function applyFunrunV2Curve(coin, curve) {
+  if (!coin || !curve) return coin;
+  const totalSupply = FUNRUN_V2_TOTAL_SUPPLY;
+  const curveSupply = FUNRUN_V2_CURVE_SUPPLY;
+  const vSol = Math.max(1e-9, safeNum(curve.virtualSol, VIRTUAL_SOL));
+  const vTokens = Math.max(1e-9, safeNum(curve.virtualTokens, 0));
+  const solReserve = Math.max(0, safeNum(curve.realSol, 0));
+  const tokenReserve = Math.max(0, safeNum(curve.realTokens, curveSupply));
+  coin.totalSupply = totalSupply;
+  coin.curveSupply = curveSupply;
+  coin.vSol = vSol;
+  coin.vTokens = vTokens;
+  coin.solReserve = solReserve;
+  coin.tokenReserve = tokenReserve;
+  coin.curveSold = clampNum(curveSupply - tokenReserve, 0, curveSupply);
+  if (curve.bondingCurvePda) coin.bondingCurvePda = String(curve.bondingCurvePda);
+  coin.onchainCurve = true;
+  return coin;
+}
+
 function recalcCoin(coin, opts = {}) {
+  const onchain = Boolean(coin?.onchainCurve);
   const fixed = {
     ...coin,
     totalSupply: Math.max(1, safeNum(coin.totalSupply, TOTAL_SUPPLY)),
     curveSupply: Math.max(1, safeNum(coin.curveSupply, saleSupplyFromTotal(coin.totalSupply || TOTAL_SUPPLY))),
-    tokenReserve: Math.max(1, safeNum(coin.tokenReserve, saleSupplyFromTotal(coin.totalSupply || TOTAL_SUPPLY))),
+    tokenReserve: Math.max(0, safeNum(coin.tokenReserve, saleSupplyFromTotal(coin.totalSupply || TOTAL_SUPPLY))),
     solReserve: Math.max(0, safeNum(coin.solReserve, 0)),
     vSol: Math.max(1e-9, safeNum(coin.vSol, VIRTUAL_SOL)),
-    vTokens: calcVirtualTokens(
-      coin.totalSupply || TOTAL_SUPPLY,
-      coin.curveSupply || saleSupplyFromTotal(coin.totalSupply || TOTAL_SUPPLY),
-      coin.vTokens
-    ),
+    vTokens: onchain
+      ? Math.max(1e-9, safeNum(coin.vTokens, 1))
+      : calcVirtualTokens(
+          coin.totalSupply || TOTAL_SUPPLY,
+          coin.curveSupply || saleSupplyFromTotal(coin.totalSupply || TOTAL_SUPPLY),
+          coin.vTokens
+        ),
     holders: asObj(coin.holders, {}),
+    onchainCurve: onchain,
   };
 
   fixed.curveSold = clampNum(
@@ -2151,14 +2199,23 @@ function recalcCoin(coin, opts = {}) {
     fixed.curveSupply
   );
 
-  const pricing = calcPricing({
-    totalSupply: fixed.totalSupply,
-    curveSupply: fixed.curveSupply,
-    solReserve: fixed.solReserve,
-    tokenReserve: fixed.tokenReserve,
-    vSol: fixed.vSol,
-    vTokens: fixed.vTokens,
-  });
+  let pricing;
+  if (onchain) {
+    // funrun_v2: spot = virtual_sol / virtual_tokens (raw reserves already include buys)
+    const priceSol = fixed.vSol / fixed.vTokens;
+    const priceUsd = priceSol * currentSolUsd;
+    const circulating = Math.max(0, fixed.totalSupply - fixed.tokenReserve);
+    pricing = { priceSol, priceUsd, mcUsd: priceUsd * circulating };
+  } else {
+    pricing = calcPricing({
+      totalSupply: fixed.totalSupply,
+      curveSupply: fixed.curveSupply,
+      solReserve: fixed.solReserve,
+      tokenReserve: Math.max(1, fixed.tokenReserve),
+      vSol: fixed.vSol,
+      vTokens: fixed.vTokens,
+    });
+  }
 
   fixed.priceSol = pricing.priceSol;
   fixed.priceUsd = pricing.priceUsd;
@@ -3745,6 +3802,8 @@ app.post("/coin/create", createLimiter, async (req, res) => {
 
     let mintAddress = "";
     let mintSignature = "";
+    let bondingCurvePda = "";
+    let onchainCurve = false;
 
     console.log(`[coin/create] +${Date.now()-_t0}ms — starting profile+IPFS`);
     const profile = await getProfile(creatorWallet, true);
@@ -3759,19 +3818,114 @@ app.post("/coin/create", createLimiter, async (req, res) => {
       }
     }
 
-    const totalSupply = getSupplyFromInitialSol(initialSol);
-    const curveSupply = saleSupplyFromTotal(totalSupply);
-
     // Reserve wallet — isolated keypair per coin, never pool funds across coins
     const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY;
     console.log(`[reserve-wallet] ENCRYPTION_KEY set=${!!ENCRYPTION_KEY} len=${ENCRYPTION_KEY?.length}`);
     if (!ENCRYPTION_KEY || ENCRYPTION_KEY.length !== 32) {
       console.error("[error:coin/create] ENCRYPTION_KEY invalid, length:", ENCRYPTION_KEY?.length ?? 0);
+      if (initialSol > 0) await increaseRun(creatorWallet, initialSol).catch(() => {});
       return res.status(500).json({ ok: false, error: "Server configuration error" });
     }
     const reserveKeypair = Keypair.generate();
     const reserveWalletAddress = reserveKeypair.publicKey.toBase58();
     const reserveWalletEncrypted = _encryptGCM(Buffer.from(reserveKeypair.secretKey), ENCRYPTION_KEY);
+
+    let totalSupply = getSupplyFromInitialSol(initialSol);
+    let curveSupply = saleSupplyFromTotal(totalSupply);
+    let vSol = VIRTUAL_SOL;
+    let vTokens = calcVirtualTokens(totalSupply, curveSupply);
+    let solReserve = 0;
+    let tokenReserve = curveSupply;
+    let mintAuthorityRevoked = false;
+    let freezeAuthorityRevoked = false;
+
+    // ── funrun_v2 on-chain create (new coins when ONCHAIN_CURVE=1) ───────────
+    if (ONCHAIN_CURVE_ENABLED) {
+      const mnemonic = String(profile?.encrypted_mnemonic || "").trim();
+      if (!mnemonic) {
+        if (initialSol > 0) await increaseRun(creatorWallet, initialSol).catch(() => {});
+        return res.json({
+          ok: false,
+          error: "No custodial wallet — deposit SOL first to create on-chain coins",
+        });
+      }
+
+      try {
+        const {
+          createCoinOnchain,
+          buyOnchain,
+        } = await import("./solana/funrun-v2/index.js");
+        const creatorKp = await getCustodialKeypairFromMnemonic(mnemonic);
+        const uri =
+          metadataUri ||
+          imageUri ||
+          `https://fun.run/coin/${encodeURIComponent(symbol)}`;
+
+        console.log(`[coin/create] +${Date.now()-_t0}ms — funrun_v2 create_coin`);
+        const created = await createCoinOnchain({
+          creatorKeypair: creatorKp,
+          treasuryKeypair: treasury,
+          name,
+          symbol,
+          uri,
+        });
+
+        mintAddress = created.mintAddress;
+        mintSignature = created.signature || "";
+        bondingCurvePda = created.bondingCurvePda || "";
+        onchainCurve = true;
+        // Curve PDA is mint/freeze auth — program-owned (not wallet-revoked null)
+        mintAuthorityRevoked = false;
+        freezeAuthorityRevoked = false;
+
+        if (created.curve) {
+          totalSupply = FUNRUN_V2_TOTAL_SUPPLY;
+          curveSupply = FUNRUN_V2_CURVE_SUPPLY;
+          vSol = Math.max(1e-9, safeNum(created.curve.virtualSol, VIRTUAL_SOL));
+          vTokens = Math.max(1e-9, safeNum(created.curve.virtualTokens, 1));
+          solReserve = Math.max(0, safeNum(created.curve.realSol, 0));
+          tokenReserve = Math.max(0, safeNum(created.curve.realTokens, curveSupply));
+        } else {
+          totalSupply = FUNRUN_V2_TOTAL_SUPPLY;
+          curveSupply = FUNRUN_V2_CURVE_SUPPLY;
+          tokenReserve = curveSupply;
+        }
+
+        console.log(
+          `[coin/create] funrun_v2 mint=${mintAddress} pda=${bondingCurvePda} sig=${mintSignature}`
+        );
+
+        // Optional initial buy on-chain (same run_balance debit already applied)
+        if (initialSol > 0) {
+          try {
+            const bought = await buyOnchain({
+              buyerKeypair: creatorKp,
+              treasuryKeypair: treasury,
+              mintAddress,
+              solAmount: initialSol,
+            });
+            if (bought?.curve) {
+              vSol = Math.max(1e-9, safeNum(bought.curve.virtualSol, vSol));
+              vTokens = Math.max(1e-9, safeNum(bought.curve.virtualTokens, vTokens));
+              solReserve = Math.max(0, safeNum(bought.curve.realSol, solReserve));
+              tokenReserve = Math.max(0, safeNum(bought.curve.realTokens, tokenReserve));
+            }
+            mintSignature = bought?.signature || mintSignature;
+          } catch (buyErr) {
+            await increaseRun(creatorWallet, initialSol).catch(() => {});
+            console.error("[coin/create] on-chain initial buy failed:", buyErr?.message || buyErr);
+            // Coin still exists on-chain — continue without initial buy
+          }
+        }
+      } catch (createErr) {
+        if (initialSol > 0) await increaseRun(creatorWallet, initialSol).catch(() => {});
+        console.error("[coin/create] funrun_v2 create failed:", createErr?.message || createErr);
+        return res.json({
+          ok: false,
+          error: createErr?.message || "On-chain coin create failed",
+        });
+      }
+    }
 
     let coin = {
       id: uid(),
@@ -3779,22 +3933,26 @@ app.post("/coin/create", createLimiter, async (req, res) => {
       metadataUri, creatorWallet, owner: creatorWallet,
       mintAddress,
       mintSignature,
+      bondingCurvePda,
+      onchainCurve,
+      mintAuthorityRevoked,
+      freezeAuthorityRevoked,
       reserveWalletAddress,
       reserveWalletEncrypted,
       createdAt: nowMS(), status: "LIVE",
-      totalSupply, curveSupply, curveSold: 0,
-      vTokens: calcVirtualTokens(totalSupply, curveSupply),
-      vSol: VIRTUAL_SOL,
-      solReserve: 0, tokenReserve: curveSupply,
+      totalSupply, curveSupply, curveSold: Math.max(0, curveSupply - tokenReserve),
+      vTokens, vSol,
+      solReserve, tokenReserve,
       holders: {}, volumeSol: 0, lastTradeAt: 0,
       priceSol: 0, priceUsd: 0, price: 0, lastPriceUsd: 0,
       mc: 0, ath: 0, creatorRewardsSol: 0, chart: [],
     };
 
     coin = recalcCoin(coin, { appendChart: false });
-    coin = await saveCoin(coin);
 
-    if (initialSol > 0) {
+    // Legacy DB-AMM path: initial buy off-chain when not using funrun_v2
+    if (!ONCHAIN_CURVE_ENABLED && initialSol > 0) {
+      coin = await saveCoin(coin);
       const result = await runCoinLocked(coin.id, async (_tx) => {
         const latestRow = await getCoinRowById(coin.id);
         if (!latestRow) throw new Error("Coin not found after create");
@@ -3803,15 +3961,13 @@ app.post("/coin/create", createLimiter, async (req, res) => {
         const buyRes = ammBuy(latestCoin, creatorWallet, initialSol);
 
         if (!buyRes.ok) {
-          // initial buy fail -> kata hua SOL wapas (_tx ke andar — atomic)
           await increaseRun(creatorWallet, initialSol, _tx);
           return { ok: false, error: buyRes.error || "Initial buy failed" };
         }
 
         latestCoin = recalcCoin(latestCoin, { appendChart: true, sideHint: "buy" });
-        latestCoin = await saveCoin(latestCoin, _tx); // _tx ke andar — atomic
+        latestCoin = await saveCoin(latestCoin, _tx);
 
-        // Side effects: separate connections, fire-and-forget
         await Promise.allSettled([
           distributeFeeDirect(latestCoin, creatorWallet, buyRes.feeSol),
           insertTransaction({
@@ -3841,11 +3997,52 @@ app.post("/coin/create", createLimiter, async (req, res) => {
       }
 
       coin = result.coin;
+    } else {
+      // On-chain create (with optional initial buy) or create with no initial buy
+      if (ONCHAIN_CURVE_ENABLED && initialSol > 0) {
+        const { fee } = applyFee(initialSol);
+        const tokensHeld = Math.max(0, curveSupply - tokenReserve);
+        if (tokensHeld > 0) {
+          coin.holders = { [creatorWallet]: tokensHeld };
+        }
+        coin.volumeSol = initialSol;
+        coin = recalcCoin(coin, { appendChart: true, sideHint: "buy" });
+        coin = await saveCoin(coin);
+        await Promise.allSettled([
+          distributeFeeDirect(coin, creatorWallet, fee),
+          insertTransaction({
+            id: uid(),
+            type: "BUY",
+            side: "BUY",
+            coinId: coin.id,
+            wallet: creatorWallet,
+            sol: initialSol,
+            tokens: tokensHeld,
+            fee,
+            priceUsd: coin.priceUsd,
+          }),
+          upsertCandlesForTrade(
+            coin.id,
+            candlePriceUsdFromCoin(coin),
+            Math.max(0, safeNum(initialSol, 0)),
+            "buy"
+          ),
+          upsertHolding(creatorWallet, coin.id, "set", tokensHeld),
+        ]);
+      } else {
+        coin = await saveCoin(coin);
+      }
     }
 
     await writeAudit("COIN_CREATE", creatorWallet, initialSol, {
       coinId: coin?.id,
-      meta: { name: coin?.name, symbol: coin?.symbol, initialSol },
+      meta: {
+        name: coin?.name,
+        symbol: coin?.symbol,
+        initialSol,
+        onchainCurve: Boolean(coin?.onchainCurve),
+        mintAddress: coin?.mintAddress || "",
+      },
     });
 
     const creatorLabel = String(coin?.symbol || coin?.name || "coin").trim();
@@ -3859,90 +4056,89 @@ app.post("/coin/create", createLimiter, async (req, res) => {
     ).catch(() => {});
 
     console.log(`[coin/create] +${Date.now()-_t0}ms — sending response`);
-    // On-chain mint: background — response block nahi karta, lekin mint ASAP DB me save hota hai
-    const _coinId = coin.id;
-    const _coinName = coin.name;
-    const _coinSymbol = coin.symbol;
-    const _metadataUri = coin.metadataUri || metadataUri || "";
-    const _reserveWalletAddress = coin.reserveWalletAddress;
-    const _reserveWalletEncrypted = reserveWalletEncrypted;
-    setImmediate(async () => {
-      try {
-        const { createSPLToken } = await import("./solana/create-token.js");
-        const { create_coin, Wallet } = await import("./solana/program.js");
 
-        // Always mint from treasury — never fund custodial with SOL for mint fees.
-        // Funding custodial was being picked up by deposit scanner as a user deposit
-        // and wrongly inflated run_balance (~0.02 SOL per coin create).
-        const payerKeypair = treasury;
-
-        const {
-          mintAddress: onchainMint,
-          mintAuthorityRevoked = true,
-          freezeAuthorityRevoked = true,
-        } = await createSPLToken(payerKeypair, {
-          name: _coinName,
-          symbol: _coinSymbol,
-          metadataUri: _metadataUri,
-        });
-        if (!onchainMint) {
-          throw new Error("createSPLToken returned empty mint");
-        }
-
-        // CRITICAL: save mint immediately — create_coin failure must not drop mintAddress
-        const latestRow = await getCoinRowById(_coinId);
-        if (!latestRow) {
-          throw new Error(`coin ${_coinId} missing after mint`);
-        }
-        const c = mapDbCoinToApi(latestRow);
-        c.mintAddress = onchainMint;
-        c.mintAuthorityRevoked = Boolean(mintAuthorityRevoked);
-        c.freezeAuthorityRevoked = Boolean(freezeAuthorityRevoked);
-        c.reserveWalletAddress = _reserveWalletAddress;
-        c.reserveWalletEncrypted = _reserveWalletEncrypted;
-        await saveCoin(c);
-        console.log(`[onchain] mint saved for ${_coinId}: ${onchainMint}`);
-
+    // Legacy empty-SPL mint path only when on-chain curve is OFF
+    if (!ONCHAIN_CURVE_ENABLED) {
+      const _coinId = coin.id;
+      const _coinName = coin.name;
+      const _coinSymbol = coin.symbol;
+      const _metadataUri = coin.metadataUri || metadataUri || "";
+      const _reserveWalletAddress = coin.reserveWalletAddress;
+      const _reserveWalletEncrypted = reserveWalletEncrypted;
+      setImmediate(async () => {
         try {
-          broadcast("coin:update", {
-            id: _coinId,
+          const { createSPLToken } = await import("./solana/create-token.js");
+          const { create_coin, Wallet } = await import("./solana/program.js");
+
+          const payerKeypair = treasury;
+
+          const {
             mintAddress: onchainMint,
-            mintAuthorityRevoked: Boolean(mintAuthorityRevoked),
-            freezeAuthorityRevoked: Boolean(freezeAuthorityRevoked),
+            mintAuthorityRevoked: mintRev = true,
+            freezeAuthorityRevoked: freezeRev = true,
+          } = await createSPLToken(payerKeypair, {
+            name: _coinName,
+            symbol: _coinSymbol,
+            metadataUri: _metadataUri,
           });
-        } catch {}
-
-        try {
-          // PDA seed must match trade path (coin.id). Symbol can collide / exceed seed rules.
-          const onchainSig = await create_coin(new Wallet(payerKeypair), _coinId);
-          const row2 = await getCoinRowById(_coinId);
-          if (row2) {
-            const c2 = mapDbCoinToApi(row2);
-            c2.mintAddress = onchainMint;
-            c2.mintSignature = onchainSig || c2.mintSignature || "";
-            c2.mintAuthorityRevoked = Boolean(mintAuthorityRevoked);
-            c2.freezeAuthorityRevoked = Boolean(freezeAuthorityRevoked);
-            c2.reserveWalletAddress = _reserveWalletAddress;
-            c2.reserveWalletEncrypted = _reserveWalletEncrypted;
-            await saveCoin(c2);
-            console.log(`[onchain] program create_coin ok for ${_coinId}: ${onchainSig}`);
+          if (!onchainMint) {
+            throw new Error("createSPLToken returned empty mint");
           }
-        } catch (progErr) {
-          // Mint already saved — program step is best-effort for bonding-curve PDA
-          console.error("[onchain] create_coin failed (mint kept):", progErr?.message || progErr);
+
+          const latestRow = await getCoinRowById(_coinId);
+          if (!latestRow) {
+            throw new Error(`coin ${_coinId} missing after mint`);
+          }
+          const c = mapDbCoinToApi(latestRow);
+          c.mintAddress = onchainMint;
+          c.mintAuthorityRevoked = Boolean(mintRev);
+          c.freezeAuthorityRevoked = Boolean(freezeRev);
+          c.reserveWalletAddress = _reserveWalletAddress;
+          c.reserveWalletEncrypted = _reserveWalletEncrypted;
+          await saveCoin(c);
+          console.log(`[onchain] mint saved for ${_coinId}: ${onchainMint}`);
+
+          try {
+            broadcast("coin:update", {
+              id: _coinId,
+              mintAddress: onchainMint,
+              mintAuthorityRevoked: Boolean(mintRev),
+              freezeAuthorityRevoked: Boolean(freezeRev),
+            });
+          } catch {}
+
+          try {
+            const onchainSig = await create_coin(new Wallet(payerKeypair), _coinId);
+            const row2 = await getCoinRowById(_coinId);
+            if (row2) {
+              const c2 = mapDbCoinToApi(row2);
+              c2.mintAddress = onchainMint;
+              c2.mintSignature = onchainSig || c2.mintSignature || "";
+              c2.mintAuthorityRevoked = Boolean(mintRev);
+              c2.freezeAuthorityRevoked = Boolean(freezeRev);
+              c2.reserveWalletAddress = _reserveWalletAddress;
+              c2.reserveWalletEncrypted = _reserveWalletEncrypted;
+              await saveCoin(c2);
+              console.log(`[onchain] program create_coin ok for ${_coinId}: ${onchainSig}`);
+            }
+          } catch (progErr) {
+            console.error("[onchain] create_coin failed (mint kept):", progErr?.message || progErr);
+          }
+        } catch (e) {
+          console.error("[onchain] coin mint failed:", e?.message || e);
         }
-      } catch (e) {
-        console.error("[onchain] coin mint failed:", e?.message || e);
-      }
-    });
+      });
+    }
 
     return res.json({
       ok: true,
       coin,
       imageUri,
       metadataUri,
-      mintAddress,
-      mintSignature,
+      mintAddress: coin.mintAddress || mintAddress,
+      mintSignature: coin.mintSignature || mintSignature,
+      onchainCurve: Boolean(coin.onchainCurve),
+      bondingCurvePda: coin.bondingCurvePda || bondingCurvePda,
     });
 
   } catch (e) {
@@ -4128,10 +4324,10 @@ async function doTrade(req, res, side, authWallet = null) {
       coin.holders = await loadHoldersMap(coinId, _tx);
       coin.holderCount = Object.keys(coin.holders).length;
 
-      // On-chain trading only when flag is on AND the Anchor CoinState PDA exists.
-      // If PDA is missing (mint still pending / create_coin failed), fall back to DB AMM
-      // so deposit → create → buy keeps working on mainnet.
-      let useOnchain = process.env.ONCHAIN_TRADING === "1";
+      // funrun_v2: coins flagged onchain_curve trade on real SPL vault curve.
+      // Legacy ONCHAIN_TRADING (gUQYa6 CoinState) only for non-v2 experiments.
+      const useFunrunV2 = Boolean(coin.onchainCurve) && Boolean(coin.mintAddress);
+      let useOnchain = !useFunrunV2 && process.env.ONCHAIN_TRADING === "1";
       let preState = null;
       let _onchainBuy = null;
       let _onchainSell = null;
@@ -4139,7 +4335,82 @@ async function doTrade(req, res, side, authWallet = null) {
       let LAMPS = 1_000_000_000;
       let getCoinState = null;
 
-      if (useOnchain) {
+      if (useFunrunV2) {
+        // ── FUNRUN_V2 ON-CHAIN PATH ─────────────────────────────────────────
+        const mnemonic = traderProfile?.encrypted_mnemonic;
+        if (!mnemonic) return { ok: false, error: "No custodial wallet — deposit SOL first" };
+
+        const {
+          buyOnchain,
+          sellOnchain,
+          fetchBondingCurve,
+          getFunrunV2Connection,
+        } = await import("./solana/funrun-v2/index.js");
+        const custodialKeypair = await getCustodialKeypairFromMnemonic(mnemonic);
+        const connection = getFunrunV2Connection();
+        const mintAddress = String(coin.mintAddress).trim();
+
+        const preCurve = await fetchBondingCurve(connection, mintAddress);
+        if (!preCurve) {
+          return { ok: false, error: "On-chain bonding curve not found" };
+        }
+        const holderBefore = Math.max(0, safeNum(coin.holders[wallet], 0));
+
+        if (sideLower === "buy") {
+          try { await decreaseRun(wallet, sol, _tx); } catch { return { ok: false, error: "Insufficient balance" }; }
+          let bought;
+          try {
+            bought = await buyOnchain({
+              buyerKeypair: custodialKeypair,
+              treasuryKeypair: treasury,
+              mintAddress,
+              solAmount: sol,
+            });
+          } catch (e) {
+            await increaseRun(wallet, sol, _tx);
+            return { ok: false, error: e?.message || "On-chain buy failed" };
+          }
+          applyFunrunV2Curve(coin, bought.curve || (await fetchBondingCurve(connection, mintAddress)));
+          const holderAfter = Math.max(0, safeNum(bought?.tokenBal?.uiAmount, holderBefore));
+          const tokensOut = Math.max(0, holderAfter - holderBefore);
+          coin.holders[wallet] = holderAfter;
+          if (holderAfter <= 0.0000001) delete coin.holders[wallet];
+          const { fee } = applyFee(sol);
+          tradeResult = { ok: true, tokensOut, feeSol: fee, netSol: sol - fee };
+        } else if (sideLower === "sell") {
+          let sold;
+          try {
+            sold = await sellOnchain({
+              sellerKeypair: custodialKeypair,
+              treasuryKeypair: treasury,
+              mintAddress,
+              tokenAmount: tokens,
+            });
+          } catch (e) {
+            return { ok: false, error: e?.message || "On-chain sell failed" };
+          }
+          const postCurve = sold.curve || (await fetchBondingCurve(connection, mintAddress));
+          const solOutGross = Math.max(0, safeNum(preCurve.realSol, 0) - safeNum(postCurve?.realSol, 0));
+          applyFunrunV2Curve(coin, postCurve);
+          const holderAfter = Math.max(0, safeNum(sold?.tokenBal?.uiAmount, Math.max(0, holderBefore - tokens)));
+          const tokensIn = Math.max(0, holderBefore - holderAfter);
+          coin.holders[wallet] = holderAfter;
+          if (holderAfter <= 0.0000001) delete coin.holders[wallet];
+          const { fee } = applyFee(solOutGross);
+          const solOutNet = Math.max(0, solOutGross - fee);
+          tradeResult = {
+            ok: true,
+            solOutNet,
+            solOutGross,
+            feeSol: fee,
+            tokensIn,
+          };
+          await increaseRun(wallet, solOutNet, _tx);
+        } else {
+          return { ok: false, error: "invalid side" };
+        }
+
+      } else if (useOnchain) {
         const mnemonic = traderProfile?.encrypted_mnemonic;
         if (!mnemonic) return { ok: false, error: "No custodial wallet — deposit SOL first" };
 
@@ -4157,8 +4428,8 @@ async function doTrade(req, res, side, authWallet = null) {
         }
       }
 
-      if (useOnchain) {
-        // ── ON-CHAIN PATH ───────────────────────────────────────────────────
+      if (!useFunrunV2 && useOnchain) {
+        // ── LEGACY V1 ON-CHAIN PATH ─────────────────────────────────────────
         // Backend signs with the custodial keypair — same UX, same API contract.
         const mnemonic = traderProfile?.encrypted_mnemonic;
         const custodialKeypair = await getCustodialKeypairFromMnemonic(mnemonic);
@@ -4221,8 +4492,8 @@ async function doTrade(req, res, side, authWallet = null) {
           await increaseRun(wallet, solOutNet, _tx);
         }
 
-      } else {
-        // ── OFF-CHAIN PATH ──────────────────────────────────────
+      } else if (!useFunrunV2) {
+        // ── OFF-CHAIN DB AMM PATH ──────────────────────────────────────
         if (sideLower === "buy") {
           // BUY: pehle run_balance se SOL kato — _tx ke andar (atomic with advisory lock)
           try {

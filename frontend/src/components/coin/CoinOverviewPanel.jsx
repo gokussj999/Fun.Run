@@ -43,6 +43,7 @@ function SecuritySection({ coin, onCopyMint }) {
 
   const mintOff = Boolean(coin?.mintAuthorityRevoked);
   const freezeOff = Boolean(coin?.freezeAuthorityRevoked);
+  const onchainCurve = Boolean(coin?.onchainCurve);
   const links = getExplorerLinks(mint);
 
   return (
@@ -61,17 +62,26 @@ function SecuritySection({ coin, onCopyMint }) {
         </span>
       </div>
 
+      {onchainCurve ? (
+        <div className="coinSecurityRow">
+          <span className="coinSecurityLabel">Bonding curve</span>
+          <span className="coinSecurityValue coinSecurityAuth coinSecurityAuth--off">
+            On-chain
+          </span>
+        </div>
+      ) : null}
+
       <div className="coinSecurityRow">
         <span className="coinSecurityLabel">Mint Authority</span>
-        <span className={`coinSecurityValue coinSecurityAuth ${authClass(mintOff)}`}>
-          {authLabel(mintOff)}
+        <span className={`coinSecurityValue coinSecurityAuth ${authClass(onchainCurve || mintOff)}`}>
+          {onchainCurve ? "Program PDA" : authLabel(mintOff)}
         </span>
       </div>
 
       <div className="coinSecurityRow">
         <span className="coinSecurityLabel">Freeze Authority</span>
-        <span className={`coinSecurityValue coinSecurityAuth ${authClass(freezeOff)}`}>
-          {authLabel(freezeOff)}
+        <span className={`coinSecurityValue coinSecurityAuth ${authClass(onchainCurve || freezeOff)}`}>
+          {onchainCurve ? "Program PDA" : authLabel(freezeOff)}
         </span>
       </div>
 

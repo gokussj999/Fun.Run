@@ -443,6 +443,19 @@
   font-weight: 700;
 }
 
+.coinHeaderOnchain {
+  margin-left: 2px;
+  padding: 2px 7px;
+  border-radius: 6px;
+  border: 1px solid rgba(34, 197, 94, 0.28);
+  background: rgba(34, 197, 94, 0.1);
+  color: var(--good);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
 .coinHeaderSocials {
   display: flex;
   flex-wrap: wrap;
