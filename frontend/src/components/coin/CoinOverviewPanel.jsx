@@ -1,11 +1,20 @@
 import React from "react";
 import { fmtSol, fmtUsd, getCoinAgeLabel, getCoinPageLiquiditySol, getCoinPageMarketCapUsd, getCoinPageVolumeSol } from "../../lib/coin-display.js";
+import { getExplorerLinks, shortCa } from "../../lib/explorer-links.js";
 
 function shortAddr(addr, emptyLabel = "—") {
   const s = String(addr || "");
   if (!s) return emptyLabel;
   if (s.length <= 12) return s;
   return `${s.slice(0, 6)}...${s.slice(-4)}`;
+}
+
+function authLabel(revoked) {
+  return revoked ? "Disabled" : "Active";
+}
+
+function authClass(revoked) {
+  return revoked ? "coinSecurityAuth--off" : "coinSecurityAuth--on";
 }
 
 const STAT_ICONS = {
@@ -18,6 +27,72 @@ const STAT_ICONS = {
   mint: "⛓",
   creator: "👤",
 };
+
+function SecuritySection({ coin, onCopyMint }) {
+  const mint = coin?.mintAddress;
+  if (!mint) {
+    return (
+      <section className="coinSecurityPanel" aria-label="Security">
+        <div className="coinSecurityRow">
+          <span className="coinSecurityLabel">Contract Address</span>
+          <span className="coinSecurityValue">Pending…</span>
+        </div>
+      </section>
+    );
+  }
+
+  const mintOff = Boolean(coin?.mintAuthorityRevoked);
+  const freezeOff = Boolean(coin?.freezeAuthorityRevoked);
+  const links = getExplorerLinks(mint);
+
+  return (
+    <section className="coinSecurityPanel" aria-label="Security">
+      <div className="coinSecurityRow">
+        <span className="coinSecurityLabel">Contract Address</span>
+        <span className="coinSecurityValue coinSecurityValue--ca">
+          <span className="coinSecurityCa" title={mint}>
+            {shortCa(mint)}
+          </span>
+          {onCopyMint ? (
+            <button type="button" className="coinSecurityCopyBtn" onClick={onCopyMint}>
+              Copy
+            </button>
+          ) : null}
+        </span>
+      </div>
+
+      <div className="coinSecurityRow">
+        <span className="coinSecurityLabel">Mint Authority</span>
+        <span className={`coinSecurityValue coinSecurityAuth ${authClass(mintOff)}`}>
+          {authLabel(mintOff)}
+        </span>
+      </div>
+
+      <div className="coinSecurityRow">
+        <span className="coinSecurityLabel">Freeze Authority</span>
+        <span className={`coinSecurityValue coinSecurityAuth ${authClass(freezeOff)}`}>
+          {authLabel(freezeOff)}
+        </span>
+      </div>
+
+      {links.length ? (
+        <div className="coinSecurityLinks" aria-label="Explorer links">
+          {links.map((link) => (
+            <a
+              key={link.id}
+              className="coinVerifyLink"
+              href={link.href}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              {link.label}
+            </a>
+          ))}
+        </div>
+      ) : null}
+    </section>
+  );
+}
 
 export function CoinOverviewPanel({
   coin,
@@ -46,7 +121,6 @@ export function CoinOverviewPanel({
 
   const mobileRows = [
     { label: "Creator Rewards", value: `${fmtSol(coin.creatorRewardsSol || 0)} SOL` },
-    { label: "Mint Address", value: shortAddr(coin.mintAddress, "Pending…"), action: coin?.mintAddress ? onCopyMint : null, actionLabel: "Copy" },
     { label: "Creator", value: shortAddr(coin.creatorWallet), action: onOpenCreator, actionLabel: "View" },
   ];
 
@@ -96,6 +170,8 @@ export function CoinOverviewPanel({
             </div>
           ))}
         </div>
+
+        <SecuritySection coin={coin} onCopyMint={onCopyMint} />
       </div>
     );
   }
@@ -127,19 +203,6 @@ export function CoinOverviewPanel({
           </div>
         ))}
 
-        <div className="coinOverviewStatCard">
-          <div className="coinOverviewStatIcon" aria-hidden="true">
-            {STAT_ICONS.mint}
-          </div>
-          <div className="coinOverviewStatLabel">Mint Address</div>
-          <div className="coinOverviewStatValue">{shortAddr(coin.mintAddress, "Pending…")}</div>
-          {coin?.mintAddress ? (
-            <button type="button" className="coinSecurityCopy" onClick={onCopyMint}>
-              Copy
-            </button>
-          ) : null}
-        </div>
-
         <button
           type="button"
           className="coinOverviewStatCard coinOverviewStatCard--action"
@@ -152,6 +215,8 @@ export function CoinOverviewPanel({
           <div className="coinOverviewStatValue">{shortAddr(coin.creatorWallet)}</div>
         </button>
       </div>
+
+      <SecuritySection coin={coin} onCopyMint={onCopyMint} />
     </div>
   );
 }

@@ -1131,6 +1131,8 @@ function mapDbCoinToApi(row = {}) {
     ),
     creatorRewardsSol: Math.max(0, safeNum(row.creator_rewards, 0)),
     mintAddress: String(row.mint_address || ""),
+    mintAuthorityRevoked: Boolean(row.mint_authority_revoked),
+    freezeAuthorityRevoked: Boolean(row.freeze_authority_revoked),
     migrated: Boolean(row.migrated),
     reserveWalletAddress: String(row.reserve_wallet_address || ""),
   };
@@ -1177,6 +1179,8 @@ function coinToDbUpdate(coin = {}) {
     chart: normalizeChartPoints(Array.isArray(coin.chart) ? coin.chart : []).slice(-MAX_CHART_POINTS),
     reserve_wallet_address: coin.reserveWalletAddress || null,
     reserve_wallet_encrypted: coin.reserveWalletEncrypted || null,
+    mint_authority_revoked: Boolean(coin.mintAuthorityRevoked),
+    freeze_authority_revoked: Boolean(coin.freezeAuthorityRevoked),
   };
 }
 
@@ -1311,6 +1315,16 @@ await sql`
 await sql`
   alter table coins
   add column if not exists reserve_wallet_encrypted text
+`;
+
+await sql`
+  alter table coins
+  add column if not exists mint_authority_revoked boolean default false
+`;
+
+await sql`
+  alter table coins
+  add column if not exists freeze_authority_revoked boolean default false
 `;
 
   await sql`
@@ -1966,7 +1980,8 @@ async function saveCoin(coin, _tx = null) {
       total_supply, curve_supply, curve_sold, v_sol, v_tokens,
       reserve_sol, reserve_token, market_cap, last_price, ath_market_cap,
       volume_sol, last_trade_at, creator_rewards, chart, holders,
-      reserve_wallet_address, reserve_wallet_encrypted
+      reserve_wallet_address, reserve_wallet_encrypted,
+      mint_authority_revoked, freeze_authority_revoked
     )
     values (
       ${payload.id}, ${payload.name}, ${payload.symbol}, ${payload.story},
@@ -1979,7 +1994,8 @@ async function saveCoin(coin, _tx = null) {
       ${payload.market_cap}, ${payload.last_price}, ${payload.ath_market_cap},
       ${payload.volume_sol}, ${payload.last_trade_at},
       ${payload.creator_rewards}, ${payload.chart || []}, ${payload.holders || {}},
-      ${payload.reserve_wallet_address}, ${payload.reserve_wallet_encrypted}
+      ${payload.reserve_wallet_address}, ${payload.reserve_wallet_encrypted},
+      ${payload.mint_authority_revoked}, ${payload.freeze_authority_revoked}
     )
     on conflict (id) do update set
       name = excluded.name,
@@ -2007,7 +2023,9 @@ async function saveCoin(coin, _tx = null) {
       chart = excluded.chart,
       holders = excluded.holders,
       reserve_wallet_address = excluded.reserve_wallet_address,
-      reserve_wallet_encrypted = coalesce(nullif(excluded.reserve_wallet_encrypted, ''), coins.reserve_wallet_encrypted)
+      reserve_wallet_encrypted = coalesce(nullif(excluded.reserve_wallet_encrypted, ''), coins.reserve_wallet_encrypted),
+      mint_authority_revoked = excluded.mint_authority_revoked,
+      freeze_authority_revoked = excluded.freeze_authority_revoked
     returning *`;
 
   coinCache.set(payload.id, rows[0]);
@@ -3843,6 +3861,9 @@ app.post("/coin/create", createLimiter, async (req, res) => {
     console.log(`[coin/create] +${Date.now()-_t0}ms — sending response`);
     // On-chain mint: background — response block nahi karta, lekin mint ASAP DB me save hota hai
     const _coinId = coin.id;
+    const _coinName = coin.name;
+    const _coinSymbol = coin.symbol;
+    const _metadataUri = coin.metadataUri || metadataUri || "";
     const _reserveWalletAddress = coin.reserveWalletAddress;
     const _reserveWalletEncrypted = reserveWalletEncrypted;
     setImmediate(async () => {
@@ -3855,7 +3876,15 @@ app.post("/coin/create", createLimiter, async (req, res) => {
         // and wrongly inflated run_balance (~0.02 SOL per coin create).
         const payerKeypair = treasury;
 
-        const { mintAddress: onchainMint } = await createSPLToken(payerKeypair);
+        const {
+          mintAddress: onchainMint,
+          mintAuthorityRevoked = true,
+          freezeAuthorityRevoked = true,
+        } = await createSPLToken(payerKeypair, {
+          name: _coinName,
+          symbol: _coinSymbol,
+          metadataUri: _metadataUri,
+        });
         if (!onchainMint) {
           throw new Error("createSPLToken returned empty mint");
         }
@@ -3867,13 +3896,20 @@ app.post("/coin/create", createLimiter, async (req, res) => {
         }
         const c = mapDbCoinToApi(latestRow);
         c.mintAddress = onchainMint;
+        c.mintAuthorityRevoked = Boolean(mintAuthorityRevoked);
+        c.freezeAuthorityRevoked = Boolean(freezeAuthorityRevoked);
         c.reserveWalletAddress = _reserveWalletAddress;
         c.reserveWalletEncrypted = _reserveWalletEncrypted;
         await saveCoin(c);
         console.log(`[onchain] mint saved for ${_coinId}: ${onchainMint}`);
 
         try {
-          broadcast("coin:update", { id: _coinId, mintAddress: onchainMint });
+          broadcast("coin:update", {
+            id: _coinId,
+            mintAddress: onchainMint,
+            mintAuthorityRevoked: Boolean(mintAuthorityRevoked),
+            freezeAuthorityRevoked: Boolean(freezeAuthorityRevoked),
+          });
         } catch {}
 
         try {
@@ -3884,6 +3920,8 @@ app.post("/coin/create", createLimiter, async (req, res) => {
             const c2 = mapDbCoinToApi(row2);
             c2.mintAddress = onchainMint;
             c2.mintSignature = onchainSig || c2.mintSignature || "";
+            c2.mintAuthorityRevoked = Boolean(mintAuthorityRevoked);
+            c2.freezeAuthorityRevoked = Boolean(freezeAuthorityRevoked);
             c2.reserveWalletAddress = _reserveWalletAddress;
             c2.reserveWalletEncrypted = _reserveWalletEncrypted;
             await saveCoin(c2);

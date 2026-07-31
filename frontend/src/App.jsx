@@ -939,6 +939,12 @@ function normalizeCoin(c = {}) {
     story: String(c.story || ""),
     logo: String(c.logo || ""),
     mintAddress: String(c.mintAddress || c.mint_address || ""),
+    mintAuthorityRevoked: Boolean(
+      c.mintAuthorityRevoked ?? c.mint_authority_revoked ?? false
+    ),
+    freezeAuthorityRevoked: Boolean(
+      c.freezeAuthorityRevoked ?? c.freeze_authority_revoked ?? false
+    ),
     creatorWallet: String(c.creatorWallet || c.creator_wallet || c.owner || ""),
     totalSupply,
     curveSupply,

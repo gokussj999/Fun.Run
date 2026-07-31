@@ -8,6 +8,7 @@ import {
   getCoinPageMarketCapUsd,
   safeNum,
 } from "../../lib/coin-display.js";
+import { getExplorerLinks, shortCa } from "../../lib/explorer-links.js";
 import { CoinPumpStatsPanel } from "./CoinPumpStatsPanel.jsx";
 
 function SocialLink({ href, label }) {
@@ -17,6 +18,15 @@ function SocialLink({ href, label }) {
 
   return (
     <a className="coinHeaderSocial" href={url} target="_blank" rel="noopener noreferrer">
+      {label}
+    </a>
+  );
+}
+
+function VerifyLink({ href, label }) {
+  if (!href) return null;
+  return (
+    <a className="coinVerifyLink" href={href} target="_blank" rel="noopener noreferrer">
       {label}
     </a>
   );
@@ -38,8 +48,13 @@ export function CoinHeader({
   const price = safeNum(coin?.priceUsd || coin?.lastPriceUsd || coin?.price, 0);
   const marketCap = getCoinPageMarketCapUsd(coin);
   const pumpUsd = price * (move24h / 100);
-  const verified = Boolean(coin?.mintAddress);
+  const hasMint = Boolean(coin?.mintAddress);
+  const authoritiesRevoked =
+    Boolean(coin?.mintAuthorityRevoked) && Boolean(coin?.freezeAuthorityRevoked);
+  const fullyVerified = hasMint && authoritiesRevoked;
   const hasSocials = Boolean(coin?.website || coin?.twitter || coin?.telegram);
+  const caShort = hasMint ? shortCa(coin.mintAddress) : "";
+  const explorerLinks = hasMint ? getExplorerLinks(coin.mintAddress) : [];
 
   const [statsOpen, setStatsOpen] = useState(false);
   const tickerRef = useRef(null);
@@ -72,18 +87,49 @@ export function CoinHeader({
         <div className="coinHeaderIdentity">
           <div className="coinHeaderTitleRow">
             <h1 className="coinHeaderName">{coin.name}</h1>
-            {verified ? <span className="coinHeaderVerified" title="Minted on-chain">✓</span> : null}
+            {fullyVerified ? (
+              <span className="coinHeaderVerified" title="Verified — mint & freeze authority disabled">
+                ✓
+              </span>
+            ) : hasMint ? (
+              <span
+                className="coinHeaderVerified coinHeaderVerified--partial"
+                title="Minted on-chain"
+              >
+                ✓
+              </span>
+            ) : null}
           </div>
           <div className="coinHeaderSymbolRow">
             <span className="coinHeaderSymbol">{coin.symbol}</span>
             <span className="coinHeaderChain">/ SOL</span>
           </div>
 
+          {caShort ? (
+            <button
+              type="button"
+              className="coinHeaderCa"
+              onClick={onCopyMint}
+              title={coin.mintAddress}
+              aria-label="Copy contract address"
+            >
+              {caShort}
+            </button>
+          ) : null}
+
           {hasSocials ? (
             <div className="coinHeaderSocials">
               <SocialLink href={coin.website} label="Website" />
               <SocialLink href={coin.twitter} label="X" />
               <SocialLink href={coin.telegram} label="Telegram" />
+            </div>
+          ) : null}
+
+          {explorerLinks.length ? (
+            <div className="coinVerifyLinks" aria-label="Verify on explorers">
+              {explorerLinks.map((link) => (
+                <VerifyLink key={link.id} href={link.href} label={link.label} />
+              ))}
             </div>
           ) : null}
         </div>

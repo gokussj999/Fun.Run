@@ -357,6 +357,71 @@
   font-weight: 1000;
 }
 
+.coinHeaderVerified--partial {
+  background: rgba(148, 163, 184, 0.12);
+  border-color: rgba(148, 163, 184, 0.28);
+  color: var(--muted2);
+}
+
+.coinHeaderCa {
+  display: inline-flex;
+  align-items: center;
+  margin-top: 8px;
+  padding: 4px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--muted2);
+  font-size: 11px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  cursor: pointer;
+  transition:
+    color 0.14s ease,
+    border-color 0.14s ease,
+    background 0.14s ease;
+}
+
+.coinHeaderCa:hover {
+  color: var(--text);
+  border-color: rgba(252, 213, 53, 0.22);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.coinVerifyLinks,
+.coinSecurityLinks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.coinVerifyLink {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 9px;
+  border-radius: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  background: transparent;
+  color: var(--muted2);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  text-decoration: none;
+  transition:
+    color 0.14s ease,
+    border-color 0.14s ease,
+    background 0.14s ease;
+}
+
+.coinVerifyLink:hover {
+  color: var(--text);
+  border-color: rgba(252, 213, 53, 0.18);
+  background: rgba(255, 255, 255, 0.04);
+}
+
 .coinHeaderSymbolRow {
   display: flex;
   align-items: center;
@@ -993,12 +1058,16 @@ html[data-mode="light"] .coinHeaderTickerPanel {
 
 .coinSecurityPanel {
   display: grid;
-  gap: 10px;
+  gap: 0;
+  margin-top: 16px;
+  padding: 4px 0 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .coinSecurityRow {
   display: flex;
   justify-content: space-between;
+  align-items: center;
   gap: 12px;
   padding: 12px 0;
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
@@ -1008,6 +1077,7 @@ html[data-mode="light"] .coinHeaderTickerPanel {
 .coinSecurityLabel {
   color: var(--muted2);
   font-weight: 700;
+  flex-shrink: 0;
 }
 
 .coinSecurityValue {
@@ -1016,12 +1086,63 @@ html[data-mode="light"] .coinHeaderTickerPanel {
   word-break: break-all;
 }
 
+.coinSecurityValue--ca {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  word-break: normal;
+}
+
+.coinSecurityCa {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  letter-spacing: 0.02em;
+}
+
+.coinSecurityCopyBtn {
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--muted2);
+  border-radius: 8px;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition:
+    color 0.14s ease,
+    border-color 0.14s ease,
+    background 0.14s ease;
+}
+
+.coinSecurityCopyBtn:hover {
+  color: var(--text);
+  border-color: rgba(252, 213, 53, 0.22);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.coinSecurityAuth--off {
+  color: var(--good);
+}
+
+.coinSecurityAuth--on {
+  color: var(--danger, #ef4444);
+}
+
+.coinSecurityLinks {
+  margin-top: 12px;
+  padding-bottom: 4px;
+}
+
 .coinSecurityCopy {
   margin-top: 6px;
   width: fit-content;
   border: 1px solid rgba(252, 213, 53, 0.1);
   background: rgba(252, 213, 53, 0.1);
-  color: #c7d2fe;
+  color: var(--text);
   border-radius: 10px;
   padding: 10px 14px;
   font-size: 12px;
