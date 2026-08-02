@@ -73,15 +73,15 @@ function SecuritySection({ coin, onCopyMint }) {
 
       <div className="coinSecurityRow">
         <span className="coinSecurityLabel">Mint Authority</span>
-        <span className={`coinSecurityValue coinSecurityAuth ${authClass(onchainCurve || mintOff)}`}>
-          {onchainCurve ? "Program PDA" : authLabel(mintOff)}
+        <span className={`coinSecurityValue coinSecurityAuth ${authClass(mintOff)}`}>
+          {authLabel(mintOff)}
         </span>
       </div>
 
       <div className="coinSecurityRow">
         <span className="coinSecurityLabel">Freeze Authority</span>
-        <span className={`coinSecurityValue coinSecurityAuth ${authClass(onchainCurve || freezeOff)}`}>
-          {onchainCurve ? "Program PDA" : authLabel(freezeOff)}
+        <span className={`coinSecurityValue coinSecurityAuth ${authClass(freezeOff)}`}>
+          {authLabel(freezeOff)}
         </span>
       </div>
 

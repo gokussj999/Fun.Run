@@ -307,36 +307,46 @@ pub mod graduation_validation {
 
     // ── Mint authorities ──────────────────────────────────────────────────────
 
-    /// Validates that `mint_authority` is the bonding curve PDA.
+    /// Validates that `mint_authority` is either already revoked (`None`) or the
+    /// bonding curve PDA (legacy coins created before create-time revoke).
     ///
     /// # Errors
-    /// [`FunrunError::InvalidMintAuthority`]
+    /// [`FunrunError::InvalidMintAuthority`] if Some(other)
     pub fn validate_mint_authority(
         mint_authority: Option<Pubkey>,
         bonding_curve_key: &Pubkey,
     ) -> Result<()> {
-        let auth = mint_authority.ok_or(error!(FunrunError::InvalidMintAuthority))?;
-        require!(
-            &auth == bonding_curve_key,
-            FunrunError::InvalidMintAuthority,
-        );
-        Ok(())
+        match mint_authority {
+            None => Ok(()),
+            Some(auth) => {
+                require!(
+                    &auth == bonding_curve_key,
+                    FunrunError::InvalidMintAuthority,
+                );
+                Ok(())
+            }
+        }
     }
 
-    /// Validates that `freeze_authority` is the bonding curve PDA.
+    /// Validates that `freeze_authority` is either already revoked (`None`) or the
+    /// bonding curve PDA (legacy coins created before create-time revoke).
     ///
     /// # Errors
-    /// [`FunrunError::InvalidFreezeAuthority`]
+    /// [`FunrunError::InvalidFreezeAuthority`] if Some(other)
     pub fn validate_freeze_authority(
         freeze_authority: Option<Pubkey>,
         bonding_curve_key: &Pubkey,
     ) -> Result<()> {
-        let auth = freeze_authority.ok_or(error!(FunrunError::InvalidFreezeAuthority))?;
-        require!(
-            &auth == bonding_curve_key,
-            FunrunError::InvalidFreezeAuthority,
-        );
-        Ok(())
+        match freeze_authority {
+            None => Ok(()),
+            Some(auth) => {
+                require!(
+                    &auth == bonding_curve_key,
+                    FunrunError::InvalidFreezeAuthority,
+                );
+                Ok(())
+            }
+        }
     }
 
     // ── Raydium account validation ────────────────────────────────────────────
@@ -683,14 +693,14 @@ fn invoke_raydium_cpi<'info>(
 /// 23.   Burn all LP tokens via SPL Token `burn` CPI (bonding curve PDA signs).
 /// 24.   Post-burn verification: `creator_lp_token.amount == 0`.
 /// 25.   Emit `LiquidityLocked`.
-/// 26.   Pre-revocation check: `coin_mint.mint_authority == Some(bonding_curve)`.
-/// 27.   Revoke mint authority via SPL Token `set_authority` CPI (→ `None`).
+/// 26.   Mint authority: revoke if `Some(bonding_curve)`; skip if already `None`.
+/// 27.   (conditional) Revoke mint authority via SPL Token `set_authority` CPI (→ `None`).
 /// 28.   Post-revocation verification: `coin_mint.mint_authority == None`.
 /// 29.   Emit `MintAuthorityRevoked`.
-/// 30.   Pre-revocation check: `coin_mint.freeze_authority == Some(bonding_curve)`.
-/// 31.   Revoke freeze authority via SPL Token `set_authority` CPI (→ `None`).
+/// 30.   Freeze authority: revoke if `Some(bonding_curve)`; skip if already `None`.
+/// 31.   (conditional) Revoke freeze authority via SPL Token `set_authority` CPI (→ `None`).
 /// 32.   Reload `coin_mint`.
-/// 33.   Post-revocation verification: `coin_mint.freeze_authority == None`.
+/// 33.   Post-revocation verification: both authorities `None`.
 /// 34.   Set `bonding_curve.graduated = true`; emit `GraduationCompleted`.
 /// 35.   Emit `FreezeAuthorityRevoked`.
 pub fn handler(ctx: Context<CompleteGraduation>) -> Result<()> {
@@ -1008,39 +1018,39 @@ pub fn handler(ctx: Context<CompleteGraduation>) -> Result<()> {
     // ── Step 26: Pre-revocation mint authority check ─────────────────────────
     // Re-verify immediately before the revocation CPI.  Step 3 already checked
     // this; this guard catches any unexpected mutation by the preceding CPIs.
-    {
-        let pre_auth: Option<Pubkey> = ctx.accounts.coin_mint.mint_authority.into();
-        require!(pre_auth == Some(bc_key), FunrunError::InvalidMintAuthority);
-    }
+    // Coins created after create-time revoke already have mint_authority = None.
+    let mint_auth_pre: Option<Pubkey> = ctx.accounts.coin_mint.mint_authority.into();
+    match mint_auth_pre {
+        None => {
+            // Already revoked at create — nothing to do.
+        }
+        Some(auth) => {
+            require!(auth == bc_key, FunrunError::InvalidMintAuthority);
 
-    // ── Step 27: Revoke mint authority permanently ────────────────────────────
-    // The SPL Token `set_authority` CPI sets `coin_mint.mint_authority = None`.
-    // After this point, no authority can mint additional coin tokens.
-    {
-        let cpi_accounts = SetAuthority {
-            account_or_mint: ctx.accounts.coin_mint.to_account_info(),
-            current_authority: ctx.accounts.bonding_curve.to_account_info(),
-        };
-        let cpi_ctx = CpiContext::new_with_signer(
-            ctx.accounts.token_program.to_account_info(),
-            cpi_accounts,
-            bonding_curve_seeds,
-        );
-        token::set_authority(
-            cpi_ctx,
-            token::spl_token::instruction::AuthorityType::MintTokens,
-            None,
-        )?;
-    }
+            // ── Step 27: Revoke mint authority permanently ────────────────────
+            let cpi_accounts = SetAuthority {
+                account_or_mint: ctx.accounts.coin_mint.to_account_info(),
+                current_authority: ctx.accounts.bonding_curve.to_account_info(),
+            };
+            let cpi_ctx = CpiContext::new_with_signer(
+                ctx.accounts.token_program.to_account_info(),
+                cpi_accounts,
+                bonding_curve_seeds,
+            );
+            token::set_authority(
+                cpi_ctx,
+                token::spl_token::instruction::AuthorityType::MintTokens,
+                None,
+            )?;
 
-    // ── Step 28: Post-revocation mint authority verification ──────────────────
-    ctx.accounts.coin_mint.reload()?;
-    {
-        let post_auth: Option<Pubkey> = ctx.accounts.coin_mint.mint_authority.into();
-        require!(
-            post_auth.is_none(),
-            FunrunError::MintAuthorityRevocationFailed,
-        );
+            // ── Step 28: Post-revocation mint authority verification ──────────
+            ctx.accounts.coin_mint.reload()?;
+            let post_auth: Option<Pubkey> = ctx.accounts.coin_mint.mint_authority.into();
+            require!(
+                post_auth.is_none(),
+                FunrunError::MintAuthorityRevocationFailed,
+            );
+        }
     }
 
     // ── Step 29: Emit MintAuthorityRevoked event ──────────────────────────────
@@ -1050,48 +1060,52 @@ pub fn handler(ctx: Context<CompleteGraduation>) -> Result<()> {
     });
 
     // ── Step 30: Pre-revocation freeze authority check ───────────────────────
-    // Re-verify immediately before the freeze authority revocation CPI.
-    // The mint was last reloaded after the mint-authority revocation (step 28),
-    // so this read reflects the current on-chain state.
-    {
-        let pre_freeze: Option<Pubkey> = ctx.accounts.coin_mint.freeze_authority.into();
-        require!(
-            pre_freeze == Some(bc_key),
-            FunrunError::InvalidFreezeAuthority
-        );
+    let freeze_auth_pre: Option<Pubkey> = ctx.accounts.coin_mint.freeze_authority.into();
+    match freeze_auth_pre {
+        None => {
+            // Already revoked at create — nothing to do.
+        }
+        Some(auth) => {
+            require!(auth == bc_key, FunrunError::InvalidFreezeAuthority);
+
+            // ── Step 31: Revoke freeze authority permanently ──────────────────
+            let cpi_accounts = SetAuthority {
+                account_or_mint: ctx.accounts.coin_mint.to_account_info(),
+                current_authority: ctx.accounts.bonding_curve.to_account_info(),
+            };
+            let cpi_ctx = CpiContext::new_with_signer(
+                ctx.accounts.token_program.to_account_info(),
+                cpi_accounts,
+                bonding_curve_seeds,
+            );
+            token::set_authority(
+                cpi_ctx,
+                token::spl_token::instruction::AuthorityType::FreezeAccount,
+                None,
+            )?;
+
+            // ── Step 32: Reload coin_mint ─────────────────────────────────────
+            ctx.accounts.coin_mint.reload()?;
+
+            // ── Step 33: Post-revocation freeze authority verification ────────
+            let post_freeze: Option<Pubkey> = ctx.accounts.coin_mint.freeze_authority.into();
+            require!(
+                post_freeze.is_none(),
+                FunrunError::FreezeAuthorityRevocationFailed,
+            );
+        }
     }
 
-    // ── Step 31: Revoke freeze authority permanently ──────────────────────────
-    // After this CPI, `coin_mint.freeze_authority` is set to `None` by the SPL
-    // Token program.  No authority can ever freeze token accounts for this mint.
-    {
-        let cpi_accounts = SetAuthority {
-            account_or_mint: ctx.accounts.coin_mint.to_account_info(),
-            current_authority: ctx.accounts.bonding_curve.to_account_info(),
-        };
-        let cpi_ctx = CpiContext::new_with_signer(
-            ctx.accounts.token_program.to_account_info(),
-            cpi_accounts,
-            bonding_curve_seeds,
-        );
-        token::set_authority(
-            cpi_ctx,
-            token::spl_token::instruction::AuthorityType::FreezeAccount,
-            None,
-        )?;
-    }
-
-    // ── Step 32: Reload coin_mint ─────────────────────────────────────────────
+    // Ensure explorers see both Disabled even if one path skipped reload.
     ctx.accounts.coin_mint.reload()?;
-
-    // ── Step 33: Post-revocation freeze authority verification ────────────────
-    {
-        let post_freeze: Option<Pubkey> = ctx.accounts.coin_mint.freeze_authority.into();
-        require!(
-            post_freeze.is_none(),
-            FunrunError::FreezeAuthorityRevocationFailed,
-        );
-    }
+    require!(
+        Option::<Pubkey>::from(ctx.accounts.coin_mint.mint_authority).is_none(),
+        FunrunError::MintAuthorityRevocationFailed,
+    );
+    require!(
+        Option::<Pubkey>::from(ctx.accounts.coin_mint.freeze_authority).is_none(),
+        FunrunError::FreezeAuthorityRevocationFailed,
+    );
 
     // ── Step 34: Finalize graduation state ────────────────────────────────────
     ctx.accounts.bonding_curve.graduated = true;
@@ -1287,10 +1301,10 @@ mod tests {
     }
 
     #[test]
-    fn none_mint_authority_is_rejected() {
+    fn none_mint_authority_is_accepted() {
+        // Create-time revoke leaves mint_authority = None; graduation must accept it.
         let curve_key = Pubkey::new_unique();
-        let err = validate_mint_authority(None, &curve_key).unwrap_err();
-        assert_eq!(err, anchor_lang::error!(FunrunError::InvalidMintAuthority));
+        assert!(validate_mint_authority(None, &curve_key).is_ok());
     }
 
     // ── validate_freeze_authority ────────────────────────────────────────────
@@ -1313,13 +1327,9 @@ mod tests {
     }
 
     #[test]
-    fn none_freeze_authority_is_rejected() {
+    fn none_freeze_authority_is_accepted() {
         let curve_key = Pubkey::new_unique();
-        let err = validate_freeze_authority(None, &curve_key).unwrap_err();
-        assert_eq!(
-            err,
-            anchor_lang::error!(FunrunError::InvalidFreezeAuthority)
-        );
+        assert!(validate_freeze_authority(None, &curve_key).is_ok());
     }
 
     // ── validate_amm_config_ownership ────────────────────────────────────────
@@ -2924,15 +2934,10 @@ mod tests {
     }
 
     #[test]
-    fn p66_pre_revocation_check_fails_for_none_freeze_authority() {
-        // Step 30: None means the freeze authority was already revoked — must fail.
+    fn p66_pre_revocation_none_freeze_authority_is_idempotent() {
+        // Already revoked at create: graduation skips freeze revoke CPI.
         let bc_key = Pubkey::new_unique();
-        let freeze_auth: Option<Pubkey> = None;
-        assert_ne!(
-            freeze_auth,
-            Some(bc_key),
-            "None must not equal Some(bc_key)"
-        );
+        assert!(validate_freeze_authority(None, &bc_key).is_ok());
     }
 
     #[test]

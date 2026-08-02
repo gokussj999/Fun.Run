@@ -1,6 +1,8 @@
 use anchor_lang::prelude::*;
 use anchor_spl::associated_token::AssociatedToken;
-use anchor_spl::token::{mint_to, Mint, MintTo, Token, TokenAccount};
+use anchor_spl::token::{
+    mint_to, set_authority, Mint, MintTo, SetAuthority, Token, TokenAccount,
+};
 
 use crate::consts::*;
 use crate::errors::FunrunError;
@@ -68,8 +70,11 @@ pub struct CreateCoin<'info> {
     /// pass it here as an uninitialised writable account.  Anchor initialises it
     /// with:
     ///   - `decimals` = `TOKEN_DECIMALS` (6)
-    ///   - `mint_authority` = `bonding_curve` PDA
-    ///   - `freeze_authority` = `bonding_curve` PDA
+    ///   - `mint_authority` = `bonding_curve` PDA (temporary)
+    ///   - `freeze_authority` = `bonding_curve` PDA (temporary)
+    ///
+    /// After vault mint, both authorities are revoked to `None` (pump.fun-style
+    /// Disabled on explorers). Trading only transfers from the vault.
     ///
     /// Anchor's `init` constraint prevents re-use of an existing mint address,
     /// which makes duplicate coin creation impossible at the on-chain level.
@@ -237,6 +242,7 @@ pub(crate) fn handler(
     // The bonding_curve PDA is the mint authority; sign with its seeds.
     let bump_bytes = [bonding_curve_bump];
     let curve_seeds: &[&[u8]] = &[BONDING_CURVE_SEED, mint_key.as_ref(), &bump_bytes];
+    let signer_seeds = &[curve_seeds];
     mint_to(
         CpiContext::new_with_signer(
             ctx.accounts.token_program.to_account_info(),
@@ -245,10 +251,55 @@ pub(crate) fn handler(
                 to: ctx.accounts.bonding_curve_vault.to_account_info(),
                 authority: ctx.accounts.bonding_curve.to_account_info(),
             },
-            &[curve_seeds],
+            signer_seeds,
         ),
         BONDING_SUPPLY_TOKENS,
     )?;
+
+    // ── 6b. Revoke mint + freeze authorities (pump.fun parity) ────────────────
+    // Vault already holds full bonding supply; buys/sells only transfer.
+    // Explorers show Mint/Freeze Authority as Disabled once set to None.
+    {
+        let cpi_accounts = SetAuthority {
+            account_or_mint: ctx.accounts.mint.to_account_info(),
+            current_authority: ctx.accounts.bonding_curve.to_account_info(),
+        };
+        let cpi_ctx = CpiContext::new_with_signer(
+            ctx.accounts.token_program.to_account_info(),
+            cpi_accounts,
+            signer_seeds,
+        );
+        set_authority(
+            cpi_ctx,
+            anchor_spl::token::spl_token::instruction::AuthorityType::MintTokens,
+            None,
+        )?;
+    }
+    {
+        let cpi_accounts = SetAuthority {
+            account_or_mint: ctx.accounts.mint.to_account_info(),
+            current_authority: ctx.accounts.bonding_curve.to_account_info(),
+        };
+        let cpi_ctx = CpiContext::new_with_signer(
+            ctx.accounts.token_program.to_account_info(),
+            cpi_accounts,
+            signer_seeds,
+        );
+        set_authority(
+            cpi_ctx,
+            anchor_spl::token::spl_token::instruction::AuthorityType::FreezeAccount,
+            None,
+        )?;
+    }
+    ctx.accounts.mint.reload()?;
+    require!(
+        Option::<Pubkey>::from(ctx.accounts.mint.mint_authority).is_none(),
+        FunrunError::MintAuthorityRevocationFailed,
+    );
+    require!(
+        Option::<Pubkey>::from(ctx.accounts.mint.freeze_authority).is_none(),
+        FunrunError::FreezeAuthorityRevocationFailed,
+    );
 
     // ── 7. Update protocol-wide accounting ────────────────────────────────────
     ctx.accounts.treasury.total_sol_collected = ctx

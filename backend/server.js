@@ -3882,9 +3882,9 @@ app.post("/coin/create", createLimiter, async (req, res) => {
         mintSignature = created.signature || "";
         bondingCurvePda = created.bondingCurvePda || "";
         onchainCurve = true;
-        // Curve PDA is mint/freeze auth — program-owned (not wallet-revoked null)
-        mintAuthorityRevoked = false;
-        freezeAuthorityRevoked = false;
+        // create_coin revokes mint+freeze → None (pump.fun Disabled)
+        mintAuthorityRevoked = Boolean(created.mintAuthorityRevoked ?? true);
+        freezeAuthorityRevoked = Boolean(created.freezeAuthorityRevoked ?? true);
 
         if (created.curve) {
           totalSupply = FUNRUN_V2_TOTAL_SUPPLY;

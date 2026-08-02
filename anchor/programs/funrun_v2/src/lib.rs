@@ -180,14 +180,14 @@ pub mod funrun_v2 {
     /// 23.   Burn all LP tokens via SPL Token `burn` CPI — protocol holds zero recoverable LP.
     /// 24.   Post-burn verification: `creator_lp_token.amount == 0`.
     /// 25.   Emit `LiquidityLocked`.
-    /// 26.   Pre-revocation check: `coin_mint.mint_authority == Some(bonding_curve)`.
-    /// 27.   Revoke coin mint authority via SPL Token `set_authority` CPI (→ `None`).
-    /// 28.   Reload `coin_mint`; verify `mint_authority == None`.
+    /// 26.   Mint authority: if `Some(bonding_curve)` revoke → `None`; if already `None`, skip.
+    /// 27.   (conditional) Revoke coin mint authority via SPL Token `set_authority` CPI.
+    /// 28.   Verify `mint_authority == None`.
     /// 29.   Emit `MintAuthorityRevoked`.
-    /// 30.   Pre-revocation check: `coin_mint.freeze_authority == Some(bonding_curve)`.
-    /// 31.   Revoke freeze authority via SPL Token `set_authority` CPI (→ `None`).
+    /// 30.   Freeze authority: if `Some(bonding_curve)` revoke → `None`; if already `None`, skip.
+    /// 31.   (conditional) Revoke freeze authority via SPL Token `set_authority` CPI.
     /// 32.   Reload `coin_mint`; verify `freeze_authority == None`.
-    /// 33.   Post-revocation verification: `coin_mint.freeze_authority == None`.
+    /// 33.   Post-revocation verification: both authorities `None`.
     /// 34.   Set `bonding_curve.graduated = true`; emit `GraduationCompleted`.
     /// 35.   Emit `FreezeAuthorityRevoked`.
     ///
@@ -198,7 +198,8 @@ pub mod funrun_v2 {
     /// - `bonding_curve.complete == true` (set by `initiate_graduation`).
     /// - `bonding_curve.graduated == false` (idempotency guard).
     /// - All Raydium account PDAs correctly derived.
-    /// - Coin mint authority and freeze authority held by the bonding-curve PDA.
+    /// - Coin mint/freeze authority is either already `None` (create-time revoke)
+    ///   or still held by the bonding-curve PDA (legacy coins).
     pub fn complete_graduation(ctx: Context<CompleteGraduation>) -> Result<()> {
         instructions::complete_graduation::handler(ctx)
     }

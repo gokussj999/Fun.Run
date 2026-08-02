@@ -238,9 +238,9 @@ export async function createCoinOnchain({
     bondingCurveVault: bondingCurveVault.toBase58(),
     signature,
     curve,
-    // Curve PDA is mint/freeze authority — program-owned, not wallet-controlled
-    mintAuthorityRevoked: false,
-    freezeAuthorityRevoked: false,
+    // Authorities revoked to None at create (pump.fun-style Disabled on Solscan)
+    mintAuthorityRevoked: true,
+    freezeAuthorityRevoked: true,
     onchainCurve: true,
   };
 }
