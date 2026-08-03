@@ -30,6 +30,9 @@ export function jupiter(mint) {
   return `https://jup.ag/swap/SOL-${encodeURIComponent(m)}`;
 }
 
+/** Frozen until on-chain curve is live on mainnet — Solscan stays active. */
+const FROZEN_EXPLORERS = new Set(["dexscreener", "birdeye", "jupiter"]);
+
 /** Explorer / aggregator links for a mint (empty strings omitted). */
 export function getExplorerLinks(mint) {
   const m = String(mint || "").trim();
@@ -39,5 +42,15 @@ export function getExplorerLinks(mint) {
     { id: "dexscreener", label: "DexScreener", href: dexscreener(m) },
     { id: "birdeye", label: "Birdeye", href: birdeye(m) },
     { id: "jupiter", label: "Jupiter", href: jupiter(m) },
-  ].filter((x) => x.href);
+  ]
+    .filter((x) => x.href)
+    .map((x) => {
+      const frozen = FROZEN_EXPLORERS.has(x.id);
+      return {
+        ...x,
+        href: frozen ? "" : x.href,
+        enabled: !frozen,
+        comingSoon: frozen,
+      };
+    });
 }

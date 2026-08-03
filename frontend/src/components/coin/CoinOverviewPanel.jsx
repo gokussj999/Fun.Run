@@ -87,17 +87,29 @@ function SecuritySection({ coin, onCopyMint }) {
 
       {links.length ? (
         <div className="coinSecurityLinks" aria-label="Explorer links">
-          {links.map((link) => (
-            <a
-              key={link.id}
-              className="coinVerifyLink"
-              href={link.href}
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              {link.label}
-            </a>
-          ))}
+          {links.map((link) =>
+            link.comingSoon || !link.href ? (
+              <span
+                key={link.id}
+                className="coinVerifyLink coinVerifyLink--soon"
+                aria-disabled="true"
+                title="Coming soon"
+              >
+                <span className="coinVerifyLinkLabel">{link.label}</span>
+                <span className="coinVerifyLinkSoonText">Coming soon</span>
+              </span>
+            ) : (
+              <a
+                key={link.id}
+                className="coinVerifyLink"
+                href={link.href}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                {link.label}
+              </a>
+            )
+          )}
         </div>
       ) : null}
     </section>

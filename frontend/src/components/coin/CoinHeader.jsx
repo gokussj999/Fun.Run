@@ -23,8 +23,15 @@ function SocialLink({ href, label }) {
   );
 }
 
-function VerifyLink({ href, label }) {
-  if (!href) return null;
+function VerifyLink({ href, label, comingSoon = false }) {
+  if (comingSoon || !href) {
+    return (
+      <span className="coinVerifyLink coinVerifyLink--soon" aria-disabled="true" title="Coming soon">
+        <span className="coinVerifyLinkLabel">{label}</span>
+        <span className="coinVerifyLinkSoonText">Coming soon</span>
+      </span>
+    );
+  }
   return (
     <a className="coinVerifyLink" href={href} target="_blank" rel="noopener noreferrer">
       {label}
@@ -141,7 +148,12 @@ export function CoinHeader({
           {explorerLinks.length ? (
             <div className="coinVerifyLinks" aria-label="Verify on explorers">
               {explorerLinks.map((link) => (
-                <VerifyLink key={link.id} href={link.href} label={link.label} />
+                <VerifyLink
+                  key={link.id}
+                  href={link.href}
+                  label={link.label}
+                  comingSoon={Boolean(link.comingSoon)}
+                />
               ))}
             </div>
           ) : null}
