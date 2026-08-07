@@ -397,16 +397,59 @@ app.use("/api/onchain", async (req, res, next) => {
 }, onchainRoutes);
 
 // -------------------- CLIENTS --------------------
+const PG_MAX_CONNECTIONS = Math.max(
+  1,
+  Math.min(40, Number(process.env.PG_MAX_CONNECTIONS || 10))
+);
+const PG_CONNECT_TIMEOUT = Math.max(
+  15,
+  Math.min(120, Number(process.env.PG_CONNECT_TIMEOUT || 60))
+);
+
 const sql = DATABASE_URL
   ? postgres(DATABASE_URL, {
       ssl: "require",
-      // Higher default pool for concurrent trades; still clamp to avoid Neon saturation.
-      max: Math.max(5, Math.min(80, Number(process.env.PG_MAX_CONNECTIONS || 24))),
+      // Neon free/compute cold-starts need longer connect; keep pool modest.
+      max: PG_MAX_CONNECTIONS,
       idle_timeout: 20,
-      connect_timeout: 15,
+      max_lifetime: 60 * 10,
+      connect_timeout: PG_CONNECT_TIMEOUT,
       prepare: false,
     })
   : null;
+
+function isDbTransientError(e) {
+  const code = String(e?.code || "");
+  const msg = String(e?.message || e || "");
+  return (
+    code === "CONNECT_TIMEOUT" ||
+    code === "CONNECTION_CLOSED" ||
+    code === "ECONNRESET" ||
+    code === "ETIMEDOUT" ||
+    /CONNECT_TIMEOUT|CONNECTION_CLOSED|ECONNRESET|ETIMEDOUT|connection.*closed|timeout|terminating connection/i.test(
+      msg
+    )
+  );
+}
+
+/** Retry Neon cold-start / brief pooler blips before failing the request. */
+async function withDbRetry(fn, { tries = 4, label = "db" } = {}) {
+  let last;
+  for (let i = 0; i < tries; i++) {
+    try {
+      return await fn();
+    } catch (e) {
+      last = e;
+      if (!isDbTransientError(e) || i === tries - 1) throw e;
+      console.warn(
+        `[db-retry:${label}] attempt ${i + 1}/${tries}:`,
+        e?.message || e
+      );
+      await new Promise((r) => setTimeout(r, 1500 * (i + 1)));
+    }
+  }
+  throw last;
+}
 
 const connection = new Connection(
   SOLANA_RPC,
@@ -1278,6 +1321,12 @@ async function uploadMetadataToIPFS(metadata) {
 
 async function requireDb() {
   if (!sql) throw new Error("DATABASE_URL not configured");
+}
+
+/** Ensure DB is reachable (wakes Neon scale-to-zero with retries). */
+async function ensureDb() {
+  await requireDb();
+  await withDbRetry(() => sql`select 1`, { tries: 4, label: "ensureDb" });
 }
 
 async function ensureSchema() {
@@ -2724,7 +2773,11 @@ app.get("/health", async (req, res) => {
   try {
     let coins = 0;
     if (sql) {
-      const rows = await sql`select count(*)::int as count from coins`;
+      await ensureDb();
+      const rows = await withDbRetry(
+        () => sql`select count(*)::int as count from coins`,
+        { label: "health" }
+      );
       coins = safeNum(rows?.[0]?.count, 0);
     }
 
@@ -3383,29 +3436,35 @@ app.post("/withdraw/referral", async (req, res) => {
 
 app.get("/coin/list*", async (req, res) => {
   try {
-    await requireDb();
+    await ensureDb();
 
     const page = Math.max(0, Number(req.query.page || 0));
     const limit = Math.max(1, Math.min(100, Number(req.query.limit || 50)));
     const offset = page * limit;
 
-    const rows = await sql`
+    const rows = await withDbRetry(
+      () => sql`
       select * from coins
       order by created_at desc
       limit ${limit} offset ${offset}
-    `;
+    `,
+      { label: "coin/list" }
+    );
 
     const coins = Array.isArray(rows) ? rows.map(mapDbCoinToApi).filter(Boolean) : [];
 
     // Accurate holder counts from holdings table (coins.holders jsonb can lag / wipe)
     if (coins.length) {
       const ids = coins.map((c) => c.id);
-      const counts = await sql`
+      const counts = await withDbRetry(
+        () => sql`
         select coin_id, count(*)::int as c
         from holdings
         where coin_id = any(${ids}) and tokens > 0.0000001
         group by coin_id
-      `;
+      `,
+        { label: "coin/list-holders" }
+      );
       const byId = new Map(counts.map((r) => [String(r.coin_id), safeNum(r.c, 0)]));
       for (const c of coins) {
         c.holderCount = byId.get(String(c.id)) ?? 0;
@@ -5134,6 +5193,14 @@ const server = app.listen(PORT, () => {
       await detectLegacyCBC();
     })
     .catch(err => console.error("Schema error:", err));
+  // Keep Neon compute warm (scale-to-zero cold starts were breaking /coin/list).
+  if (sql) {
+    setInterval(() => {
+      sql`select 1`.catch((e) =>
+        console.warn("[db-keepalive]", e?.message || e)
+      );
+    }, 120_000).unref?.();
+  }
   reconcilePendingWithdrawals().catch(err =>
     console.error("Reconcile error:", err)
   );
@@ -5192,7 +5259,8 @@ app.get("/health/scale", (_req, res) => {
       concurrency: TRADE_QUEUE_CONCURRENCY,
     },
     redisCache: redisCache.enabled,
-    pgMax: Math.max(5, Math.min(80, Number(process.env.PG_MAX_CONNECTIONS || 24))),
+    pgMax: PG_MAX_CONNECTIONS,
+    pgConnectTimeout: PG_CONNECT_TIMEOUT,
     wsTickMs: WS_TICK_MS,
   });
 });
