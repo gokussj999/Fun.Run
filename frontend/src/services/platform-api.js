@@ -60,7 +60,7 @@ export async function fetchSolPrice() {
   return platformFetch(`${API_PREFIX}/market/sol-price`);
 }
 
-export async function fetchCoinList(page = 0, limit = 50) {
+export async function fetchCoinList(page = 0, limit = 24) {
   return platformFetch(`${API_PREFIX}/market/coins`, {
     query: { page: String(page), limit: String(limit) },
   });

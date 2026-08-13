@@ -197,7 +197,8 @@ const FUNRUN_V2_CURVE_SUPPLY = 800_000_000;
 const MAX_CHART_POINTS = 140;
 const PROFILE_TX_LIMIT = 120;
 const PROFILE_HOLDING_TX_SCAN = 500;
-const DEX_LAUNCH_MC_USD = 5_000_000;
+/** Pump.fun-style graduation window (~$69k); we unlock DEX UI at $65k MC. */
+const DEX_LAUNCH_MC_USD = 65_000;
 
 // Treasury minimum reserve — is se neeche withdraw NAHI hoga
 const TREASURY_MIN_RESERVE_SOL = clampNum(
@@ -1193,6 +1194,48 @@ function mapDbCoinToApi(row = {}) {
     bondingCurvePda: String(row.bonding_curve_pda || ""),
     migrated: Boolean(row.migrated),
     reserveWalletAddress: String(row.reserve_wallet_address || ""),
+  };
+}
+
+/** Home/list payload — drop heavy fields so mobile first paint stays light. */
+function mapDbCoinToListApi(row = {}) {
+  const full = mapDbCoinToApi(row);
+  if (!full) return null;
+  const chart = Array.isArray(full.chart) ? full.chart.slice(-8) : [];
+  return {
+    id: full.id,
+    name: full.name,
+    symbol: full.symbol,
+    logo: full.logo,
+    creatorWallet: full.creatorWallet,
+    owner: full.owner,
+    createdAt: full.createdAt,
+    status: full.status,
+    totalSupply: full.totalSupply,
+    curveSupply: full.curveSupply,
+    curveSold: full.curveSold,
+    vTokens: full.vTokens,
+    vSol: full.vSol,
+    solReserve: full.solReserve,
+    tokenReserve: full.tokenReserve,
+    volumeSol: full.volumeSol,
+    lastTradeAt: full.lastTradeAt,
+    priceSol: full.priceSol,
+    priceUsd: full.priceUsd,
+    price: full.price,
+    lastPriceUsd: full.lastPriceUsd,
+    mc: full.mc,
+    ath: full.ath,
+    chart,
+    change24hPct: full.change24hPct,
+    holderCount: full.holderCount,
+    creatorRewardsSol: full.creatorRewardsSol,
+    mintAddress: full.mintAddress,
+    mintAuthorityRevoked: full.mintAuthorityRevoked,
+    freezeAuthorityRevoked: full.freezeAuthorityRevoked,
+    onchainCurve: full.onchainCurve,
+    bondingCurvePda: full.bondingCurvePda,
+    migrated: full.migrated,
   };
 }
 
@@ -3439,7 +3482,7 @@ app.get("/coin/list*", async (req, res) => {
     await ensureDb();
 
     const page = Math.max(0, Number(req.query.page || 0));
-    const limit = Math.max(1, Math.min(100, Number(req.query.limit || 50)));
+    const limit = Math.max(1, Math.min(50, Number(req.query.limit || 24)));
     const offset = page * limit;
 
     const rows = await withDbRetry(
@@ -3451,7 +3494,8 @@ app.get("/coin/list*", async (req, res) => {
       { label: "coin/list" }
     );
 
-    const coins = Array.isArray(rows) ? rows.map(mapDbCoinToApi).filter(Boolean) : [];
+    // Lite mapper: no story/holders/metadata — keeps mobile feed payloads small.
+    const coins = Array.isArray(rows) ? rows.map(mapDbCoinToListApi).filter(Boolean) : [];
 
     // Accurate holder counts from holdings table (coins.holders jsonb can lag / wipe)
     if (coins.length) {
@@ -3469,7 +3513,7 @@ app.get("/coin/list*", async (req, res) => {
       for (const c of coins) {
         c.holderCount = byId.get(String(c.id)) ?? 0;
       }
-      await enrichChange24h(coins);
+      // change24hPct already set in mapDbCoinToApi from chart — skip extra candles query on list.
     }
 
     return res.json({
@@ -3507,7 +3551,7 @@ app.get("/coin/:id/dex-preview", async (req, res) => {
       currentMc: mc,
       requiredMc: DEX_LAUNCH_MC_USD,
       options: DEX_OPTIONS,
-      status: mc >= DEX_LAUNCH_MC_USD ? "READY_PHASE_2" : "LOCKED_UNTIL_5M_MC",
+      status: mc >= DEX_LAUNCH_MC_USD ? "READY_PHASE_2" : "LOCKED_UNTIL_65K_MC",
       message: "DEX launch is a safe placeholder. Real pool creation will be enabled after Phase 2 audit.",
     });
   } catch (e) {
@@ -3516,7 +3560,7 @@ app.get("/coin/:id/dex-preview", async (req, res) => {
 });
 
 // -------------------- METEORA MIGRATION (SCAFFOLD) --------------------
-// $5M MC par creator KHUD migrate kar sake. Ye SIRF scaffold hai.
+// $65k MC par creator KHUD migrate kar sake. Ye SIRF scaffold hai.
 // Asli Meteora DAMM pool creation + SPL mint + LP lock yahan implement karna hai
 // (Meteora SDK ke saath, pehle DEVNET par test). Abhi ye sirf eligibility check karta hai.
 app.post("/coin/:id/migrate", async (req, res) => {

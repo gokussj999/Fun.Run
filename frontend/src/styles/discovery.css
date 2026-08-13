@@ -84,6 +84,8 @@
   background: transparent;
   text-align: left;
   color: inherit;
+  content-visibility: auto;
+  contain-intrinsic-size: auto 72px;
   transition:
     border-color 0.15s ease,
     background 0.15s ease,

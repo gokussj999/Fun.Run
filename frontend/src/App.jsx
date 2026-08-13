@@ -1,5 +1,5 @@
-import IntroSplash from "./IntroSplash";
-import React, { memo, useEffect, useMemo, useRef, useState } from "react";
+import React, { lazy, memo, Suspense, useEffect, useMemo, useRef, useState } from "react";
+const IntroSplash = lazy(() => import("./IntroSplash"));
 import { env } from "./lib/env.js";
 import { tokens } from "./lib/design-tokens.js";
 import {
@@ -69,7 +69,7 @@ const LS_THEME = "theme";
 const LS_PROFILE_AVATAR = "profile_avatar_v1";
 
 const APP_OWNER_WALLET = "CZ9bps8dTtK69bRaQc8A4hUR8ZmUbfbYbTWfvaHpqSyn";
-const DEX_LAUNCH_MC_USD = 5_000_000;
+const DEX_LAUNCH_MC_USD = 65_000;
 const DEX_OPTIONS = [
   { id: "raydium", name: "Raydium", sub: "Most popular Solana liquidity pool option." },
   { id: "orca", name: "Orca", sub: "Clean Solana DEX with concentrated liquidity." },
@@ -1751,11 +1751,11 @@ const [connectingPhantom, setConnectingPhantom] = useState(false);
       if (!json) {
         try {
           json = USE_PLATFORM
-            ? await platformApi.fetchCoinList(page, 50)
-            : await api(`/coin/list?page=${page}&limit=50`);
+            ? await platformApi.fetchCoinList(page, 24)
+            : await api(`/coin/list?page=${page}&limit=24`);
         } catch {
           const base = String(API_BASE || "").replace(/\/$/, "");
-          const res = await fetch(`${base}/coin/list?page=${page}&limit=50`, { cache: "no-store" });
+          const res = await fetch(`${base}/coin/list?page=${page}&limit=24`, { cache: "no-store" });
           json = await res.json().catch(() => ({}));
           if (!res.ok) {
             throw new Error(json?.error || `Request failed (${res.status})`);
@@ -1834,7 +1834,7 @@ const [connectingPhantom, setConnectingPhantom] = useState(false);
       });
 
       setCoinsPage(page);
-      setCoinsHasMore(Boolean(json?.hasMore ?? (incoming.length >= 50)));
+      setCoinsHasMore(Boolean(json?.hasMore ?? (incoming.length >= 24)));
 
       if (page === 0) {
         try {
@@ -3430,7 +3430,7 @@ const walletHistory = [
                   </div>
                   <div className="dexStatusPill">
                     <Pill className={dexLaunchReady ? "dexStatusPill--ready" : "dexStatusPill--locked"}>
-                      {dexLaunchReady ? "Ready for Phase 2 launch" : "Locked until $5M MC"}
+                      {dexLaunchReady ? "Ready for Phase 2 launch" : "Locked until $65K MC"}
                     </Pill>
                   </div>
                 </div>
@@ -3444,7 +3444,7 @@ const walletHistory = [
                       showToast(
                         dexLaunchReady
                           ? `${dex.name} launch coming in a later phase`
-                          : "DEX launch unlocks at $5M MC — trade and share on Fun.Run for now"
+                          : "DEX launch unlocks at $65K MC — trade and share on Fun.Run for now"
                       )
                     }
                   >
@@ -3469,11 +3469,13 @@ const walletHistory = [
       <Toast message={toast.text} type={toast.type} duration={toast.duration} onClose={clearToast} />
 
       {showIntro ? (
-        <IntroSplash
-          durationMs={5000}
-          logoUrl={APP_LOGO_URL}
-          onDone={() => setShowIntro(false)}
-        />
+        <Suspense fallback={null}>
+          <IntroSplash
+            durationMs={5000}
+            logoUrl={APP_LOGO_URL}
+            onDone={() => setShowIntro(false)}
+          />
+        </Suspense>
       ) : null}
 
       <TopBar logoUrl={APP_LOGO_URL} onHome={() => goScreen("HOME")} />

@@ -23,6 +23,8 @@ export function CoinLogo({ c, size = 44, radius = 14 }) {
         <img
           src={src}
           alt={c?.symbol || "coin"}
+          loading="lazy"
+          decoding="async"
           style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
           onError={(e) => {
             e.currentTarget.style.display = "none";
