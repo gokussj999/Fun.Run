@@ -71,6 +71,22 @@ textarea:focus {
     inset 0 1px 0 rgba(255, 255, 255, 0.08) !important;
 }
 
+@media (max-width: 1023px), (hover: none) and (pointer: coarse) {
+  html,
+  body {
+    background-attachment: scroll !important;
+  }
+
+  .card,
+  .topbarInner,
+  .footerNav,
+  .landingNav,
+  .landingHeroCard {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

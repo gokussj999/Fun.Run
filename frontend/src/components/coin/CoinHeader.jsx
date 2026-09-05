@@ -90,7 +90,7 @@ export function CoinHeader({
   return (
     <div className={`coinHeader ${isMobile ? "coinHeader--mobile" : "coinHeader--desktop"}`}>
       <div className="coinHeaderMain">
-        <CoinLogo c={coin} size={isMobile ? 48 : 64} radius={isMobile ? 14 : 18} />
+        <CoinLogo c={coin} size={isMobile ? 48 : 64} radius={isMobile ? 14 : 18} priority />
 
         <div className="coinHeaderIdentity">
           <div className="coinHeaderTitleRow">

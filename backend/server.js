@@ -22,6 +22,16 @@ import { createMint } from "@solana/spl-token";
 import morgan from "morgan";
 import crypto from "crypto";
 import { createJobQueue, createWsHub, createRedisCache } from "./lib/scale-runtime.js";
+import {
+  publicIpfsUrl,
+  storedIpfsUrl,
+  slimListLogo,
+  extractIpfsCid,
+  fetchIpfsBuffer,
+  decodeDataLogo,
+  getCachedLogo,
+  setCachedLogo,
+} from "./lib/ipfs.js";
 
 // ---- F-08: Optional Redis client for distributed rate limiting ----
 // Agar REDIS_URL set hai to ioredis use karo; warna in-memory fallback (single-instance).
@@ -1153,7 +1163,7 @@ function mapDbCoinToApi(row = {}) {
     name: String(row.name || "").trim(),
     symbol: String(row.symbol || "").trim().toUpperCase(),
     story: String(row.story || "").trim(),
-    logo: String(row.logo || ""),
+    logo: publicIpfsUrl(row.logo) || String(row.logo || ""),
     metadataUri: String(row.metadata_uri || ""),
     creatorWallet: String(row.creator_wallet || "").trim(),
     owner: String(row.creator_wallet || "").trim(),
@@ -1206,7 +1216,8 @@ function mapDbCoinToListApi(row = {}) {
     id: full.id,
     name: full.name,
     symbol: full.symbol,
-    logo: full.logo,
+    logo: slimListLogo(full.logo),
+    hasLogo: Boolean(full.logo),
     creatorWallet: full.creatorWallet,
     owner: full.owner,
     createdAt: full.createdAt,
@@ -1335,7 +1346,7 @@ async function uploadLogoToIPFS(dataUrl, fileName = "coin-logo.webp") {
 
   return {
     cid: json.IpfsHash,
-    url: `https://ipfs.io/ipfs/${json.IpfsHash}`,
+    url: storedIpfsUrl(json.IpfsHash) || `https://ipfs.io/ipfs/${json.IpfsHash}`,
     ipfs: `ipfs://${json.IpfsHash}`,
   };
 }
@@ -1357,7 +1368,7 @@ async function uploadMetadataToIPFS(metadata) {
 
   return {
     cid: json.IpfsHash,
-    url: `https://ipfs.io/ipfs/${json.IpfsHash}`,
+    url: storedIpfsUrl(json.IpfsHash) || `https://ipfs.io/ipfs/${json.IpfsHash}`,
     ipfs: `ipfs://${json.IpfsHash}`,
   };
 }
@@ -3611,6 +3622,50 @@ app.post("/coin/:id/migrate", async (req, res) => {
     });
   } catch (e) {
     return serverErr(e, res, "coin/migrate");
+  }
+});
+
+app.get("/coin/:id/logo", async (req, res) => {
+  try {
+    const id = String(req.params.id || "").trim();
+    if (!id) return res.status(404).end();
+
+    const cached = getCachedLogo(`coin:${id}`);
+    if (cached?.buffer) {
+      res.setHeader("Content-Type", cached.contentType || "image/webp");
+      res.setHeader("Cache-Control", "public, max-age=86400, stale-while-revalidate=604800");
+      return res.end(cached.buffer);
+    }
+
+    const row = await getCoinRowById(id);
+    const logo = String(row?.logo || "");
+    if (!logo) return res.status(404).end();
+
+    const dataLogo = decodeDataLogo(logo);
+    if (dataLogo) {
+      setCachedLogo(`coin:${id}`, dataLogo);
+      res.setHeader("Content-Type", dataLogo.contentType);
+      res.setHeader("Cache-Control", "public, max-age=86400, stale-while-revalidate=604800");
+      return res.end(dataLogo.buffer);
+    }
+
+    const cid = extractIpfsCid(logo);
+    if (cid) {
+      const fetched = await fetchIpfsBuffer(cid);
+      if (!fetched) return res.status(502).end();
+      setCachedLogo(`coin:${id}`, fetched);
+      res.setHeader("Content-Type", fetched.contentType);
+      res.setHeader("Cache-Control", "public, max-age=86400, stale-while-revalidate=604800");
+      return res.end(fetched.buffer);
+    }
+
+    if (/^https?:\/\//i.test(logo)) {
+      return res.redirect(302, logo);
+    }
+
+    return res.status(404).end();
+  } catch (e) {
+    return serverErr(e, res, "coin/logo");
   }
 });
 

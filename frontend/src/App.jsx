@@ -172,7 +172,7 @@ const ThemeStyles = React.memo(function ThemeStyles() {
           radial-gradient(circle at 12% -10%, rgba(252,213,53,.1), transparent 30%),
           radial-gradient(circle at 88% 8%, rgba(59,130,246,.09), transparent 34%),
           linear-gradient(180deg, #070a0f 0%, #080b12 48%, #05070b 100%);
-        background-attachment: fixed;
+        background-attachment: scroll;
         -webkit-font-smoothing:antialiased;
         text-rendering:optimizeLegibility;
       }
@@ -195,6 +195,13 @@ const ThemeStyles = React.memo(function ThemeStyles() {
   -webkit-backdrop-filter:blur(18px) saturate(150%);
   transition:border-color .18s ease, box-shadow .18s ease, transform .18s ease, background .18s ease;
 }
+
+      @media (max-width: 1023px), (hover: none) and (pointer: coarse) {
+        .card{
+          backdrop-filter:none;
+          -webkit-backdrop-filter:none;
+        }
+      }
 
       .card::before{
         content:"";
@@ -938,6 +945,7 @@ function normalizeCoin(c = {}) {
     symbol: String(c.symbol || "").toUpperCase(),
     story: String(c.story || ""),
     logo: String(c.logo || ""),
+    hasLogo: Boolean(c.hasLogo || c.logo),
     mintAddress: String(c.mintAddress || c.mint_address || ""),
     mintAuthorityRevoked: Boolean(
       c.mintAuthorityRevoked ?? c.mint_authority_revoked ?? false
@@ -1022,6 +1030,31 @@ async function fileToDataUrl(file) {
     r.onerror = reject;
     r.readAsDataURL(file);
   });
+}
+
+async function compressLogoDataUrl(file) {
+  const dataUrl = await fileToDataUrl(file);
+  try {
+    const img = await new Promise((resolve, reject) => {
+      const image = new Image();
+      image.onload = () => resolve(image);
+      image.onerror = reject;
+      image.src = dataUrl;
+    });
+    const max = 512;
+    const scale = Math.min(1, max / Math.max(img.width || 1, img.height || 1));
+    const w = Math.max(1, Math.round((img.width || max) * scale));
+    const h = Math.max(1, Math.round((img.height || max) * scale));
+    const canvas = document.createElement("canvas");
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return dataUrl;
+    ctx.drawImage(img, 0, 0, w, h);
+    return canvas.toDataURL("image/webp", 0.82);
+  } catch {
+    return dataUrl;
+  }
 }
 
 let _liveSolPrice = 80;
@@ -1139,12 +1172,16 @@ export default function App() {
 
   useEffect(() => {
     if (!showIntro) return;
+    const ms =
+      typeof window !== "undefined" && window.matchMedia("(max-width: 1023px)").matches
+        ? 1800
+        : INTRO_MS;
     const t = setTimeout(() => {
       try {
         sessionStorage.setItem("introSeen", "1");
       } catch {}
       setShowIntro(false);
-    }, INTRO_MS);
+    }, ms);
     return () => clearTimeout(t);
   }, [showIntro]);
 
@@ -2335,7 +2372,7 @@ const [connectingPhantom, setConnectingPhantom] = useState(false);
     }
 
     try {
-      const data = await fileToDataUrl(file);
+      const data = await compressLogoDataUrl(file);
       setLogoFile(file);
       setLogoPreview(data);
     } catch {
@@ -3471,7 +3508,7 @@ const walletHistory = [
       {showIntro ? (
         <Suspense fallback={null}>
           <IntroSplash
-            durationMs={5000}
+            durationMs={isMobile ? 1800 : 5000}
             logoUrl={APP_LOGO_URL}
             onDone={() => setShowIntro(false)}
           />

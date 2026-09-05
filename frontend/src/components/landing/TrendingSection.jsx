@@ -2,28 +2,7 @@ import React from "react";
 import { CoinListSkeleton } from "../ui/Skeleton.jsx";
 import { EmptyState } from "../ui/EmptyState.jsx";
 import { Pill } from "../ui/Pill.jsx";
-
-function CoinLogo({ coin }) {
-  const src = String(coin?.logo || "")
-    .replace("https://gateway.pinata.cloud/ipfs/", "https://ipfs.io/ipfs/")
-    .trim();
-
-  return (
-    <div className="landingCoinLogo">
-      {src ? (
-        <img
-          src={src}
-          alt={coin?.symbol || "coin"}
-          onError={(e) => {
-            e.currentTarget.style.display = "none";
-          }}
-        />
-      ) : (
-        <span>{String(coin?.symbol || "?").slice(0, 2)}</span>
-      )}
-    </div>
-  );
-}
+import { CoinLogo } from "../coins/CoinLogo.jsx";
 
 export function TrendingSection({
   coins = [],
@@ -63,7 +42,7 @@ export function TrendingSection({
                   className="landingTrendCard"
                   onClick={() => onOpenCoin?.(coin)}
                 >
-                  <CoinLogo coin={coin} />
+                  <CoinLogo c={coin} size={44} radius={14} />
                   <div className="landingTrendMeta">
                     <div className="landingTrendName">{coin.name || coin.symbol}</div>
                     <div className="landingTrendSub">

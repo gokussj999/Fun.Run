@@ -1,40 +1,81 @@
-import React from "react";
+import React, { useEffect, useMemo, useState } from "react";
+import { extractIpfsCid, ipfsGatewayUrls } from "../../lib/ipfs.js";
+import { getApiBase } from "../../services/api.js";
 
-export function CoinLogo({ c, size = 44, radius = 14 }) {
-  const src = String(c?.logo || "")
-    .replace("https://gateway.pinata.cloud/ipfs/", "https://ipfs.io/ipfs/")
-    .trim();
+function logoCandidates(c, size = 44) {
+  const logo = String(c?.logo || "").trim();
+  const id = String(c?.id || "").trim();
+  const cid = extractIpfsCid(logo);
+  const thumb = Math.min(256, Math.max(96, Math.round(Number(size) || 44) * 2));
+  const out = [];
+  const seen = new Set();
+  const push = (url) => {
+    if (!url || seen.has(url)) return;
+    seen.add(url);
+    out.push(url);
+  };
+
+  if (cid) {
+    ipfsGatewayUrls(cid, thumb).forEach(push);
+  } else if (logo && !logo.startsWith("data:")) {
+    push(logo);
+  }
+
+  const base = String(getApiBase() || "").replace(/\/$/, "");
+  if (id && base && (cid || logo.startsWith("data:") || c?.hasLogo)) {
+    push(`${base}/coin/${encodeURIComponent(id)}/logo`);
+  }
+
+  if (logo.startsWith("data:") && (logo.length < 120_000 || !id)) {
+    push(logo);
+  }
+
+  return out;
+}
+
+export const CoinLogo = React.memo(function CoinLogo({
+  c,
+  size = 44,
+  radius = 14,
+  priority = false,
+}) {
+  const candidates = useMemo(
+    () => logoCandidates(c, size),
+    [c?.logo, c?.id, c?.hasLogo, size]
+  );
+  const [index, setIndex] = useState(0);
+
+  useEffect(() => {
+    setIndex(0);
+  }, [c?.logo, c?.id]);
+
+  const src = candidates[index] || "";
+  const initials = String(c?.symbol || c?.name || "?").slice(0, 2).toUpperCase();
 
   return (
     <div
+      className="coinLogo"
       style={{
         width: size,
         height: size,
         borderRadius: radius,
-        overflow: "hidden",
         flex: `0 0 ${size}px`,
-        border: "1px solid var(--border)",
-        background: "var(--surface2)",
-        display: "grid",
-        placeItems: "center",
       }}
     >
+      <span className="coinLogoFallback">{initials}</span>
       {src ? (
         <img
           src={src}
           alt={c?.symbol || "coin"}
-          loading="lazy"
+          width={size}
+          height={size}
+          loading={priority ? "eager" : "lazy"}
           decoding="async"
-          style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
-          onError={(e) => {
-            e.currentTarget.style.display = "none";
-          }}
+          referrerPolicy="no-referrer"
+          draggable={false}
+          onError={() => setIndex((i) => i + 1)}
         />
-      ) : (
-        <div style={{ fontSize: 12, fontWeight: 1000, color: "var(--muted)" }}>
-          {String(c?.symbol || c?.name || "?").slice(0, 2).toUpperCase()}
-        </div>
-      )}
+      ) : null}
     </div>
   );
-}
+});
